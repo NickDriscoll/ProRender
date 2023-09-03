@@ -58,14 +58,37 @@ int main(int argc, char* argv[]) {
 	}
 
 	//Load all Vulkan entrypoints, including extensions
-	//volkLoadInstance(vulkan_instance);
-	volkLoadInstanceOnly(vulkan_instance);
+	volkLoadInstance(vulkan_instance);
+	//volkLoadInstanceOnly(vulkan_instance);
 
 	//Ok so I apparently don't want to do that and instead want to use volkLoadDevice() after my VkDevice has been created
 	
 	//Vulkan device creation
 	{
+		uint32_t physical_device_count = 0;
+		//Getting physical device count by passing nullptr as last param
+		if (vkEnumeratePhysicalDevices(vulkan_instance, &physical_device_count, nullptr) != VK_SUCCESS) {
+			printf("Querying physical device count failed.\n");
+			exit(-1);
+		}
+		printf("%i physical devices available.\n", physical_device_count);
 
+		VkPhysicalDevice* devices = (VkPhysicalDevice*)malloc(physical_device_count * sizeof(VkPhysicalDevice));
+		if (vkEnumeratePhysicalDevices(vulkan_instance, &physical_device_count, devices) != VK_SUCCESS) {
+			printf("Querying physical devices failed.\n");
+			exit(-1);
+		}
+
+		for (uint32_t i = 0; i < physical_device_count; i++) {
+			printf("i = %i\n", i);
+			VkPhysicalDevice& device = devices[i];
+			VkPhysicalDeviceProperties2 properties;
+			properties.pNext = nullptr;
+			properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+			vkGetPhysicalDeviceProperties2(device, &properties);
+
+			printf("%s\n", properties.properties.deviceName);
+		}
 	}
 
 	//Main loop
@@ -82,6 +105,9 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
+	//Cleanup resources
+	vkDestroyInstance(vulkan_instance, alloc_callbacks);
 	SDL_Quit();
+
 	return 0;
 }
