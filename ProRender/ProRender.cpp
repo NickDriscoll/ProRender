@@ -13,6 +13,8 @@
 #include "ProRender.h"
 
 int main(int argc, char* argv[]) {
+	const VkAllocationCallbacks* alloc_callbacks = nullptr;
+
 	SDL_Init(SDL_INIT_VIDEO);	//Initialize SDL
 
 	const uint32_t x_resolution = 1280;
@@ -48,7 +50,7 @@ int main(int argc, char* argv[]) {
 		inst_info.enabledExtensionCount = 0;
 		inst_info.ppEnabledExtensionNames = nullptr;
 
-		if (vkCreateInstance(&inst_info, nullptr, &vulkan_instance) != VK_SUCCESS) {
+		if (vkCreateInstance(&inst_info, alloc_callbacks, &vulkan_instance) != VK_SUCCESS) {
 			printf("Instance creation failed.\n");
 			exit(-1);
 		}
