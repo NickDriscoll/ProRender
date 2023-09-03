@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
-#include <process.h>
+#include <stdlib.h>
 #include "SDL.h"
 #include "SDL_main.h"
 
