@@ -197,15 +197,32 @@ void initVulkanGraphicsDevice(VulkanGraphicsDevice& vgd) {
 
 	volkLoadDevice(vgd.device);
 
+	//Create command pool
 	{
 		VkCommandPoolCreateInfo pool_info;
 		pool_info.pNext = nullptr;
 		pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-		pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+		pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		pool_info.queueFamilyIndex = vgd.graphics_queue;
 
 		if (vkCreateCommandPool(vgd.device, &pool_info, vgd.alloc_callbacks, &vgd.command_pool) != VK_SUCCESS) {
 			printf("Creating main command pool failed.\n");
+			exit(-1);
+		}
+	}
+
+	//Allocate command buffers
+	{
+		const uint32_t COMMAND_BUFFER_COUNT = 2;
+		VkCommandBufferAllocateInfo cb_info;
+		cb_info.pNext = nullptr;
+		cb_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		cb_info.commandPool = vgd.command_pool;
+		cb_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		cb_info.commandBufferCount = COMMAND_BUFFER_COUNT;
+
+		if (vkAllocateCommandBuffers(vgd.device, &cb_info, vgd.command_buffers) != VK_SUCCESS) {
+			printf("Creating main command buffers failed.\n");
 			exit(-1);
 		}
 	}

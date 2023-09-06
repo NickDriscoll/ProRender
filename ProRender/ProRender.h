@@ -16,4 +16,5 @@ struct VulkanGraphicsDevice {
 	VkDevice device;
 	const VkAllocationCallbacks* alloc_callbacks;
 	VkCommandPool command_pool;
+	VkCommandBuffer command_buffers[2];
 };
