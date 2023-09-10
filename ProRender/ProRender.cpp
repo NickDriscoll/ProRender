@@ -1,13 +1,6 @@
 ﻿// ProRender.cpp : Defines the entry point for the application.
 //
 
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <vector>
-#include "SDL.h"
-#include "SDL_main.h"
-
 #include "ProRender.h"
 
 void initVulkanGraphicsDevice(VulkanGraphicsDevice& vgd) {
@@ -66,7 +59,6 @@ void initVulkanGraphicsDevice(VulkanGraphicsDevice& vgd) {
 	volkLoadInstanceOnly(vgd.instance);
 
 	//Vulkan physical device selection
-	VkPhysicalDevice chosen_device = 0;
 	{
 		uint32_t physical_device_count = 0;
 		//Getting physical device count by passing nullptr as last param
@@ -127,12 +119,12 @@ void initVulkanGraphicsDevice(VulkanGraphicsDevice& vgd) {
 				}
 
 				if (properties.properties.deviceType == TYPES[j]) {
-					chosen_device = device;
+					vgd.physical_device = device;
 					printf("Chosen physical device: %s\n", properties.properties.deviceName);
 					break;
 				}
 			}
-			if (chosen_device) break;
+			if (vgd.physical_device) break;
 		}
 	}
 
@@ -176,6 +168,8 @@ void initVulkanGraphicsDevice(VulkanGraphicsDevice& vgd) {
 			queue_infos.push_back(t_queue_info);
 		}
 
+		std::vector<const char*> extension_names = {"VK_KHR_swapchain"};
+
 		VkDeviceCreateInfo device_info;
 		device_info.pNext = nullptr;
 		device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -184,11 +178,11 @@ void initVulkanGraphicsDevice(VulkanGraphicsDevice& vgd) {
 		device_info.pQueueCreateInfos = queue_infos.data();
 		device_info.enabledLayerCount = 0;
 		device_info.ppEnabledLayerNames = nullptr;
-		device_info.enabledExtensionCount = 0;
-		device_info.ppEnabledExtensionNames = nullptr;
+		device_info.enabledExtensionCount = extension_names.size();
+		device_info.ppEnabledExtensionNames = extension_names.data();
 		device_info.pEnabledFeatures = nullptr;
 
-		if (vkCreateDevice(chosen_device, &device_info, vgd.alloc_callbacks, &vgd.device) != VK_SUCCESS) {
+		if (vkCreateDevice(vgd.physical_device, &device_info, vgd.alloc_callbacks, &vgd.device) != VK_SUCCESS) {
 			printf("Creating logical device failed.\n");
 			exit(-1);
 		}
@@ -210,21 +204,48 @@ void initVulkanGraphicsDevice(VulkanGraphicsDevice& vgd) {
 			exit(-1);
 		}
 	}
+	printf("Command pool created.\n");
 
 	//Allocate command buffers
 	{
-		const uint32_t COMMAND_BUFFER_COUNT = 2;
 		VkCommandBufferAllocateInfo cb_info;
 		cb_info.pNext = nullptr;
 		cb_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		cb_info.commandPool = vgd.command_pool;
 		cb_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		cb_info.commandBufferCount = COMMAND_BUFFER_COUNT;
+		cb_info.commandBufferCount = FRAMES_IN_FLIGHT;
 
 		if (vkAllocateCommandBuffers(vgd.device, &cb_info, vgd.command_buffers) != VK_SUCCESS) {
 			printf("Creating main command buffers failed.\n");
 			exit(-1);
 		}
+	}
+	printf("Command buffers allocated.\n");
+
+	//Create bindless descriptor set
+	{
+
+	}
+
+	//Create render pass
+	{
+		VkAttachmentDescription2 attach_info = {};
+		attach_info.sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
+		attach_info.format = VK_FORMAT_B8G8R8A8_SRGB;
+		attach_info.samples = VK_SAMPLE_COUNT_1_BIT;
+		attach_info.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		attach_info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		attach_info.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		attach_info.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		attach_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		attach_info.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+
+		VkRenderPassCreateInfo2 info = {};
+		info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO_2;
+
+
+		//vkCreateRenderPass2();
 	}
 }
 
@@ -239,8 +260,95 @@ int main(int argc, char* argv[]) {
 	VulkanGraphicsDevice vgd;
 	initVulkanGraphicsDevice(vgd);
 
+	//VkSurface and swapchain creation
+	VkSurfaceKHR surface;
+	VkSwapchainKHR swapchain;
+	{
+		if (SDL_Vulkan_CreateSurface(window, vgd.instance, &surface) == SDL_FALSE) {
+			printf("Creating VkSurface failed.\n");
+			exit(-1);
+		}
+
+		//Query for surface capabilities
+		VkSurfaceCapabilitiesKHR surface_capabilities = {};
+		if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vgd.physical_device, surface, &surface_capabilities) != VK_SUCCESS) {
+			printf("Getting VkSurface capabilities failed.\n");
+			exit(-1);
+		}
+
+		printf("Surface capabilities:\n\tminImageCount: %i\n\tmaxImageCount: %i\n", surface_capabilities.minImageCount, surface_capabilities.maxImageCount);
+
+		uint32_t format_count;
+		if (vkGetPhysicalDeviceSurfaceFormatsKHR(vgd.physical_device, surface, &format_count, nullptr) != VK_SUCCESS) {
+			printf("Getting surface format count failed.\n");
+			exit(-1);
+		}
+
+		std::vector<VkSurfaceFormatKHR> formats;
+		formats.resize(format_count * sizeof(VkSurfaceFormatKHR));
+		if (vkGetPhysicalDeviceSurfaceFormatsKHR(vgd.physical_device, surface, &format_count, formats.data()) != VK_SUCCESS) {
+			printf("Getting surface formats failed.\n");
+			exit(-1);
+		}
+
+		VkFormat preferred_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
+		bool found_preferred_format = false;
+		for (uint32_t i = 0; i < format_count; i++) {
+			VkFormat format = formats[i].format;
+			if (format == preferred_swapchain_format) {
+				found_preferred_format = true;
+				break;
+			}
+		}
+		if (!found_preferred_format) {
+			printf("Surface doesn't support VK_FORMAT_B8G8R8A8_SRGB.\n");
+			exit(-1);
+		}
+
+		uint32_t present_mode_count;
+		if (vkGetPhysicalDeviceSurfacePresentModesKHR(vgd.physical_device, surface, &present_mode_count, nullptr) != VK_SUCCESS) {
+			printf("Getting present modes count failed.\n");
+			exit(-1);
+		}
+
+		std::vector<VkPresentModeKHR> present_modes;
+		present_modes.resize(present_mode_count * sizeof(VkPresentModeKHR));
+		if (vkGetPhysicalDeviceSurfacePresentModesKHR(vgd.physical_device, surface, &present_mode_count, present_modes.data()) != VK_SUCCESS) {
+			printf("Getting present modes failed.\n");
+			exit(-1);
+		}
+
+		for (uint32_t i = 0; i < present_mode_count; i++) {
+			VkPresentModeKHR mode = present_modes[i];
+			printf("%i\n", mode);
+		}
+
+		VkSwapchainCreateInfoKHR swapchain_info = {};
+		swapchain_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+		swapchain_info.surface = surface;
+		swapchain_info.minImageCount = surface_capabilities.minImageCount;
+		swapchain_info.imageFormat = preferred_swapchain_format;
+		swapchain_info.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+		swapchain_info.imageExtent = surface_capabilities.currentExtent;
+		swapchain_info.imageArrayLayers = 1;
+		swapchain_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		swapchain_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		swapchain_info.queueFamilyIndexCount = 1;
+		swapchain_info.pQueueFamilyIndices = &vgd.graphics_queue;
+		swapchain_info.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+		swapchain_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+		swapchain_info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+		swapchain_info.clipped = VK_TRUE;
+
+		if (vkCreateSwapchainKHR(vgd.device, &swapchain_info, vgd.alloc_callbacks, &swapchain) != VK_SUCCESS) {
+			printf("Swapchain creation failed.\n");
+			exit(-1);
+		}
+	}
+
 	//Main loop
 	bool running = true;
+	uint64_t current_frame = 0;
 	while (running) {
 		//Do input polling loop
 		SDL_Event current_event;
@@ -251,9 +359,26 @@ int main(int argc, char* argv[]) {
 				break;
 			}
 		}
+
+		//Draw triangle
+		{
+			VkCommandBuffer current_cb = vgd.command_buffers[current_frame % FRAMES_IN_FLIGHT];
+
+			VkCommandBufferBeginInfo begin_info = {};
+			begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+			begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+			vkBeginCommandBuffer(current_cb, &begin_info);
+
+
+
+			vkEndCommandBuffer(current_cb);
+		}
+		current_frame++;
 	}
 
 	//Cleanup resources
+	vkDestroySwapchainKHR(vgd.device, swapchain, vgd.alloc_callbacks);
+	vkDestroySurfaceKHR(vgd.instance, surface, vgd.alloc_callbacks);
 	vkDestroyCommandPool(vgd.device, vgd.command_pool, vgd.alloc_callbacks);
 	vkDestroyDevice(vgd.device, vgd.alloc_callbacks);
 	vkDestroyInstance(vgd.instance, vgd.alloc_callbacks);
