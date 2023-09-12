@@ -268,6 +268,7 @@ int main(int argc, char* argv[]) {
 			printf("Creating VkSurface failed.\n");
 			exit(-1);
 		}
+		printf("Created surface.\n");
 
 		//Query for surface capabilities
 		VkSurfaceCapabilitiesKHR surface_capabilities = {};
@@ -276,8 +277,6 @@ int main(int argc, char* argv[]) {
 			exit(-1);
 		}
 
-		printf("Surface capabilities:\n\tminImageCount: %i\n\tmaxImageCount: %i\n", surface_capabilities.minImageCount, surface_capabilities.maxImageCount);
-
 		uint32_t format_count;
 		if (vkGetPhysicalDeviceSurfaceFormatsKHR(vgd.physical_device, surface, &format_count, nullptr) != VK_SUCCESS) {
 			printf("Getting surface format count failed.\n");
@@ -285,13 +284,13 @@ int main(int argc, char* argv[]) {
 		}
 
 		std::vector<VkSurfaceFormatKHR> formats;
-		formats.resize(format_count * sizeof(VkSurfaceFormatKHR));
+		formats.resize(format_count);
 		if (vkGetPhysicalDeviceSurfaceFormatsKHR(vgd.physical_device, surface, &format_count, formats.data()) != VK_SUCCESS) {
 			printf("Getting surface formats failed.\n");
 			exit(-1);
 		}
 
-		VkFormat preferred_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
+		VkFormat preferred_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;	//This seems to be a pretty standard/common swapchain format
 		bool found_preferred_format = false;
 		for (uint32_t i = 0; i < format_count; i++) {
 			VkFormat format = formats[i].format;
@@ -312,7 +311,7 @@ int main(int argc, char* argv[]) {
 		}
 
 		std::vector<VkPresentModeKHR> present_modes;
-		present_modes.resize(present_mode_count * sizeof(VkPresentModeKHR));
+		present_modes.resize(present_mode_count);
 		if (vkGetPhysicalDeviceSurfacePresentModesKHR(vgd.physical_device, surface, &present_mode_count, present_modes.data()) != VK_SUCCESS) {
 			printf("Getting present modes failed.\n");
 			exit(-1);
@@ -320,7 +319,7 @@ int main(int argc, char* argv[]) {
 
 		for (uint32_t i = 0; i < present_mode_count; i++) {
 			VkPresentModeKHR mode = present_modes[i];
-			printf("%i\n", mode);
+
 		}
 
 		VkSwapchainCreateInfoKHR swapchain_info = {};
@@ -344,6 +343,12 @@ int main(int argc, char* argv[]) {
 			printf("Swapchain creation failed.\n");
 			exit(-1);
 		}
+		printf("Created swapchain.\n");
+	}
+
+	//Create 
+	{
+
 	}
 
 	//Main loop
@@ -364,9 +369,10 @@ int main(int argc, char* argv[]) {
 		{
 			VkCommandBuffer current_cb = vgd.command_buffers[current_frame % FRAMES_IN_FLIGHT];
 
-			VkCommandBufferBeginInfo begin_info = {};
-			begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-			begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+			VkCommandBufferBeginInfo begin_info = {
+				.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+				.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+			};
 			vkBeginCommandBuffer(current_cb, &begin_info);
 
 

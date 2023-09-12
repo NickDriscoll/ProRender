@@ -33,8 +33,7 @@ struct VulkanGraphicsDevice {
 	VkCommandPool command_pool;
 	VkCommandBuffer command_buffers[FRAMES_IN_FLIGHT];
 
-	//Temporary fields until we have a triangle
-	VkRenderPass temp_render_pass;
+
 
 	//void thing();
 };

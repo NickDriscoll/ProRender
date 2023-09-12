@@ -21,4 +21,27 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)
 endif()
 
+#Compile HLSL vertex shaders
+message(STATUS "Compiling shaders...")
+file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert")
+foreach(file ${files})
+	message(STATUS "Compiling ${file}")
+	add_custom_command(
+		TARGET ProRender
+		POST_BUILD
+		COMMAND $ENV{VULKAN_SDK}/bin/dxc.exe -spirv -T vs_6_7 -Fo ${file}.spv ${file}
+		VERBATIM)
+endforeach()
+
+#Compile HLSL fragment shaders
+file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag")
+foreach(file ${files})
+	message(STATUS "Compiling ${file}")
+	add_custom_command(
+		TARGET ProRender
+		POST_BUILD
+		COMMAND $ENV{VULKAN_SDK}/bin/dxc.exe -spirv -T ps_6_7 -Fo ${file}.spv ${file}
+		VERBATIM)
+endforeach()
+
 # TODO: Add tests and install targets if needed.
