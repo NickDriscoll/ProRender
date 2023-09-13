@@ -270,7 +270,7 @@ VkShaderModule load_shader_module(VulkanGraphicsDevice& vgd, const char* path) {
 	spv_bytes.resize(spv_size);
 
 	//Read spv bytes
-	FILE* shader_spv = fopen(path, "r");
+	FILE* shader_spv = fopen(path, "rb");
 	if (fread(spv_bytes.data(), sizeof(uint8_t), spv_size, shader_spv) == 0) {
 		printf("Zero bytes read when trying to read %s\n", path);
 		exit(-1);
@@ -287,13 +287,15 @@ VkShaderModule load_shader_module(VulkanGraphicsDevice& vgd, const char* path) {
 		printf("Creating vertex shader module failed.\n");
 		exit(-1);
 	}
+
+	return shader;
 }
 
 int main(int argc, char* argv[]) {
 	SDL_Init(SDL_INIT_VIDEO);	//Initialize SDL
 
-	const uint32_t x_resolution = 1280;
-	const uint32_t y_resolution = 720;
+	const uint32_t x_resolution = 1024;
+	const uint32_t y_resolution = 1024;
 	SDL_Window* window = SDL_CreateWindow("losing my mind", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, x_resolution, y_resolution, SDL_WINDOW_VULKAN);
 
 	//Init vulkan graphics device
@@ -301,6 +303,7 @@ int main(int argc, char* argv[]) {
 	initVulkanGraphicsDevice(vgd);
 
 	//VkSurface and swapchain creation
+	VkFormat preferred_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;	//This seems to be a pretty standard/common swapchain format
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapchain;
 	{
@@ -330,7 +333,6 @@ int main(int argc, char* argv[]) {
 			exit(-1);
 		}
 
-		VkFormat preferred_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;	//This seems to be a pretty standard/common swapchain format
 		bool found_preferred_format = false;
 		for (uint32_t i = 0; i < format_count; i++) {
 			VkFormat format = formats[i].format;
@@ -387,13 +389,16 @@ int main(int argc, char* argv[]) {
 	}
 
 	//Create pipeline
+	VkDescriptorSetLayout descriptor_set_layout;
+	VkPipelineLayout pipeline_layout;
+	VkRenderPass render_pass;
 	VkPipeline main_pipeline;
 	{
 		//Shader stages
+		VkShaderModule vertex_shader = load_shader_module(vgd, "shaders/test.vert.spv");
+		VkShaderModule fragment_shader = load_shader_module(vgd, "shaders/test.frag.spv");
 		std::vector<VkPipelineShaderStageCreateInfo> shader_stage_creates;
 		{
-			VkShaderModule vertex_shader = load_shader_module(vgd, "shaders/test.vert.spv");
-			VkShaderModule fragment_shader = load_shader_module(vgd, "shaders/test.frag.spv");
 
 			VkPipelineShaderStageCreateInfo vert_info = {};
 			vert_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -405,7 +410,7 @@ int main(int argc, char* argv[]) {
 			VkPipelineShaderStageCreateInfo frag_info = {};
 			frag_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 			frag_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-			frag_info.module = vertex_shader;
+			frag_info.module = fragment_shader;
 			frag_info.pName = "main";
 			shader_stage_creates.push_back(frag_info);
 		}
@@ -414,6 +419,7 @@ int main(int argc, char* argv[]) {
 		//Doing vertex pulling so this can be mostly null :)
 		VkPipelineVertexInputStateCreateInfo vert_input_info = {};
 		vert_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
 
 		//Input assembly state
 		VkPipelineInputAssemblyStateCreateInfo ia_info = {};
@@ -440,6 +446,7 @@ int main(int argc, char* argv[]) {
 		rast_info.cullMode = VK_CULL_MODE_BACK_BIT;
 		rast_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rast_info.depthBiasEnable = VK_FALSE;
+		rast_info.lineWidth = 1.0;
 
 		//Multisample state
 		VkPipelineMultisampleStateCreateInfo multi_info = {};
@@ -489,7 +496,68 @@ int main(int argc, char* argv[]) {
 
 		//Pipeline layout
 		{
+			//Descriptor set layout
+			{
+				VkDescriptorSetLayoutCreateInfo info = {};
+				info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 
+
+				if (vkCreateDescriptorSetLayout(vgd.device, &info, vgd.alloc_callbacks, &descriptor_set_layout) != VK_SUCCESS) {
+					printf("Creating descriptor set layout failed.\n");
+					exit(-1);
+				}
+			}
+
+			VkPipelineLayoutCreateInfo info = {};
+			info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+			info.setLayoutCount = 1;
+			info.pSetLayouts = &descriptor_set_layout;
+			info.pushConstantRangeCount = 0;
+
+
+			if (vkCreatePipelineLayout(vgd.device, &info, vgd.alloc_callbacks, &pipeline_layout) != VK_SUCCESS) {
+				printf("Creating pipeline layout failed.\n");
+				exit(-1);
+			}
+		}
+		printf("Created pipeline layout.\n");
+
+		//Render pass object
+		{
+			VkAttachmentDescription color_attachment = {
+				.format = preferred_swapchain_format,
+				.samples = VK_SAMPLE_COUNT_1_BIT,
+				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+				.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+				.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+				.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+			};
+
+			VkAttachmentReference attachment_ref = {
+				.attachment = 0,
+				.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+			};
+
+			VkSubpassDescription subpass = {
+				.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+				.colorAttachmentCount = 1,
+				.pColorAttachments = &attachment_ref
+			};
+
+			VkRenderPassCreateInfo info = {};
+			info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+			info.attachmentCount = 1;
+			info.pAttachments = &color_attachment;
+			info.subpassCount = 1;
+			info.pSubpasses = &subpass;
+
+
+			if (vkCreateRenderPass(vgd.device, &info, vgd.alloc_callbacks, &render_pass) != VK_SUCCESS) {
+				printf("Creating render pass failed.\n");
+				exit(-1);
+			}
 		}
 
 		VkGraphicsPipelineCreateInfo info = {};
@@ -505,9 +573,20 @@ int main(int argc, char* argv[]) {
 		info.pDepthStencilState = &depth_stencil_info;
 		info.pColorBlendState = &blend_info;
 		info.pDynamicState = &dynamic_info;
+		info.layout = pipeline_layout;
+		info.renderPass = render_pass;
+		info.subpass = 0;
 
-		//vkCreateGraphicsPipelines(vgd.device, vgd.pipeline_cache, 1);
+
+		if (vkCreateGraphicsPipelines(vgd.device, vgd.pipeline_cache, 1, &info, vgd.alloc_callbacks, &main_pipeline) != VK_SUCCESS) {
+			printf("Creating graphics pipeline.\n");
+			exit(-1);
+		}
+
+		vkDestroyShaderModule(vgd.device, vertex_shader, vgd.alloc_callbacks);
+		vkDestroyShaderModule(vgd.device, fragment_shader, vgd.alloc_callbacks);
 	}
+	printf("Created graphics pipeline.\n");
 
 	//Main loop
 	bool running = true;
@@ -544,6 +623,10 @@ int main(int argc, char* argv[]) {
 	vkDestroySwapchainKHR(vgd.device, swapchain, vgd.alloc_callbacks);
 	vkDestroySurfaceKHR(vgd.instance, surface, vgd.alloc_callbacks);
 	vkDestroyCommandPool(vgd.device, vgd.command_pool, vgd.alloc_callbacks);
+	vkDestroyPipeline(vgd.device, main_pipeline, vgd.alloc_callbacks);
+	vkDestroyRenderPass(vgd.device, render_pass, vgd.alloc_callbacks);
+	vkDestroyPipelineLayout(vgd.device, pipeline_layout, vgd.alloc_callbacks);
+	vkDestroyDescriptorSetLayout(vgd.device, descriptor_set_layout, vgd.alloc_callbacks);
 	vkDestroyPipelineCache(vgd.device, vgd.pipeline_cache, vgd.alloc_callbacks);
 	vkDestroyDevice(vgd.device, vgd.alloc_callbacks);
 	vkDestroyInstance(vgd.instance, vgd.alloc_callbacks);
