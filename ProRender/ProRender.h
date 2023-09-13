@@ -2,9 +2,11 @@
 // or project specific include files.
 
 #pragma once
+#define _CRT_SECURE_NO_WARNINGS
 
 // TODO: Reference additional headers your program requires here.
 
+#include <filesystem>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -32,6 +34,7 @@ struct VulkanGraphicsDevice {
 	const VkAllocationCallbacks* alloc_callbacks;
 	VkCommandPool command_pool;
 	VkCommandBuffer command_buffers[FRAMES_IN_FLIGHT];
+	VkPipelineCache pipeline_cache;
 
 
 
