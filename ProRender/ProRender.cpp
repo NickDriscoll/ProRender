@@ -38,6 +38,10 @@ void initVulkanGraphicsDevice(VulkanGraphicsDevice& vgd) {
 		extension_names.push_back(static_cast<const char*>("VK_KHR_win32_surface"));
 #endif
 
+#ifdef __linux__
+		extension_names.push_back(static_cast<const char*>("VK_KHR_xlib_surface"));
+#endif
+
 		VkInstanceCreateInfo inst_info;
 		inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 		inst_info.pNext = nullptr;
@@ -294,8 +298,8 @@ VkShaderModule load_shader_module(VulkanGraphicsDevice& vgd, const char* path) {
 int main(int argc, char* argv[]) {
 	SDL_Init(SDL_INIT_VIDEO);	//Initialize SDL
 
-	const uint32_t x_resolution = 1024;
-	const uint32_t y_resolution = 1024;
+	const uint32_t x_resolution = 720;
+	const uint32_t y_resolution = 720;
 	SDL_Window* window = SDL_CreateWindow("losing my mind", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, x_resolution, y_resolution, SDL_WINDOW_VULKAN);
 
 	//Init vulkan graphics device
@@ -464,10 +468,10 @@ int main(int argc, char* argv[]) {
 		depth_stencil_info.stencilTestEnable = VK_FALSE;
 
 		VkPipelineColorBlendStateCreateInfo blend_info = {};
+		VkPipelineColorBlendAttachmentState blend_state = {};
 		{
 			//Blend func description
 			VkColorComponentFlags component_flags = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-			VkPipelineColorBlendAttachmentState blend_state = {};
 			blend_state.blendEnable = VK_TRUE;
 			blend_state.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
 			blend_state.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
