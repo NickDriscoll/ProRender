@@ -1,8 +1,8 @@
-cbuffer PushConstants
-{
-    uint idx;
-}
+struct VertexOutput {
+    float4 position : SV_Position;
+    float3 color : COLOR;
+};
 
-float4 main() : SV_Target0 {
-    return float4(1.0, 0.0, 1.0, 1.0);
+float4 main(VertexOutput input) : SV_Target0 {
+    return float4(input.color, 1.0);
 }

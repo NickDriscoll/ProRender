@@ -1,4 +1,4 @@
-﻿{
+{
     "version": 3,
     "configurePresets": [
         {
@@ -56,6 +56,17 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
             }
+        },
+        {
+            "name": "Cpp_Preset",
+            "description": "",
+            "displayName": "",
+            "inherits": [
+                "x64-debug",
+                "x64-release",
+                "x86-debug",
+                "x86-release"
+            ]
         }
     ]
 }

@@ -1,6 +1,7 @@
 .vs/
 out/
 .vscode/
+shaders/
 build/
 *.rdbg
 *.sh

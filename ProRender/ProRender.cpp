@@ -310,6 +310,8 @@ int main(int argc, char* argv[]) {
 	VkFormat preferred_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;	//This seems to be a pretty standard/common swapchain format
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapchain;
+	std::vector<VkImage> swapchain_images;
+	std::vector<VkImageView> swapchain_image_views;
 	{
 		if (SDL_Vulkan_CreateSurface(window, vgd.instance, &surface) == SDL_FALSE) {
 			printf("Creating VkSurface failed.\n");
@@ -390,12 +392,96 @@ int main(int argc, char* argv[]) {
 			exit(-1);
 		}
 		printf("Created swapchain.\n");
+
+		uint32_t swapchain_image_count;
+		if (vkGetSwapchainImagesKHR(vgd.device, swapchain, &swapchain_image_count, nullptr) != VK_SUCCESS) {
+			printf("Getting swapchain images count failed.\n");
+			exit(-1);
+		}
+
+		swapchain_images.resize(swapchain_image_count);
+		if (vkGetSwapchainImagesKHR(vgd.device, swapchain, &swapchain_image_count, swapchain_images.data()) != VK_SUCCESS) {
+			printf("Getting swapchain images failed.\n");
+			exit(-1);
+		}
+
+		//Create swapchain image view
+		{
+			for (uint32_t i = 0; i < swapchain_image_count; i++) {
+				VkComponentMapping mapping;
+				mapping.r = VkComponentSwizzle::VK_COMPONENT_SWIZZLE_R;
+				mapping.g = VkComponentSwizzle::VK_COMPONENT_SWIZZLE_G;
+				mapping.b = VkComponentSwizzle::VK_COMPONENT_SWIZZLE_B;
+				mapping.a = VkComponentSwizzle::VK_COMPONENT_SWIZZLE_A;
+
+				VkImageSubresourceRange subresource_range = {};
+
+				VkImageViewCreateInfo info = {};
+				info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+				info.image = swapchain_images[i];
+				info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+				info.format = VK_FORMAT_B8G8R8A8_SRGB;
+				info.components = mapping;
+
+			}
+		}
+	}
+
+
+	//Render pass object creation
+	VkRenderPass render_pass;
+	{
+		VkAttachmentDescription color_attachment = {
+			.format = preferred_swapchain_format,
+			.samples = VK_SAMPLE_COUNT_1_BIT,
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+		};
+
+		VkAttachmentReference attachment_ref = {
+			.attachment = 0,
+			.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+		};
+
+		VkSubpassDescription subpass = {
+			.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+			.colorAttachmentCount = 1,
+			.pColorAttachments = &attachment_ref
+		};
+
+		VkRenderPassCreateInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		info.attachmentCount = 1;
+		info.pAttachments = &color_attachment;
+		info.subpassCount = 1;
+		info.pSubpasses = &subpass;
+
+		if (vkCreateRenderPass(vgd.device, &info, vgd.alloc_callbacks, &render_pass) != VK_SUCCESS) {
+			printf("Creating render pass failed.\n");
+			exit(-1);
+		}
+	}
+
+	//Create swapchain framebuffer
+	VkFramebuffer swapchain_framebuffer;
+	{
+		VkFramebufferCreateInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		info.renderPass = render_pass;
+		info.attachmentCount = 1;
+		//info.pAttachments = ;
+		info.width = x_resolution;
+		info.height = y_resolution;
+		info.layers = 1;
 	}
 
 	//Create pipeline
 	VkDescriptorSetLayout descriptor_set_layout;
 	VkPipelineLayout pipeline_layout;
-	VkRenderPass render_pass;
 	VkPipeline main_pipeline;
 	{
 		//Shader stages
@@ -525,44 +611,6 @@ int main(int argc, char* argv[]) {
 			}
 		}
 		printf("Created pipeline layout.\n");
-
-		//Render pass object
-		{
-			VkAttachmentDescription color_attachment = {
-				.format = preferred_swapchain_format,
-				.samples = VK_SAMPLE_COUNT_1_BIT,
-				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-				.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-				.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-				.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-			};
-
-			VkAttachmentReference attachment_ref = {
-				.attachment = 0,
-				.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-			};
-
-			VkSubpassDescription subpass = {
-				.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-				.colorAttachmentCount = 1,
-				.pColorAttachments = &attachment_ref
-			};
-
-			VkRenderPassCreateInfo info = {};
-			info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-			info.attachmentCount = 1;
-			info.pAttachments = &color_attachment;
-			info.subpassCount = 1;
-			info.pSubpasses = &subpass;
-
-
-			if (vkCreateRenderPass(vgd.device, &info, vgd.alloc_callbacks, &render_pass) != VK_SUCCESS) {
-				printf("Creating render pass failed.\n");
-				exit(-1);
-			}
-		}
 
 		VkGraphicsPipelineCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
