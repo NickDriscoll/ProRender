@@ -6,10 +6,6 @@
 constexpr uint64_t U64_MAX = std::numeric_limits<uint64_t>::max();
 
 void initVulkanGraphicsDevice(VulkanGraphicsDevice& vgd) {
-	//Assumptions straight from my butt
-	const uint32_t MAX_PHYSICAL_DEVICES = 16;
-	const uint32_t MAX_DEVICE_QUEUES = 16;
-
 	vgd.alloc_callbacks = nullptr;
 
 	//Try to initialize volk
@@ -74,8 +70,9 @@ void initVulkanGraphicsDevice(VulkanGraphicsDevice& vgd) {
 		}
 		printf("%i physical devices available.\n", physical_device_count);
 
-		VkPhysicalDevice devices[MAX_PHYSICAL_DEVICES];
-		if (vkEnumeratePhysicalDevices(vgd.instance, &physical_device_count, devices) != VK_SUCCESS) {
+		std::vector<VkPhysicalDevice> devices;
+		devices.resize(physical_device_count);
+		if (vkEnumeratePhysicalDevices(vgd.instance, &physical_device_count, devices.data()) != VK_SUCCESS) {
 			printf("Querying physical devices failed.\n");
 			exit(-1);
 		}
@@ -92,34 +89,35 @@ void initVulkanGraphicsDevice(VulkanGraphicsDevice& vgd) {
 				uint32_t queue_count = 0;
 				vkGetPhysicalDeviceQueueFamilyProperties2(device, &queue_count, nullptr);
 
-				VkQueueFamilyProperties2 queue_properties[MAX_DEVICE_QUEUES];
+				std::vector<VkQueueFamilyProperties2> queue_properties;
+				queue_properties.resize(queue_count);
 				//C++ initialization is hell
 				for (uint32_t k = 0; k < queue_count; k++) {
 					queue_properties[k].pNext = nullptr;
 					queue_properties[k].sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2;
 				}
 
-				vkGetPhysicalDeviceQueueFamilyProperties2(device, &queue_count, queue_properties);
+				vkGetPhysicalDeviceQueueFamilyProperties2(device, &queue_count, queue_properties.data());
 
 				//Check for compute and transfer queues
 				for (uint32_t k = 0; k < queue_count; k++) {
 					VkQueueFamilyProperties2& props = queue_properties[k];
 					if (props.queueFamilyProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-						vgd.graphics_queue = k;
-						vgd.compute_queue = k;
-						vgd.transfer_queue = k;
+						vgd.graphics_queue_family_idx = k;
+						vgd.compute_queue_family_idx = k;
+						vgd.transfer_queue_family_idx = k;
 						continue;
 					}
 
 					if ((props.queueFamilyProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0 &&
 						props.queueFamilyProperties.queueFlags & VK_QUEUE_COMPUTE_BIT) {
-						vgd.compute_queue = k;
+						vgd.compute_queue_family_idx = k;
 						continue;
 					}
 
 					if ((props.queueFamilyProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0 &&
 						props.queueFamilyProperties.queueFlags & VK_QUEUE_TRANSFER_BIT) {
-						vgd.transfer_queue = k;
+						vgd.transfer_queue_family_idx = k;
 						continue;
 					}
 				}
@@ -145,30 +143,30 @@ void initVulkanGraphicsDevice(VulkanGraphicsDevice& vgd) {
 		g_queue_info.pNext = nullptr;
 		g_queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 		g_queue_info.flags = 0;
-		g_queue_info.queueFamilyIndex = vgd.graphics_queue;
+		g_queue_info.queueFamilyIndex = vgd.graphics_queue_family_idx;
 		g_queue_info.queueCount = 1;
 		g_queue_info.pQueuePriorities = &priority;
 		queue_infos.push_back(g_queue_info);
 
 		//If we have a dedicated compute queue family
-		if (vgd.graphics_queue != vgd.compute_queue) {
+		if (vgd.graphics_queue_family_idx != vgd.compute_queue_family_idx) {
 			VkDeviceQueueCreateInfo c_queue_info;
 			c_queue_info.pNext = nullptr;
 			c_queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 			c_queue_info.flags = 0;
-			c_queue_info.queueFamilyIndex = vgd.compute_queue;
+			c_queue_info.queueFamilyIndex = vgd.compute_queue_family_idx;
 			c_queue_info.queueCount = 1;
 			c_queue_info.pQueuePriorities = &priority;
 			queue_infos.push_back(c_queue_info);
 		}
 
 		//If we have a dedicated transfer queue family
-		if (vgd.graphics_queue != vgd.transfer_queue) {
+		if (vgd.graphics_queue_family_idx != vgd.transfer_queue_family_idx) {
 			VkDeviceQueueCreateInfo t_queue_info;
 			t_queue_info.pNext = nullptr;
 			t_queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 			t_queue_info.flags = 0;
-			t_queue_info.queueFamilyIndex = vgd.transfer_queue;
+			t_queue_info.queueFamilyIndex = vgd.transfer_queue_family_idx;
 			t_queue_info.queueCount = 1;
 			t_queue_info.pQueuePriorities = &priority;
 			queue_infos.push_back(t_queue_info);
@@ -203,7 +201,7 @@ void initVulkanGraphicsDevice(VulkanGraphicsDevice& vgd) {
 		pool_info.pNext = nullptr;
 		pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-		pool_info.queueFamilyIndex = vgd.graphics_queue;
+		pool_info.queueFamilyIndex = vgd.graphics_queue_family_idx;
 
 		if (vkCreateCommandPool(vgd.device, &pool_info, vgd.alloc_callbacks, &vgd.command_pool) != VK_SUCCESS) {
 			printf("Creating main command pool failed.\n");
@@ -298,6 +296,9 @@ VkShaderModule load_shader_module(VulkanGraphicsDevice& vgd, const char* path) {
 }
 
 int main(int argc, char* argv[]) {
+	printf("Argument 0: %s\n", argv[0]);
+	printf("current dir: %s\n", get_current_dir_name());
+
 	SDL_Init(SDL_INIT_VIDEO);	//Initialize SDL
 
 	const uint32_t x_resolution = 720;
@@ -384,7 +385,7 @@ int main(int argc, char* argv[]) {
 		swapchain_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 		swapchain_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		swapchain_info.queueFamilyIndexCount = 1;
-		swapchain_info.pQueueFamilyIndices = &vgd.graphics_queue;
+		swapchain_info.pQueueFamilyIndices = &vgd.graphics_queue_family_idx;
 		swapchain_info.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 		swapchain_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 		swapchain_info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
@@ -616,34 +617,6 @@ int main(int argc, char* argv[]) {
 		dynamic_info.dynamicStateCount = 2;
 		dynamic_info.pDynamicStates = dyn_states;
 
-		//Pipeline layout
-		{
-			//Descriptor set layout
-			{
-				VkDescriptorSetLayoutCreateInfo info = {};
-				info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-
-
-				if (vkCreateDescriptorSetLayout(vgd.device, &info, vgd.alloc_callbacks, &descriptor_set_layout) != VK_SUCCESS) {
-					printf("Creating descriptor set layout failed.\n");
-					exit(-1);
-				}
-			}
-
-			VkPipelineLayoutCreateInfo info = {};
-			info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-			info.setLayoutCount = 1;
-			info.pSetLayouts = &descriptor_set_layout;
-			info.pushConstantRangeCount = 0;
-
-
-			if (vkCreatePipelineLayout(vgd.device, &info, vgd.alloc_callbacks, &pipeline_layout) != VK_SUCCESS) {
-				printf("Creating pipeline layout failed.\n");
-				exit(-1);
-			}
-		}
-		printf("Created pipeline layout.\n");
-
 		VkGraphicsPipelineCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 		info.stageCount = shader_stage_creates.size();
@@ -791,7 +764,7 @@ int main(int argc, char* argv[]) {
 
 			//Submit rendering command buffer
 			VkQueue q;
-			vkGetDeviceQueue(vgd.device, vgd.graphics_queue, 0, &q);
+			vkGetDeviceQueue(vgd.device, vgd.graphics_queue_family_idx, 0, &q);
 			{
 				VkPipelineStageFlags flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 				VkSubmitInfo info = {};
@@ -810,7 +783,7 @@ int main(int argc, char* argv[]) {
 				}
 			}
 
-			//Submit presentation command
+			//Queue present
 			{
 				VkPresentInfoKHR info = {};
 				info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -830,7 +803,7 @@ int main(int argc, char* argv[]) {
 		current_frame++;
 	}
 
-	//Wait until all GPU work has drained before cleaning up resources
+	//Wait until all GPU queues have drained before cleaning up resources
 	vkDeviceWaitIdle(vgd.device);
 
 	//Cleanup resources
