@@ -7,6 +7,8 @@ add_executable (
 	ProRender
 	"ProRender.cpp"
 	"ProRender.h"
+	"VulkanGraphicsDevice.cpp"
+	"VulkanGraphicsDevice.h"
 )
 
 #Include SDL2
