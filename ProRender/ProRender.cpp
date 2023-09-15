@@ -3,6 +3,8 @@
 
 #include "ProRender.h"
 
+constexpr uint64_t U64_MAX = std::numeric_limits<uint64_t>::max();
+
 void initVulkanGraphicsDevice(VulkanGraphicsDevice& vgd) {
 	//Assumptions straight from my butt
 	const uint32_t MAX_PHYSICAL_DEVICES = 16;
@@ -310,6 +312,7 @@ int main(int argc, char* argv[]) {
 	VkFormat preferred_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;	//This seems to be a pretty standard/common swapchain format
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapchain;
+	VkSemaphore acquire_semaphore;
 	std::vector<VkImage> swapchain_images;
 	std::vector<VkImageView> swapchain_image_views;
 	{
@@ -406,6 +409,7 @@ int main(int argc, char* argv[]) {
 		}
 
 		//Create swapchain image view
+		swapchain_image_views.resize(swapchain_image_count);
 		{
 			for (uint32_t i = 0; i < swapchain_image_count; i++) {
 				VkComponentMapping mapping;
@@ -415,6 +419,11 @@ int main(int argc, char* argv[]) {
 				mapping.a = VkComponentSwizzle::VK_COMPONENT_SWIZZLE_A;
 
 				VkImageSubresourceRange subresource_range = {};
+				subresource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				subresource_range.baseMipLevel = 0;
+				subresource_range.levelCount = 1;
+				subresource_range.baseArrayLayer = 0;
+				subresource_range.layerCount = 1;
 
 				VkImageViewCreateInfo info = {};
 				info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -422,7 +431,22 @@ int main(int argc, char* argv[]) {
 				info.viewType = VK_IMAGE_VIEW_TYPE_2D;
 				info.format = VK_FORMAT_B8G8R8A8_SRGB;
 				info.components = mapping;
+				info.subresourceRange = subresource_range;
 
+				if (vkCreateImageView(vgd.device, &info, vgd.alloc_callbacks, &swapchain_image_views[i]) != VK_SUCCESS) {
+					printf("Creating swapchain image view %i failed.\n", i);
+					exit(-1);
+				}
+			}
+		}
+
+		//Create the acquire semaphore
+		{
+			VkSemaphoreCreateInfo info = {};
+			info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+			if (vkCreateSemaphore(vgd.device, &info, vgd.alloc_callbacks, &acquire_semaphore) != VK_SUCCESS) {
+				printf("Creating swapchain acquire semaphore failed.\n");
+				exit(-1);
 			}
 		}
 	}
@@ -466,17 +490,25 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	//Create swapchain framebuffer
-	VkFramebuffer swapchain_framebuffer;
+	//Create swapchain framebuffers
+	std::vector<VkFramebuffer> swapchain_framebuffers;
+	swapchain_framebuffers.resize(swapchain_images.size());
 	{
-		VkFramebufferCreateInfo info = {};
-		info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		info.renderPass = render_pass;
-		info.attachmentCount = 1;
-		//info.pAttachments = ;
-		info.width = x_resolution;
-		info.height = y_resolution;
-		info.layers = 1;
+		for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
+			VkFramebufferCreateInfo info = {};
+			info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			info.renderPass = render_pass;
+			info.attachmentCount = 1;
+			info.pAttachments = &swapchain_image_views[i];
+			info.width = x_resolution;
+			info.height = y_resolution;
+			info.layers = 1;
+
+			if (vkCreateFramebuffer(vgd.device, &info, vgd.alloc_callbacks, &swapchain_framebuffers[i]) != VK_SUCCESS) {
+				printf("Creating swapchain framebuffer %i failed.\n", i);
+				exit(-1);
+			}
+		}
 	}
 
 	//Create pipeline
@@ -640,6 +672,24 @@ int main(int argc, char* argv[]) {
 	}
 	printf("Created graphics pipeline.\n");
 
+	//Create some fences
+	VkFence present_fence, render_fence;
+	{
+		VkFenceCreateInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+		if (vkCreateFence(vgd.device, &info, vgd.alloc_callbacks, &present_fence) != VK_SUCCESS) {
+			printf("Creating presentation fence failed.\n");
+			exit(-1);
+		}
+
+		if (vkCreateFence(vgd.device, &info, vgd.alloc_callbacks, &render_fence) != VK_SUCCESS) {
+			printf("Creating presentation fence failed.\n");
+			exit(-1);
+		}
+	}
+
 	//Main loop
 	bool running = true;
 	uint64_t current_frame = 0;
@@ -656,6 +706,10 @@ int main(int argc, char* argv[]) {
 
 		//Draw triangle
 		{
+			//Acquire swapchain image for this frame
+			uint32_t acquired_image_idx;
+			vkAcquireNextImageKHR(vgd.device, swapchain, U64_MAX, acquire_semaphore, VK_NULL_HANDLE, &acquired_image_idx);
+
 			VkCommandBuffer current_cb = vgd.command_buffers[current_frame % FRAMES_IN_FLIGHT];
 
 			VkCommandBufferBeginInfo begin_info = {
@@ -664,12 +718,120 @@ int main(int argc, char* argv[]) {
 			};
 			vkBeginCommandBuffer(current_cb, &begin_info);
 
+			vkCmdBindPipeline(current_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, main_pipeline);
 
+			//Begin render pass
+			{
+				VkRect2D area = {
+					.offset = {
+						.x = 0,
+						.y = 0
+					},
+					.extent = {
+						.width = x_resolution,
+						.height = y_resolution
+					}
+				};
 
+				VkClearValue clear_color;
+				clear_color.color.float32[0] = 0.0;
+				clear_color.color.float32[1] = 0.0;
+				clear_color.color.float32[2] = 0.0;
+				clear_color.color.float32[3] = 1.0;
+				clear_color.depthStencil.depth = 0.0;
+				clear_color.depthStencil.stencil = 0;
+
+				VkRenderPassBeginInfo info = {};
+				info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+				info.renderPass = render_pass;
+				info.framebuffer = swapchain_framebuffers[acquired_image_idx];
+				info.renderArea = area;
+				info.clearValueCount = 1;
+				info.pClearValues = &clear_color;
+
+				vkCmdBeginRenderPass(current_cb, &info, VK_SUBPASS_CONTENTS_INLINE);
+			}
+
+			//Set viewport and scissor
+			{
+				VkViewport viewport = {
+					.x = 0,
+					.y = 0,
+					.width = x_resolution,
+					.height = y_resolution,
+					.minDepth = 0.0,
+					.maxDepth = 1.0
+				};
+				vkCmdSetViewport(current_cb, 0, 1, &viewport);
+
+				VkRect2D scissor = {
+					.offset = {
+						.x = 0,
+						.y = 0
+					},
+					.extent = {
+						.width = x_resolution,
+						.height = y_resolution
+					}
+				};
+				vkCmdSetScissor(current_cb, 0, 1, &scissor);
+			}
+
+			vkCmdDraw(current_cb, 3, 1, 0, 0);
+
+			vkCmdEndRenderPass(current_cb);
 			vkEndCommandBuffer(current_cb);
+
+			//Wait on previous rendering fence
+			if (vkWaitForFences(vgd.device, 1, &render_fence, VK_TRUE, U64_MAX) != VK_SUCCESS) {
+				printf("Waiting for present fence failed.\n");
+				exit(-1);
+			}
+			vkResetFences(vgd.device, 1, &render_fence);
+
+			//Submit rendering command buffer
+			VkQueue q;
+			vkGetDeviceQueue(vgd.device, vgd.graphics_queue, 0, &q);
+			{
+				VkPipelineStageFlags flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+				VkSubmitInfo info = {};
+				info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+				info.waitSemaphoreCount = 1;
+				info.pWaitSemaphores = &acquire_semaphore;
+				info.signalSemaphoreCount = 1;
+				info.pSignalSemaphores = &acquire_semaphore;
+				info.commandBufferCount = 1;
+				info.pCommandBuffers = &current_cb;
+				info.pWaitDstStageMask = &flags;
+
+				if (vkQueueSubmit(q, 1, &info, render_fence) != VK_SUCCESS) {
+					printf("Queue submit failed.\n");
+					exit(-1);
+				}
+			}
+
+			//Submit presentation command
+			{
+				VkPresentInfoKHR info = {};
+				info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+				info.waitSemaphoreCount = 1;
+				info.pWaitSemaphores = &acquire_semaphore;
+				info.swapchainCount = 1;
+				info.pSwapchains = &swapchain;
+				info.pImageIndices = &acquired_image_idx;
+				info.pResults = VK_NULL_HANDLE;
+
+				if (vkQueuePresentKHR(q, &info) != VK_SUCCESS) {
+					printf("Queue present failed.\n");
+					exit(-1);
+				}
+			}
 		}
 		current_frame++;
 	}
+
+	//Wait until all GPU work has drained before cleaning up resources
+	vkDeviceWaitIdle(vgd.device);
 
 	//Cleanup resources
 	vkDestroySwapchainKHR(vgd.device, swapchain, vgd.alloc_callbacks);

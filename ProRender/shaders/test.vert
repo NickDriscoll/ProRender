@@ -4,8 +4,8 @@ struct VertexOutput {
 };
 
 static const float2 POSITIONS[3] = {
-    0.5, 0.25,
-    0.25, 0.75,
+    0.0, -0.75,
+    -0.75, 0.75,
     0.75, 0.75
 };
 

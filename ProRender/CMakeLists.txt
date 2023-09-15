@@ -41,4 +41,27 @@ foreach(file ${files})
 		VERBATIM)
 endforeach()
 
+#Make shader output directory
+add_custom_command(
+			TARGET ProRender POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E make_directory
+					"${CMAKE_CURRENT_BINARY_DIR}/Debug/shaders")
+
+#Copy IR shaders to output directory
+file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.spv")
+foreach(file ${files})
+	add_custom_command(
+			TARGET ProRender POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E copy
+					${file}
+                	${CMAKE_CURRENT_BINARY_DIR}/Debug/shaders/)
+endforeach()
+
+#Copy SDL2.dll to output directory
+add_custom_command(
+        TARGET ProRender POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+                ${CMAKE_SOURCE_DIR}/redist/SDL2.dll
+                ${CMAKE_CURRENT_BINARY_DIR}/Debug/SDL2.dll)
+
 # TODO: Add tests and install targets if needed.
