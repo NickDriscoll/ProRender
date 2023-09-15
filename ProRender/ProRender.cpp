@@ -384,16 +384,11 @@ int main(int argc, char* argv[]) {
 	printf("Created graphics pipeline.\n");
 
 	//Create some fences
-	VkFence present_fence, render_fence;
+	VkFence render_fence;
 	{
 		VkFenceCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 		info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-		if (vkCreateFence(vgd.device, &info, vgd.alloc_callbacks, &present_fence) != VK_SUCCESS) {
-			printf("Creating presentation fence failed.\n");
-			exit(-1);
-		}
 
 		if (vkCreateFence(vgd.device, &info, vgd.alloc_callbacks, &render_fence) != VK_SUCCESS) {
 			printf("Creating presentation fence failed.\n");
@@ -420,6 +415,13 @@ int main(int argc, char* argv[]) {
 			//Acquire swapchain image for this frame
 			uint32_t acquired_image_idx;
 			vkAcquireNextImageKHR(vgd.device, swapchain, U64_MAX, acquire_semaphore, VK_NULL_HANDLE, &acquired_image_idx);
+
+			//Wait on previous rendering fence
+			if (vkWaitForFences(vgd.device, 1, &render_fence, VK_TRUE, U64_MAX) != VK_SUCCESS) {
+				printf("Waiting for present fence failed.\n");
+				exit(-1);
+			}
+			vkResetFences(vgd.device, 1, &render_fence);
 
 			VkCommandBuffer current_cb = vgd.command_buffers[current_frame % FRAMES_IN_FLIGHT];
 
@@ -493,13 +495,6 @@ int main(int argc, char* argv[]) {
 			vkCmdEndRenderPass(current_cb);
 			vkEndCommandBuffer(current_cb);
 
-			//Wait on previous rendering fence
-			if (vkWaitForFences(vgd.device, 1, &render_fence, VK_TRUE, U64_MAX) != VK_SUCCESS) {
-				printf("Waiting for present fence failed.\n");
-				exit(-1);
-			}
-			vkResetFences(vgd.device, 1, &render_fence);
-
 			//Submit rendering command buffer
 			VkQueue q;
 			vkGetDeviceQueue(vgd.device, vgd.graphics_queue_family_idx, 0, &q);
@@ -545,8 +540,18 @@ int main(int argc, char* argv[]) {
 	vkDeviceWaitIdle(vgd.device);
 
 	//Cleanup resources
+	vkDestroySemaphore(vgd.device, acquire_semaphore, vgd.alloc_callbacks);
+	vkDestroyFence(vgd.device, render_fence, vgd.alloc_callbacks);
+
+	for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
+		vkDestroyFramebuffer(vgd.device, swapchain_framebuffers[i], vgd.alloc_callbacks);
+	}
+	for (uint32_t i = 0; i < swapchain_image_views.size(); i++) {
+		vkDestroyImageView(vgd.device, swapchain_image_views[i], vgd.alloc_callbacks);
+	}
 	vkDestroySwapchainKHR(vgd.device, swapchain, vgd.alloc_callbacks);
 	vkDestroySurfaceKHR(vgd.instance, surface, vgd.alloc_callbacks);
+	
 	vkDestroyCommandPool(vgd.device, vgd.command_pool, vgd.alloc_callbacks);
 	vkDestroyPipeline(vgd.device, main_pipeline, vgd.alloc_callbacks);
 	vkDestroyRenderPass(vgd.device, render_pass, vgd.alloc_callbacks);
@@ -555,6 +560,7 @@ int main(int argc, char* argv[]) {
 	vkDestroyPipelineCache(vgd.device, vgd.pipeline_cache, vgd.alloc_callbacks);
 	vkDestroyDevice(vgd.device, vgd.alloc_callbacks);
 	vkDestroyInstance(vgd.instance, vgd.alloc_callbacks);
+	
 	SDL_Quit();
 
 	return 0;
