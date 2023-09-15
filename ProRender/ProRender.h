@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <vector>
 #include "SDL.h"
 #include "SDL_main.h"
@@ -29,9 +30,9 @@
 #define FRAMES_IN_FLIGHT 2		//Number of simultaneous frames the GPU could be working on
 
 struct VulkanGraphicsDevice {
-	uint32_t graphics_queue;
-	uint32_t compute_queue;
-	uint32_t transfer_queue;
+	uint32_t graphics_queue_family_idx;
+	uint32_t compute_queue_family_idx;
+	uint32_t transfer_queue_family_idx;
 	VkInstance instance;
 	VkPhysicalDevice physical_device;
 	VkDevice device;
@@ -40,7 +41,16 @@ struct VulkanGraphicsDevice {
 	VkCommandBuffer command_buffers[FRAMES_IN_FLIGHT];
 	VkPipelineCache pipeline_cache;
 
+	//These two fields can be members of the graphics device struct because
+	//we are assuming bindless resource management
+	VkDescriptorSetLayout descriptor_set_layout;
+	VkPipelineLayout pipeline_layout;
+
 
 
 	//void thing();
+};
+
+struct Renderer {
+	
 };

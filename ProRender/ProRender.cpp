@@ -238,6 +238,34 @@ void initVulkanGraphicsDevice(VulkanGraphicsDevice& vgd) {
 	}
 	printf("Created pipeline cache.\n");
 
+	//Pipeline layout
+	{
+		//Descriptor set layout
+		{
+			VkDescriptorSetLayoutCreateInfo info = {};
+			info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+
+
+			if (vkCreateDescriptorSetLayout(vgd.device, &info, vgd.alloc_callbacks, &vgd.descriptor_set_layout) != VK_SUCCESS) {
+				printf("Creating descriptor set layout failed.\n");
+				exit(-1);
+			}
+		}
+
+		VkPipelineLayoutCreateInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		info.setLayoutCount = 1;
+		info.pSetLayouts = &vgd.descriptor_set_layout;
+		info.pushConstantRangeCount = 0;
+
+
+		if (vkCreatePipelineLayout(vgd.device, &info, vgd.alloc_callbacks, &vgd.pipeline_layout) != VK_SUCCESS) {
+			printf("Creating pipeline layout failed.\n");
+			exit(-1);
+		}
+	}
+	printf("Created pipeline layout.\n");
+
 	//Create bindless descriptor set
 	{
 
@@ -513,8 +541,6 @@ int main(int argc, char* argv[]) {
 	}
 
 	//Create pipeline
-	VkDescriptorSetLayout descriptor_set_layout;
-	VkPipelineLayout pipeline_layout;
 	VkPipeline main_pipeline;
 	{
 		//Shader stages
@@ -630,7 +656,7 @@ int main(int argc, char* argv[]) {
 		info.pDepthStencilState = &depth_stencil_info;
 		info.pColorBlendState = &blend_info;
 		info.pDynamicState = &dynamic_info;
-		info.layout = pipeline_layout;
+		info.layout = vgd.pipeline_layout;
 		info.renderPass = render_pass;
 		info.subpass = 0;
 
@@ -812,8 +838,8 @@ int main(int argc, char* argv[]) {
 	vkDestroyCommandPool(vgd.device, vgd.command_pool, vgd.alloc_callbacks);
 	vkDestroyPipeline(vgd.device, main_pipeline, vgd.alloc_callbacks);
 	vkDestroyRenderPass(vgd.device, render_pass, vgd.alloc_callbacks);
-	vkDestroyPipelineLayout(vgd.device, pipeline_layout, vgd.alloc_callbacks);
-	vkDestroyDescriptorSetLayout(vgd.device, descriptor_set_layout, vgd.alloc_callbacks);
+	vkDestroyPipelineLayout(vgd.device, vgd.pipeline_layout, vgd.alloc_callbacks);
+	vkDestroyDescriptorSetLayout(vgd.device, vgd.descriptor_set_layout, vgd.alloc_callbacks);
 	vkDestroyPipelineCache(vgd.device, vgd.pipeline_cache, vgd.alloc_callbacks);
 	vkDestroyDevice(vgd.device, vgd.alloc_callbacks);
 	vkDestroyInstance(vgd.instance, vgd.alloc_callbacks);
