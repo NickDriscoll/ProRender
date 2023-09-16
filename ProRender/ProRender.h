@@ -15,7 +15,7 @@
 #include "SDL.h"
 #include "SDL_main.h"
 #include "SDL_vulkan.h"
-#include "VulkanGraphicsDevice.h"
+#include "VulkanWindow.h"
 
 #ifdef WIN32
 	#define VK_USE_PLATFORM_WIN32_KHR
@@ -28,11 +28,10 @@
 #define VOLK_IMPLEMENTATION
 #include "volk.h"
 
-
 struct Renderer {
 	
 };
 
 struct ConfigFile {
-	
+
 };
