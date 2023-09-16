@@ -1,9 +1,9 @@
 #include "VulkanGraphicsDevice.h"
 
 void VulkanGraphicsDevice::init() {
-	alloc_callbacks = nullptr;
+	alloc_callbacks = nullptr;			//TODO: Custom allocator
 
-	//Try to initialize volk
+	//Initialize volk
 	if (volkInitialize() != VK_SUCCESS) {
 		printf("RIP\n");
 		exit(-1);
@@ -76,10 +76,10 @@ void VulkanGraphicsDevice::init() {
 		for (uint32_t j = 0; j < 3; j++) {
 			for (uint32_t i = 0; i < physical_device_count; i++) {
 				VkPhysicalDevice device = devices[i];
-				VkPhysicalDeviceProperties2 properties;
-				properties.pNext = nullptr;
-				properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-				vkGetPhysicalDeviceProperties2(device, &properties);
+
+				VkPhysicalDeviceProperties2 device_properties = {};
+				device_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+				vkGetPhysicalDeviceProperties2(device, &device_properties);
 
 				uint32_t queue_count = 0;
 				vkGetPhysicalDeviceQueueFamilyProperties2(device, &queue_count, nullptr);
@@ -117,13 +117,27 @@ void VulkanGraphicsDevice::init() {
 					}
 				}
 
-				if (properties.properties.deviceType == TYPES[j]) {
+				if (device_properties.properties.deviceType == TYPES[j]) {
 					physical_device = device;
-					printf("Chosen physical device: %s\n", properties.properties.deviceName);
+					printf("Chosen physical device: %s\n", device_properties.properties.deviceName);
 					break;
 				}
 			}
-			if (physical_device) break;
+
+			if (physical_device) {
+				//Physical device feature checking section
+				VkPhysicalDeviceTimelineSemaphoreFeatures semaphore_features = {};
+				semaphore_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
+
+				device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+				device_features.pNext = &semaphore_features;
+				vkGetPhysicalDeviceFeatures2(physical_device, &device_features);
+
+				if (!semaphore_features.timelineSemaphore) {
+					printf("No support for timeline semaphores on this device.\n");
+					exit(-1);
+				}
+			};
 		}
 	}
 
@@ -170,7 +184,7 @@ void VulkanGraphicsDevice::init() {
 		std::vector<const char*> extension_names = {"VK_KHR_swapchain"};
 
 		VkDeviceCreateInfo device_info;
-		device_info.pNext = nullptr;
+		device_info.pNext = &device_features;
 		device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 		device_info.flags = 0;
 		device_info.queueCreateInfoCount = queue_infos.size();

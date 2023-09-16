@@ -10,6 +10,7 @@ struct VulkanGraphicsDevice {
 	uint32_t transfer_queue_family_idx;
 	VkInstance instance;
 	VkPhysicalDevice physical_device;
+	VkPhysicalDeviceFeatures2 device_features;
 	VkDevice device;
 	const VkAllocationCallbacks* alloc_callbacks;
 	VkCommandPool command_pool;

@@ -252,15 +252,20 @@ int main(int argc, char* argv[]) {
 	}
 	printf("Created graphics pipeline.\n");
 
-	//Create some fences
-	VkFence render_fence;
+	//Create graphics pipeline timeline semaphore
+	VkSemaphore graphics_timeline_semaphore;
 	{
-		VkFenceCreateInfo info = {};
-		info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-		info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+		VkSemaphoreTypeCreateInfo type_info = {};
+		type_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+		type_info.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+		type_info.initialValue = 0;
 
-		if (vkCreateFence(vgd.device, &info, vgd.alloc_callbacks, &render_fence) != VK_SUCCESS) {
-			printf("Creating presentation fence failed.\n");
+		VkSemaphoreCreateInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		info.pNext = &type_info;
+
+		if (vkCreateSemaphore(vgd.device, &info, vgd.alloc_callbacks, &graphics_timeline_semaphore) != VK_SUCCESS) {
+			printf("Creating graphics timeline semaphore failed.\n");
 			exit(-1);
 		}
 	}
@@ -284,13 +289,20 @@ int main(int argc, char* argv[]) {
 			//Acquire swapchain image for this frame
 			uint32_t acquired_image_idx;
 			vkAcquireNextImageKHR(vgd.device, window.swapchain, U64_MAX, window.semaphore, VK_NULL_HANDLE, &acquired_image_idx);
+			
+			if (current_frame >= FRAMES_IN_FLIGHT) {
+				uint64_t wait_value = current_frame - FRAMES_IN_FLIGHT + 1;
+				VkSemaphoreWaitInfo info = {};
+				info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+				info.semaphoreCount = 1;
+				info.pSemaphores = &graphics_timeline_semaphore;
+				info.pValues = &wait_value;
 
-			//Wait on previous rendering fence
-			if (vkWaitForFences(vgd.device, 1, &render_fence, VK_TRUE, U64_MAX) != VK_SUCCESS) {
-				printf("Waiting for present fence failed.\n");
-				exit(-1);
+				if (vkWaitSemaphores(vgd.device, &info, U64_MAX) != VK_SUCCESS) {
+					printf("Waiting for graphics timeline semaphore failed.\n");
+					exit(-1);
+				}
 			}
-			vkResetFences(vgd.device, 1, &render_fence);
 
 			VkCommandBuffer current_cb = vgd.command_buffers[current_frame % FRAMES_IN_FLIGHT];
 
@@ -368,18 +380,29 @@ int main(int argc, char* argv[]) {
 			VkQueue q;
 			vkGetDeviceQueue(vgd.device, vgd.graphics_queue_family_idx, 0, &q);
 			{
-				VkPipelineStageFlags flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+				uint64_t wait_values[] = {current_frame , 0};
+				uint64_t signal_values[] = {current_frame + 1 , 0};
+				VkTimelineSemaphoreSubmitInfo ts_info = {};
+				ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+				ts_info.waitSemaphoreValueCount = 2;
+				ts_info.pWaitSemaphoreValues = wait_values;
+				ts_info.signalSemaphoreValueCount = 2;
+				ts_info.pSignalSemaphoreValues = signal_values;
+
+				VkPipelineStageFlags flags[] = { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 				VkSubmitInfo info = {};
+				VkSemaphore semaphores[] = { graphics_timeline_semaphore, window.semaphore };
 				info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-				info.waitSemaphoreCount = 1;
-				info.pWaitSemaphores = &window.semaphore;
-				info.signalSemaphoreCount = 1;
-				info.pSignalSemaphores = &window.semaphore;
+				info.pNext = &ts_info;
+				info.waitSemaphoreCount = 2;
+				info.pWaitSemaphores = semaphores;
+				info.signalSemaphoreCount = 2;
+				info.pSignalSemaphores = semaphores;
 				info.commandBufferCount = 1;
 				info.pCommandBuffers = &current_cb;
-				info.pWaitDstStageMask = &flags;
+				info.pWaitDstStageMask = flags;
 
-				if (vkQueueSubmit(q, 1, &info, render_fence) != VK_SUCCESS) {
+				if (vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE) != VK_SUCCESS) {
 					printf("Queue submit failed.\n");
 					exit(-1);
 				}
@@ -402,6 +425,7 @@ int main(int argc, char* argv[]) {
 				}
 			}
 		}
+
 		current_frame++;
 	}
 
@@ -410,8 +434,6 @@ int main(int argc, char* argv[]) {
 
 	//Cleanup resources
 	vkDestroySemaphore(vgd.device, window.semaphore, vgd.alloc_callbacks);
-	vkDestroyFence(vgd.device, render_fence, vgd.alloc_callbacks);
-
 	for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
 		vkDestroyFramebuffer(vgd.device, swapchain_framebuffers[i], vgd.alloc_callbacks);
 	}
@@ -421,6 +443,7 @@ int main(int argc, char* argv[]) {
 	vkDestroySwapchainKHR(vgd.device, window.swapchain, vgd.alloc_callbacks);
 	vkDestroySurfaceKHR(vgd.instance, window.surface, vgd.alloc_callbacks);
 	
+	vkDestroySemaphore(vgd.device, graphics_timeline_semaphore, vgd.alloc_callbacks);
 	vkDestroyCommandPool(vgd.device, vgd.command_pool, vgd.alloc_callbacks);
 	vkDestroyPipeline(vgd.device, main_pipeline, vgd.alloc_callbacks);
 	vkDestroyRenderPass(vgd.device, render_pass, vgd.alloc_callbacks);

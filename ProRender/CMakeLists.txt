@@ -21,6 +21,9 @@ target_link_libraries(ProRender PUBLIC ${SDL2_LIBRARIES})
 target_include_directories(ProRender PUBLIC ${Vulkan_INCLUDE_DIRS})
 target_link_libraries(ProRender PUBLIC ${Vulkan_LIBRARIES})
 
+#Include hlslpp
+target_include_directories(ProRender PUBLIC "${CPP_LIBS}/hlslpp/include")
+
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)
 endif()
