@@ -7,6 +7,8 @@ add_executable (
 	ProRender
 	"ProRender.cpp"
 	"ProRender.h"
+	"VulkanGraphicsDevice.cpp"
+	"VulkanGraphicsDevice.h"
 )
 
 #Include SDL2
@@ -22,22 +24,25 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
 endif()
 
 #Compile HLSL vertex shaders
+message("Current source dir: ${CMAKE_CURRENT_SOURCE_DIR}")
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert")
 foreach(file ${files})
+	message(INFO "vert shader ${file}")
 	add_custom_command(
 		TARGET ProRender
 		POST_BUILD
-		COMMAND "$ENV{VULKAN_SDK}/bin/dxc.exe" -spirv -T vs_6_7 -Fo "${file}.spv" "${file}"
+		COMMAND "dxc" -spirv -T vs_6_7 -Fo "${file}.spv" "${file}"
 		VERBATIM)
 endforeach()
 
 #Compile HLSL fragment shaders
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag")
 foreach(file ${files})
+	message(INFO "frag shader ${file}")
 	add_custom_command(
 		TARGET ProRender
 		POST_BUILD
-		COMMAND "$ENV{VULKAN_SDK}/bin/dxc.exe" -spirv -T ps_6_7 -Fo "${file}.spv" "${file}"
+		COMMAND "dxc" -spirv -T ps_6_7 -Fo "${file}.spv" "${file}"
 		VERBATIM)
 endforeach()
 
