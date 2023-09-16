@@ -23,29 +23,6 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)
 endif()
 
-#Compile HLSL vertex shaders
-message("Current source dir: ${CMAKE_CURRENT_SOURCE_DIR}")
-file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert")
-foreach(file ${files})
-	message(INFO "vert shader ${file}")
-	add_custom_command(
-		TARGET ProRender
-		POST_BUILD
-		COMMAND "dxc" -spirv -T vs_6_7 -Fo "${file}.spv" "${file}"
-		VERBATIM)
-endforeach()
-
-#Compile HLSL fragment shaders
-file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag")
-foreach(file ${files})
-	message(INFO "frag shader ${file}")
-	add_custom_command(
-		TARGET ProRender
-		POST_BUILD
-		COMMAND "dxc" -spirv -T ps_6_7 -Fo "${file}.spv" "${file}"
-		VERBATIM)
-endforeach()
-
 #Make bin output directory
 add_custom_command(
 			TARGET ProRender POST_BUILD
@@ -57,15 +34,29 @@ add_custom_command(
 	COMMAND ${CMAKE_COMMAND} -E make_directory
 			"${CMAKE_CURRENT_BINARY_DIR}/bin/shaders")
 
-
-#Copy IR shaders to output directory
-file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.spv")
+#Compile HLSL vertex shaders
+#message("Current source dir: ${CMAKE_CURRENT_SOURCE_DIR}")
+file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert")
 foreach(file ${files})
+	#message(INFO "vert shader ${file}")
+	cmake_path(GET file FILENAME filename)
 	add_custom_command(
-			TARGET ProRender POST_BUILD
-			COMMAND ${CMAKE_COMMAND} -E copy
-					${file}
-                	${CMAKE_CURRENT_BINARY_DIR}/bin/shaders/)
+		TARGET ProRender
+		POST_BUILD
+		COMMAND "$ENV{VULKAN_SDK}/bin/dxc" -spirv -T vs_6_7 -Fo "${CMAKE_CURRENT_BINARY_DIR}/bin/shaders/${filename}.spv" "${file}"
+		VERBATIM)
+endforeach()
+
+#Compile HLSL fragment shaders
+file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag")
+foreach(file ${files})
+	#message(INFO "frag shader ${file}")
+	cmake_path(GET file FILENAME filename)
+	add_custom_command(
+		TARGET ProRender
+		POST_BUILD
+		COMMAND "$ENV{VULKAN_SDK}/bin/dxc" -spirv -T ps_6_7 -Fo "${CMAKE_CURRENT_BINARY_DIR}/bin/shaders/${filename}.spv" "${file}"
+		VERBATIM)
 endforeach()
 
 #Copy SDL2.dll to output directory

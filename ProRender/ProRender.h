@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>
+//#include <unistd.h>
 #include <vector>
 #include "SDL.h"
 #include "SDL_main.h"
@@ -30,5 +30,9 @@
 
 
 struct Renderer {
+	
+};
+
+struct ConfigFile {
 	
 };

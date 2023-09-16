@@ -37,7 +37,8 @@ VkShaderModule load_shader_module(VulkanGraphicsDevice& vgd, const char* path) {
 
 int main(int argc, char* argv[]) {
 	printf("Argument 0: %s\n", argv[0]);
-	printf("current dir: %s\n", get_current_dir_name());
+	
+	//printf("current dir: %s\n", get_current_dir_name());
 
 	SDL_Init(SDL_INIT_VIDEO);	//Initialize SDL
 
