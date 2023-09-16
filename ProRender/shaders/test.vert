@@ -1,7 +1,4 @@
-struct VertexOutput {
-    float4 position : SV_Position;
-    float3 color : COLOR;
-};
+#include "structs.hlsl"
 
 static const float2 POSITIONS[3] = {
     0.0, -0.75,
