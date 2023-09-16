@@ -27,7 +27,7 @@ void VulkanGraphicsDevice::init() {
 		extension_names.push_back(static_cast<const char*>("VK_KHR_surface"));
 
 		//Platform specific surface extensions
-#ifdef WIN32
+#ifdef _WIN32
 		extension_names.push_back(static_cast<const char*>("VK_KHR_win32_surface"));
 #endif
 
@@ -52,10 +52,11 @@ void VulkanGraphicsDevice::init() {
 		printf("Instance created.\n");
 	}
 
-	//Load all Vulkan instance entrypoints
+	//Load all Vulkan instance functions
 	volkLoadInstanceOnly(instance);
 
 	//Vulkan physical device selection
+	VkPhysicalDeviceTimelineSemaphoreFeatures semaphore_features = {};
 	{
 		uint32_t physical_device_count = 0;
 		//Getting physical device count by passing nullptr as last param
@@ -126,7 +127,6 @@ void VulkanGraphicsDevice::init() {
 
 			if (physical_device) {
 				//Physical device feature checking section
-				VkPhysicalDeviceTimelineSemaphoreFeatures semaphore_features = {};
 				semaphore_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
 
 				device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
@@ -137,6 +137,7 @@ void VulkanGraphicsDevice::init() {
 					printf("No support for timeline semaphores on this device.\n");
 					exit(-1);
 				}
+				break;
 			};
 		}
 	}
@@ -183,7 +184,7 @@ void VulkanGraphicsDevice::init() {
 
 		std::vector<const char*> extension_names = {"VK_KHR_swapchain"};
 
-		VkDeviceCreateInfo device_info;
+		VkDeviceCreateInfo device_info = {};
 		device_info.pNext = &device_features;
 		device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 		device_info.flags = 0;
@@ -202,6 +203,7 @@ void VulkanGraphicsDevice::init() {
 	}
 	printf("Logical device created.\n");
 
+	//Load all device functions
 	volkLoadDevice(device);
 
 	//Create command pool

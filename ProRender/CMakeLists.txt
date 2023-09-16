@@ -2,6 +2,8 @@
 # project specific logic here.
 #
 
+set(CMAKE_BUILD_TYPE Debug)
+
 # Add source to this project's executable.
 add_executable (
 	ProRender
@@ -22,7 +24,7 @@ target_include_directories(ProRender PUBLIC ${Vulkan_INCLUDE_DIRS})
 target_link_libraries(ProRender PUBLIC ${Vulkan_LIBRARIES})
 
 #Include hlslpp
-target_include_directories(ProRender PUBLIC "${CPP_LIBS}/hlslpp/include")
+target_include_directories(ProRender PUBLIC "${HLSLPP_INCLUDE_DIRS}")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)
@@ -74,7 +76,7 @@ add_custom_command(
 add_custom_command(
 		TARGET ProRender POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E copy
-				${CMAKE_CURRENT_BINARY_DIR}/Debug/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}
+				${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}
 				${CMAKE_CURRENT_BINARY_DIR}/bin/)
 
 
