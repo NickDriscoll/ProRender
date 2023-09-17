@@ -1,39 +1,10 @@
 ﻿// ProRender.cpp : Defines the entry point for the application.
 //
 
+#include <chrono>
 #include "ProRender.h"
 
 constexpr uint64_t U64_MAX = std::numeric_limits<uint64_t>::max();
-
-VkShaderModule load_shader_module(VulkanGraphicsDevice& vgd, const char* path) {
-	//Get filesize
-	uint32_t spv_size = std::filesystem::file_size(std::filesystem::path(path));
-
-	//Allocate receiving buffer
-	std::vector<uint32_t> spv_bytes;
-	spv_bytes.resize(spv_size);
-
-	//Read spv bytes
-	FILE* shader_spv = fopen(path, "rb");
-	if (fread(spv_bytes.data(), sizeof(uint8_t), spv_size, shader_spv) == 0) {
-		printf("Zero bytes read when trying to read %s\n", path);
-		exit(-1);
-	}
-	fclose(shader_spv);
-
-	//Create shader module
-	VkShaderModule shader;
-	VkShaderModuleCreateInfo info = {};
-	info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	info.codeSize = spv_size;
-	info.pCode = spv_bytes.data();
-	if (vkCreateShaderModule(vgd.device, &info, vgd.alloc_callbacks, &shader) != VK_SUCCESS) {
-		printf("Creating vertex shader module failed.\n");
-		exit(-1);
-	}
-
-	return shader;
-}
 
 int main(int argc, char* argv[]) {
 	printf("Argument 0: %s\n", argv[0]);
@@ -125,8 +96,8 @@ int main(int argc, char* argv[]) {
 	VkPipeline main_pipeline;
 	{
 		//Shader stages
-		VkShaderModule vertex_shader = load_shader_module(vgd, "shaders/test.vert.spv");
-		VkShaderModule fragment_shader = load_shader_module(vgd, "shaders/test.frag.spv");
+		VkShaderModule vertex_shader = vgd.load_shader_module("shaders/test.vert.spv");
+		VkShaderModule fragment_shader = vgd.load_shader_module("shaders/test.frag.spv");
 		std::vector<VkPipelineShaderStageCreateInfo> shader_stage_creates;
 		{
 
@@ -271,9 +242,13 @@ int main(int argc, char* argv[]) {
 	}
 
 	//Main loop
+	uint64_t ticks = SDL_GetTicks64();
 	bool running = true;
 	uint64_t current_frame = 0;
 	while (running) {
+		uint64_t tick_delta = SDL_GetTicks64() - ticks;
+		ticks = SDL_GetTicks64();
+
 		//Do input polling loop
 		SDL_Event current_event;
 		while (SDL_PollEvent(&current_event)) {
@@ -371,6 +346,8 @@ int main(int argc, char* argv[]) {
 				vkCmdSetScissor(current_cb, 0, 1, &scissor);
 			}
 
+			float time = static_cast<float>(ticks) * 1.5 / 1000.0;
+			vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4, &time);
 			vkCmdDraw(current_cb, 3, 1, 0, 0);
 
 			vkCmdEndRenderPass(current_cb);
@@ -425,7 +402,6 @@ int main(int argc, char* argv[]) {
 				}
 			}
 		}
-
 		current_frame++;
 	}
 

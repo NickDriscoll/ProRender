@@ -1,3 +1,4 @@
+#include <filesystem>
 #include "VulkanGraphicsDevice.h"
 
 void VulkanGraphicsDevice::init() {
@@ -263,11 +264,17 @@ void VulkanGraphicsDevice::init() {
 			}
 		}
 
+		VkPushConstantRange range = {};
+		range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		range.offset = 0;
+		range.size = 4;
+
 		VkPipelineLayoutCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		info.setLayoutCount = 1;
 		info.pSetLayouts = &descriptor_set_layout;
-		info.pushConstantRangeCount = 0;
+		info.pushConstantRangeCount = 1;
+		info.pPushConstantRanges = &range;
 
 
 		if (vkCreatePipelineLayout(device, &info, alloc_callbacks, &pipeline_layout) != VK_SUCCESS) {
@@ -302,4 +309,36 @@ void VulkanGraphicsDevice::init() {
 
 		//vkCreateRenderPass2();
 	}
+}
+
+
+
+VkShaderModule VulkanGraphicsDevice::load_shader_module(const char* path) {
+	//Get filesize
+	uint32_t spv_size = std::filesystem::file_size(std::filesystem::path(path));
+
+	//Allocate receiving buffer
+	std::vector<uint32_t> spv_bytes;
+	spv_bytes.resize(spv_size);
+
+	//Read spv bytes
+	FILE* shader_spv = fopen(path, "rb");
+	if (fread(spv_bytes.data(), sizeof(uint8_t), spv_size, shader_spv) == 0) {
+		printf("Zero bytes read when trying to read %s\n", path);
+		exit(-1);
+	}
+	fclose(shader_spv);
+
+	//Create shader module
+	VkShaderModule shader;
+	VkShaderModuleCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	info.codeSize = spv_size;
+	info.pCode = spv_bytes.data();
+	if (vkCreateShaderModule(device, &info, alloc_callbacks, &shader) != VK_SUCCESS) {
+		printf("Creating vertex shader module failed.\n");
+		exit(-1);
+	}
+
+	return shader;
 }

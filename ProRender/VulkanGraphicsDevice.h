@@ -23,6 +23,5 @@ struct VulkanGraphicsDevice {
 	VkPipelineLayout pipeline_layout;
 
     void init();
-
-	//void thing();
+	VkShaderModule load_shader_module(const char* path);
 };
