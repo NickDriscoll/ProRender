@@ -243,10 +243,10 @@ void VulkanGraphicsDevice::init() {
 	{
 		VkPipelineCacheCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-		info.initialDataSize = 0;
 
 		std::vector<uint8_t> cache_data;
 		if (std::filesystem::exists(PIPELINE_CACHE)) {
+			printf("Found pipeline cache.\n");
 			uint32_t pipeline_size = std::filesystem::file_size(PIPELINE_CACHE);
 			cache_data.resize(pipeline_size);
 			FILE* f = fopen(PIPELINE_CACHE, "rb");

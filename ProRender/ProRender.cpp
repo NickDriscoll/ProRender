@@ -264,6 +264,8 @@ int main(int argc, char* argv[]) {
 		count += 1;
 	}
 
+	hlslpp::float4x4 test;
+
 
 	//Main loop
 	uint64_t ticks = SDL_GetTicks64();

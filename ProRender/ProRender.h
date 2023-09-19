@@ -12,6 +12,7 @@
 #include <stdlib.h>
 //#include <unistd.h>
 #include <vector>
+#include <hlsl++.h>
 #include "SDL.h"
 #include "SDL_main.h"
 #include "SDL_vulkan.h"
