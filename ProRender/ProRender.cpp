@@ -249,6 +249,19 @@ int main(int argc, char* argv[]) {
 	uint64_t k3 = test_map.insert(graphics_timeline_semaphore);
 	test_map.remove(k2);
 	uint64_t k4 = test_map.insert(graphics_timeline_semaphore);
+	test_map.insert(graphics_timeline_semaphore);
+	test_map.insert(graphics_timeline_semaphore);
+	test_map.insert(graphics_timeline_semaphore);
+	test_map.remove(k1);
+
+	uint32_t count = 0;
+	for (uint32_t i = 0; count < test_map.size(); i++) {
+		if (!test_map.is_live(i)) continue;
+
+		VkSemaphore& element = test_map.ptr()[i];
+		printf("In slot %i: %i\n", i, element);
+		count += 1;
+	}
 
 
 	//Main loop
