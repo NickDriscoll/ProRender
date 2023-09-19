@@ -1,10 +1,12 @@
 #pragma once
+#define _CRT_SECURE_NO_WARNINGS
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <vector>
 #include "volk.h"
 #define FRAMES_IN_FLIGHT 2		//Number of simultaneous frames the GPU could be working on
+#define PIPELINE_CACHE ".pipelinecache"
 
 struct VulkanGraphicsDevice {
 	uint32_t graphics_queue_family_idx;

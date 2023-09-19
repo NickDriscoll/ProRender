@@ -1,4 +1,5 @@
 #include <filesystem>
+#include <stdio.h>
 #include "VulkanGraphicsDevice.h"
 
 void VulkanGraphicsDevice::init() {
@@ -243,6 +244,22 @@ void VulkanGraphicsDevice::init() {
 		VkPipelineCacheCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
 		info.initialDataSize = 0;
+
+		std::vector<uint8_t> cache_data;
+		if (std::filesystem::exists(PIPELINE_CACHE)) {
+			uint32_t pipeline_size = std::filesystem::file_size(PIPELINE_CACHE);
+			cache_data.resize(pipeline_size);
+			FILE* f = fopen(PIPELINE_CACHE, "rb");
+			if (fread(cache_data.data(), sizeof(uint8_t), pipeline_size, f) == 0) {
+				printf("Error reading pipeline cache.\n");
+				exit(-1);
+			}
+			fclose(f);
+
+			info.initialDataSize = pipeline_size;
+			info.pInitialData = cache_data.data();
+		}
+
 		if (vkCreatePipelineCache(device, &info, alloc_callbacks, &pipeline_cache) != VK_SUCCESS) {
 			printf("Creating pipeline cache failed.\n");
 			exit(-1);
@@ -256,7 +273,6 @@ void VulkanGraphicsDevice::init() {
 		{
 			VkDescriptorSetLayoutCreateInfo info = {};
 			info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-
 
 			if (vkCreateDescriptorSetLayout(device, &info, alloc_callbacks, &descriptor_set_layout) != VK_SUCCESS) {
 				printf("Creating descriptor set layout failed.\n");

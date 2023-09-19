@@ -121,7 +121,6 @@ int main(int argc, char* argv[]) {
 		VkPipelineVertexInputStateCreateInfo vert_input_info = {};
 		vert_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-
 		//Input assembly state
 		VkPipelineInputAssemblyStateCreateInfo ia_info = {};
 		ia_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -242,23 +241,25 @@ int main(int argc, char* argv[]) {
 	}
 
 	//Random slotmap testing in my main function
-	slotmap<VkSemaphore> test_map;
+	slotmap<uint32_t> test_map;
 	test_map.alloc(1024);
-	uint64_t k1 = test_map.insert(graphics_timeline_semaphore);
-	uint64_t k2 = test_map.insert(graphics_timeline_semaphore);
-	uint64_t k3 = test_map.insert(graphics_timeline_semaphore);
+	uint64_t k1 = test_map.insert(5);
+	uint64_t k2 = test_map.insert(4);
+	uint64_t k3 = test_map.insert(6);
 	test_map.remove(k2);
-	uint64_t k4 = test_map.insert(graphics_timeline_semaphore);
-	test_map.insert(graphics_timeline_semaphore);
-	test_map.insert(graphics_timeline_semaphore);
-	test_map.insert(graphics_timeline_semaphore);
+	uint64_t k4 = test_map.insert(8);
+	test_map.insert(9);
+	test_map.insert(1);
+	test_map.insert(88);
 	test_map.remove(k1);
+	test_map.remove(k3);
+	test_map.insert(77);
 
 	uint32_t count = 0;
-	for (uint32_t i = 0; count < test_map.size(); i++) {
+	for (uint32_t i = 0; count < test_map.count(); i++) {
 		if (!test_map.is_live(i)) continue;
 
-		VkSemaphore& element = test_map.ptr()[i];
+		uint32_t& element = test_map.ptr()[i];
 		printf("In slot %i: %i\n", i, element);
 		count += 1;
 	}
@@ -371,7 +372,7 @@ int main(int argc, char* argv[]) {
 
 			float time = static_cast<float>(ticks) * 4.5f / 1000.0f;
 			vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4, &time);
-			vkCmdDraw(current_cb, 3, 1, 0, 0);
+			vkCmdDraw(current_cb, 6, 1, 0, 0);
 
 			vkCmdEndRenderPass(current_cb);
 			vkEndCommandBuffer(current_cb);
@@ -431,6 +432,29 @@ int main(int argc, char* argv[]) {
 	//Wait until all GPU queues have drained before cleaning up resources
 	vkDeviceWaitIdle(vgd.device);
 
+	//Write pipeline cache to file
+	{
+		size_t data_size;
+		if (vkGetPipelineCacheData(vgd.device, vgd.pipeline_cache, &data_size, nullptr) != VK_SUCCESS) {
+			printf("Pipeline cache size query failed.\n");
+			exit(-1);
+		}
+
+		std::vector<uint8_t> cache_data;
+		cache_data.resize(data_size);
+		if (vkGetPipelineCacheData(vgd.device, vgd.pipeline_cache, &data_size, cache_data.data()) != VK_SUCCESS) {
+			printf("Pipeline cache data query failed.\n");
+			exit(-1);
+		}
+
+		FILE* f = fopen(PIPELINE_CACHE, "wb");
+		if (fwrite(cache_data.data(), sizeof(uint8_t), data_size, f) == 0) {
+			printf("Error writing pipeline cache data.\n");
+			exit(-1);
+		}
+		fclose(f);
+	}
+
 	//Cleanup resources
 	vkDestroySemaphore(vgd.device, window.semaphore, vgd.alloc_callbacks);
 	for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
@@ -443,11 +467,12 @@ int main(int argc, char* argv[]) {
 	vkDestroySurfaceKHR(vgd.instance, window.surface, vgd.alloc_callbacks);
 	
 	vkDestroySemaphore(vgd.device, graphics_timeline_semaphore, vgd.alloc_callbacks);
-	vkDestroyCommandPool(vgd.device, vgd.command_pool, vgd.alloc_callbacks);
 	vkDestroyPipeline(vgd.device, main_pipeline, vgd.alloc_callbacks);
 	vkDestroyRenderPass(vgd.device, render_pass, vgd.alloc_callbacks);
+
 	vkDestroyPipelineLayout(vgd.device, vgd.pipeline_layout, vgd.alloc_callbacks);
 	vkDestroyDescriptorSetLayout(vgd.device, vgd.descriptor_set_layout, vgd.alloc_callbacks);
+	vkDestroyCommandPool(vgd.device, vgd.command_pool, vgd.alloc_callbacks);
 	vkDestroyPipelineCache(vgd.device, vgd.pipeline_cache, vgd.alloc_callbacks);
 	vkDestroyDevice(vgd.device, vgd.alloc_callbacks);
 	vkDestroyInstance(vgd.instance, vgd.alloc_callbacks);

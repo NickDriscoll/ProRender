@@ -3,6 +3,7 @@
 #include <assert.h>
 
 #define EXTRACT_IDX(key) (key & 0x00000000FFFFFFFF)
+#define EXTRACT_GENERATION(key) (key >> 32)
 
 template<class T>
 struct slotmap {
@@ -27,7 +28,7 @@ struct slotmap {
 
     T& get(uint64_t key) {
         uint32_t idx = EXTRACT_IDX(key);
-        uint32_t gen = static_cast<uint32_t>(key >> 32);
+        uint32_t gen = static_cast<uint32_t>(EXTRACT_GENERATION(key));
         T& d;
         if (gen == generation_bits[idx]) {
             d = data[idx];
@@ -50,7 +51,7 @@ struct slotmap {
             live_bits[live_idx] |= 1 << (free_idx % 64);
         }
 
-        _size += 1;
+        _count += 1;
 
         return (static_cast<uint64_t>(generation) << 32) | static_cast<uint64_t>(free_idx);
     }
@@ -64,18 +65,18 @@ struct slotmap {
 
     void remove(uint64_t key) {
         uint32_t idx = EXTRACT_IDX(key);
-        uint32_t gen = static_cast<uint32_t>(key >> 32);
+        uint32_t gen = static_cast<uint32_t>(EXTRACT_GENERATION(key));
         free_indices.push(idx);
         generation_bits[idx] += 1;
 
-        _size -= 1;
+        _count -= 1;
 
         uint32_t live_idx = idx / 64;
         live_bits[live_idx] &= ~static_cast<uint64_t>(1 << (idx % 64));
     }
 
-    uint32_t size() {
-        return _size;
+    uint32_t count() {
+        return _count;
     }
 
 private:
@@ -83,5 +84,5 @@ private:
     std::vector<uint32_t> generation_bits = {};
     std::vector<uint64_t> live_bits = {};
     std::stack<uint32_t, std::vector<uint32_t>> free_indices;
-    uint32_t _size = 0;
+    uint32_t _count = 0;
 };
