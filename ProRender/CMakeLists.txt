@@ -13,6 +13,7 @@ add_executable (
 	"VulkanGraphicsDevice.h"
 	"VulkanWindow.h"
 	"VulkanWindow.cpp"
+	"slotmap.h"
 )
 
 #Include SDL2
@@ -76,7 +77,7 @@ add_custom_command(
 add_custom_command(
 		TARGET ProRender POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E copy
-				${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}
+				${CMAKE_CURRENT_BINARY_DIR}/Debug/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}
 				${CMAKE_CURRENT_BINARY_DIR}/bin/)
 
 

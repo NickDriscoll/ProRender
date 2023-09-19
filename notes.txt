@@ -1,1 +1,2 @@
+Handle window resizing
 Look into VK_KHR_display for fullscreen display

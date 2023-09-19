@@ -311,8 +311,6 @@ void VulkanGraphicsDevice::init() {
 	}
 }
 
-
-
 VkShaderModule VulkanGraphicsDevice::load_shader_module(const char* path) {
 	//Get filesize
 	uint32_t spv_size = std::filesystem::file_size(std::filesystem::path(path));

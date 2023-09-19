@@ -4,7 +4,7 @@
 #include <chrono>
 #include "ProRender.h"
 
-constexpr uint64_t U64_MAX = std::numeric_limits<uint64_t>::max();
+constexpr uint64_t U64_MAX = 0xFFFFFFFFFFFFFFFF;
 
 int main(int argc, char* argv[]) {
 	printf("Argument 0: %s\n", argv[0]);
@@ -98,7 +98,7 @@ int main(int argc, char* argv[]) {
 		//Shader stages
 		VkShaderModule vertex_shader = vgd.load_shader_module("shaders/test.vert.spv");
 		VkShaderModule fragment_shader = vgd.load_shader_module("shaders/test.frag.spv");
-		std::vector<VkPipelineShaderStageCreateInfo> shader_stage_creates;
+		VkPipelineShaderStageCreateInfo shader_stage_creates[2];
 		{
 
 			VkPipelineShaderStageCreateInfo vert_info = {};
@@ -106,14 +106,14 @@ int main(int argc, char* argv[]) {
 			vert_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
 			vert_info.module = vertex_shader;
 			vert_info.pName = "main";
-			shader_stage_creates.push_back(vert_info);
+			shader_stage_creates[0] = vert_info;
 
 			VkPipelineShaderStageCreateInfo frag_info = {};
 			frag_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 			frag_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
 			frag_info.module = fragment_shader;
 			frag_info.pName = "main";
-			shader_stage_creates.push_back(frag_info);
+			shader_stage_creates[1] = frag_info;
 		}
 
 		//Vertex input state
@@ -197,8 +197,8 @@ int main(int argc, char* argv[]) {
 
 		VkGraphicsPipelineCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-		info.stageCount = shader_stage_creates.size();
-		info.pStages = shader_stage_creates.data();
+		info.stageCount = 2;
+		info.pStages = shader_stage_creates;
 		info.pVertexInputState = &vert_input_info;
 		info.pInputAssemblyState = &ia_info;
 		info.pTessellationState = &tess_info;
@@ -240,6 +240,16 @@ int main(int argc, char* argv[]) {
 			exit(-1);
 		}
 	}
+
+	//Random slotmap testing in my main function
+	slotmap<VkSemaphore> test_map;
+	test_map.alloc(1024);
+	uint64_t k1 = test_map.insert(graphics_timeline_semaphore);
+	uint64_t k2 = test_map.insert(graphics_timeline_semaphore);
+	uint64_t k3 = test_map.insert(graphics_timeline_semaphore);
+	test_map.remove(k2);
+	uint64_t k4 = test_map.insert(graphics_timeline_semaphore);
+
 
 	//Main loop
 	uint64_t ticks = SDL_GetTicks64();
@@ -346,7 +356,7 @@ int main(int argc, char* argv[]) {
 				vkCmdSetScissor(current_cb, 0, 1, &scissor);
 			}
 
-			float time = static_cast<float>(ticks) * 1.5 / 1000.0;
+			float time = static_cast<float>(ticks) * 4.5f / 1000.0f;
 			vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4, &time);
 			vkCmdDraw(current_cb, 3, 1, 0, 0);
 
