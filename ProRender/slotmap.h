@@ -26,14 +26,12 @@ struct slotmap {
         return data.data();
     }
 
-    T& get(uint64_t key) {
+    T* get(uint64_t key) {
         uint32_t idx = EXTRACT_IDX(key);
         uint32_t gen = static_cast<uint32_t>(EXTRACT_GENERATION(key));
-        T& d;
+        T* d = nullptr;
         if (gen == generation_bits[idx]) {
-            d = data[idx];
-        } else {
-            d = nullptr;
+            d = &data[idx];
         }
         return d;
     }
@@ -82,7 +80,7 @@ struct slotmap {
 private:
     std::vector<T> data = {};
     std::vector<uint32_t> generation_bits = {};
-    std::vector<uint64_t> live_bits = {};
+    std::vector<uint64_t> live_bits = {};           //Nth least significant bit indicates if slot N is live
     std::stack<uint32_t, std::vector<uint32_t>> free_indices;
     uint32_t _count = 0;
 };

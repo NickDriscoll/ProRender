@@ -264,6 +264,9 @@ int main(int argc, char* argv[]) {
 		count += 1;
 	}
 
+	printf("Trying to get k2: %i\n", test_map.get(k2));
+	printf("Trying to get k4: %i\n", test_map.get(k4));
+
 	hlslpp::float4x4 test;
 
 
