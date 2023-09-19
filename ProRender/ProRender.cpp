@@ -243,17 +243,18 @@ int main(int argc, char* argv[]) {
 	//Random slotmap testing in my main function
 	slotmap<uint32_t> test_map;
 	test_map.alloc(1024);
-	uint64_t k1 = test_map.insert(5);
-	uint64_t k2 = test_map.insert(4);
-	uint64_t k3 = test_map.insert(6);
+	uint64_t k1 = test_map.insert(1);
+	uint64_t k2 = test_map.insert(2);
+	uint64_t k3 = test_map.insert(3);
 	test_map.remove(k2);
-	uint64_t k4 = test_map.insert(8);
-	test_map.insert(9);
-	test_map.insert(1);
-	test_map.insert(88);
+	uint64_t k4 = test_map.insert(4);
+	test_map.insert(5);
+	test_map.insert(6);
+	test_map.insert(7);
 	test_map.remove(k1);
 	test_map.remove(k3);
-	test_map.insert(77);
+	test_map.insert(8);
+	test_map.insert(9);
 
 	uint32_t count = 0;
 	for (uint32_t i = 0; count < test_map.count(); i++) {
@@ -375,7 +376,7 @@ int main(int argc, char* argv[]) {
 				vkCmdSetScissor(current_cb, 0, 1, &scissor);
 			}
 
-			float time = static_cast<float>(ticks) * 4.5f / 1000.0f;
+			float time = static_cast<float>(ticks) * 1.5f / 1000.0f;
 			vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4, &time);
 			vkCmdDraw(current_cb, 6, 1, 0, 0);
 
