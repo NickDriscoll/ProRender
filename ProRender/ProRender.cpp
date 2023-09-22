@@ -1,10 +1,10 @@
-﻿// ProRender.cpp : Defines the entry point for the application.
-//
+﻿#define VOLK_IMPLEMENTATION
+#include "volk.h"
 
-#include <chrono>
+#define VMA_IMPLEMENTATION
+#include "vk_mem_alloc.h"
+
 #include "ProRender.h"
-
-constexpr uint64_t U64_MAX = 0xFFFFFFFFFFFFFFFF;
 
 int main(int argc, char* argv[]) {
 	printf("Argument 0: %s\n", argv[0]);

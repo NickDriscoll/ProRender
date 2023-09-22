@@ -4,6 +4,7 @@
 
 void VulkanGraphicsDevice::init() {
 	alloc_callbacks = nullptr;			//TODO: Custom allocator
+	vma_alloc_callbacks = nullptr;
 
 	//Initialize volk
 	if (volkInitialize() != VK_SUCCESS) {
@@ -13,6 +14,7 @@ void VulkanGraphicsDevice::init() {
 	printf("Volk initialized.\n");
 
 	//Vulkan instance creation
+	uint32_t VK_API_VERSION = VK_MAKE_API_VERSION(0, 1, 2, 0);
 	{
 		VkApplicationInfo app_info;
 		app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -21,7 +23,7 @@ void VulkanGraphicsDevice::init() {
 		app_info.applicationVersion = 1;
 		app_info.pEngineName = nullptr;
 		app_info.engineVersion = 0;
-		app_info.apiVersion = VK_MAKE_API_VERSION(0, 1, 2, 0);
+		app_info.apiVersion = VK_API_VERSION;
 
 		//Instance extension configuration
 		std::vector<const char*> extension_names;
@@ -207,6 +209,30 @@ void VulkanGraphicsDevice::init() {
 
 	//Load all device functions
 	volkLoadDevice(device);
+
+	//Initialize VMA
+	VmaAllocator allocator;
+	{
+		VmaAllocatorCreateInfo info = {};
+		info.flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT;
+		info.instance = instance;
+		info.physicalDevice = physical_device;
+		info.device = device;
+		info.pAllocationCallbacks = alloc_callbacks;
+		info.pDeviceMemoryCallbacks = vma_alloc_callbacks;
+		info.vulkanApiVersion = VK_API_VERSION;
+
+		VmaVulkanFunctions vkfns = {};
+		vkfns.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
+		vkfns.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
+		info.pVulkanFunctions = &vkfns;
+
+		if (vmaCreateAllocator(&info, &allocator) != VK_SUCCESS) {
+			printf("Creating memory allocator failed.\n");
+			exit(-1);
+		}
+	}
+	printf("VMA memory allocator created.\n");
 
 	//Create command pool
 	{

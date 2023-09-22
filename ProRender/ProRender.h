@@ -6,6 +6,7 @@
 
 // TODO: Reference additional headers your program requires here.
 
+#include <chrono>
 #include <filesystem>
 #include <stdio.h>
 #include <stdint.h>
@@ -19,19 +20,16 @@
 #include "VulkanWindow.h"
 #include "slotmap.h"
 
-#define VMA_IMPLEMENTATION
-#include "vk_mem_alloc.h"
-
 #ifdef _WIN32
 	#define VK_USE_PLATFORM_WIN32_KHR
+	#define WIN32_LEAN_AND_MEAN
 #endif
 
 #ifdef __linux__
 	#define VK_USE_PLATFORM_XLIB_KHR
 #endif
 
-#define VOLK_IMPLEMENTATION
-#include "volk.h"
+constexpr uint64_t U64_MAX = 0xFFFFFFFFFFFFFFFF;
 
 struct Renderer {
 	
