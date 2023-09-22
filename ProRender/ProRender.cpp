@@ -235,6 +235,8 @@ int main(int argc, char* argv[]) {
 	}
 
 	//Create VkImage and all associated objects from start to finish
+	VkImage image;
+	VmaAllocation image_allocation;
 	{
 		//Load image data
 		stbi_uc* image_bytes;
@@ -251,6 +253,7 @@ int main(int argc, char* argv[]) {
 		//Create staging buffer
 		VkBuffer staging_buffer;
 		VmaAllocation staging_buffer_allocation;
+		VmaAllocationInfo sb_alloc_info;
 		{
 			VkBufferCreateInfo buffer_info = {};
 			buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -266,15 +269,69 @@ int main(int argc, char* argv[]) {
 			alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 			alloc_info.priority = 1.0;
 
-			if (vmaCreateBuffer(vgd.allocator, &buffer_info, &alloc_info, &staging_buffer, &staging_buffer_allocation, nullptr) != VK_SUCCESS) {
+			if (vmaCreateBuffer(vgd.allocator, &buffer_info, &alloc_info, &staging_buffer, &staging_buffer_allocation, &sb_alloc_info) != VK_SUCCESS) {
 				printf("Creating staging buffer failed.\n");
 				exit(-1);
 			}
 		}
 
+		//Copy image data to staging buffer
+		{
+			memcpy(sb_alloc_info.pMappedData, image_bytes, static_cast<size_t>(x * y * channels));
+			free(image_bytes);
+		}
+
 		//Create image
 		{
+			VkImageCreateInfo info = {};
+			info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+			info.imageType = VK_IMAGE_TYPE_2D;
+			info.format = VK_FORMAT_R8G8B8A8_SNORM;
+			info.extent = {
+				.width = static_cast<uint32_t>(x),
+				.height = static_cast<uint32_t>(y),
+				.depth = 1
+			};
+			info.mipLevels = 1;
+			info.arrayLayers = 1;
+			info.samples = VK_SAMPLE_COUNT_1_BIT;
+			info.tiling = VK_IMAGE_TILING_OPTIMAL;
+			info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+			info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+			info.queueFamilyIndexCount = 1;
+			info.pQueueFamilyIndices = &vgd.graphics_queue_family_idx;
+			info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
+			VmaAllocationCreateInfo alloc_info = {};
+			alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
+			alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+			alloc_info.priority = 1.0;
+
+			if (vmaCreateImage(vgd.allocator, &info, &alloc_info, &image, &image_allocation, nullptr) != VK_SUCCESS) {
+				printf("Creating staging buffer failed.\n");
+				exit(-1);
+			}
+		}
+
+		//Record CopyBufferToImage commands
+		{
+			VkCommandBuffer upload_cb = vgd.borrow_command_buffer();
+
+			{
+				VkImageMemoryBarrier2 barrier = {};
+				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+				barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+				
+				barrier.srcQueueFamilyIndex = vgd.graphics_queue_family_idx;
+				barrier.dstQueueFamilyIndex = vgd.graphics_queue_family_idx;
+
+				VkDependencyInfo info = {};
+				info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+				info.imageMemoryBarrierCount = 1;
+				info.pImageMemoryBarriers = &barrier;
+
+				//vkCmdPipelineBarrier2(upload_cb, &info);
+			}
 		}
 		
 		vmaDestroyBuffer(vgd.allocator, staging_buffer, staging_buffer_allocation);
@@ -344,7 +401,7 @@ int main(int argc, char* argv[]) {
 				VkClearValue clear_color;
 				clear_color.color.float32[0] = 0.0;
 				clear_color.color.float32[1] = 0.0;
-				clear_color.color.float32[2] = 0.0;
+				clear_color.color.float32[2] = 1.0;
 				clear_color.color.float32[3] = 1.0;
 				clear_color.depthStencil.depth = 0.0;
 				clear_color.depthStencil.stencil = 0;
@@ -462,7 +519,7 @@ int main(int argc, char* argv[]) {
 			exit(-1);
 		}
 
-		FILE* f = fopen(PIPELINE_CACHE, "wb");
+		FILE* f = fopen(PIPELINE_CACHE_FILENAME, "wb");
 		if (fwrite(cache_data.data(), sizeof(uint8_t), data_size, f) == 0) {
 			printf("Error writing pipeline cache data.\n");
 			exit(-1);
@@ -471,6 +528,8 @@ int main(int argc, char* argv[]) {
 	}
 
 	//Cleanup resources
+
+	vmaDestroyImage(vgd.allocator, image, image_allocation);
 
 
 	vkDestroySemaphore(vgd.device, window.semaphore, vgd.alloc_callbacks);
@@ -483,6 +542,8 @@ int main(int argc, char* argv[]) {
 	vkDestroySwapchainKHR(vgd.device, window.swapchain, vgd.alloc_callbacks);
 	vkDestroySurfaceKHR(vgd.instance, window.surface, vgd.alloc_callbacks);
 	
+	vkDestroySemaphore(vgd.device, vgd.image_upload_semaphore, vgd.alloc_callbacks);
+
 	vkDestroySemaphore(vgd.device, graphics_timeline_semaphore, vgd.alloc_callbacks);
 	vkDestroyPipeline(vgd.device, main_pipeline, vgd.alloc_callbacks);
 	vkDestroyRenderPass(vgd.device, render_pass, vgd.alloc_callbacks);
@@ -491,6 +552,9 @@ int main(int argc, char* argv[]) {
 	vkDestroyDescriptorSetLayout(vgd.device, vgd.descriptor_set_layout, vgd.alloc_callbacks);
 	vkDestroyCommandPool(vgd.device, vgd.command_pool, vgd.alloc_callbacks);
 	vkDestroyPipelineCache(vgd.device, vgd.pipeline_cache, vgd.alloc_callbacks);
+
+	vmaDestroyAllocator(vgd.allocator);
+
 	vkDestroyDevice(vgd.device, vgd.alloc_callbacks);
 	vkDestroyInstance(vgd.instance, vgd.alloc_callbacks);
 	

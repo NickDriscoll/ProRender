@@ -61,6 +61,7 @@ void VulkanGraphicsDevice::init() {
 
 	//Vulkan physical device selection
 	VkPhysicalDeviceTimelineSemaphoreFeatures semaphore_features = {};
+	VkPhysicalDeviceSynchronization2Features sync2_features = {};
 	{
 		uint32_t physical_device_count = 0;
 		//Getting physical device count by passing nullptr as last param
@@ -132,13 +133,20 @@ void VulkanGraphicsDevice::init() {
 			if (physical_device) {
 				//Physical device feature checking section
 				semaphore_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
-
+				sync2_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
 				device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+
+				semaphore_features.pNext = &sync2_features;
 				device_features.pNext = &semaphore_features;
 				vkGetPhysicalDeviceFeatures2(physical_device, &device_features);
 
 				if (!semaphore_features.timelineSemaphore) {
 					printf("No support for timeline semaphores on this device.\n");
+					exit(-1);
+				}
+
+				if (!sync2_features.synchronization2) {
+					printf("No support for sync2 on this device.\n");
 					exit(-1);
 				}
 				break;
@@ -248,10 +256,27 @@ void VulkanGraphicsDevice::init() {
 	}
 	printf("Command pool created.\n");
 
+	{
+		std::vector<VkCommandBuffer> storage;
+		storage.resize(128);
+
+		VkCommandBufferAllocateInfo cb_info = {};
+		cb_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		cb_info.commandPool = command_pool;
+		cb_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		cb_info.commandBufferCount = storage.size();
+
+		if (vkAllocateCommandBuffers(device, &cb_info, storage.data()) != VK_SUCCESS) {
+			printf("Creating main command buffers failed.\n");
+			exit(-1);
+		}
+
+		_command_buffers = std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>>(storage);
+	}
+
 	//Allocate command buffers
 	{
-		VkCommandBufferAllocateInfo cb_info;
-		cb_info.pNext = nullptr;
+		VkCommandBufferAllocateInfo cb_info = {};
 		cb_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		cb_info.commandPool = command_pool;
 		cb_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -264,17 +289,33 @@ void VulkanGraphicsDevice::init() {
 	}
 	printf("Command buffers allocated.\n");
 
+	{
+		VkSemaphoreTypeCreateInfo type_info = {};
+		type_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+		type_info.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+		type_info.initialValue = 0;
+
+		VkSemaphoreCreateInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		info.pNext = &type_info;
+
+		if (vkCreateSemaphore(device, &info, alloc_callbacks, &image_upload_semaphore) != VK_SUCCESS) {
+			printf("Creating image upload timeline semaphore failed.\n");
+			exit(-1);
+		}
+	}
+
 	//Create pipeline cache
 	{
 		VkPipelineCacheCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
 
 		std::vector<uint8_t> cache_data;
-		if (std::filesystem::exists(PIPELINE_CACHE)) {
+		if (std::filesystem::exists(PIPELINE_CACHE_FILENAME)) {
 			printf("Found pipeline cache.\n");
-			uint32_t pipeline_size = std::filesystem::file_size(PIPELINE_CACHE);
+			uint32_t pipeline_size = std::filesystem::file_size(PIPELINE_CACHE_FILENAME);
 			cache_data.resize(pipeline_size);
-			FILE* f = fopen(PIPELINE_CACHE, "rb");
+			FILE* f = fopen(PIPELINE_CACHE_FILENAME, "rb");
 			if (fread(cache_data.data(), sizeof(uint8_t), pipeline_size, f) == 0) {
 				printf("Error reading pipeline cache.\n");
 				exit(-1);
@@ -350,6 +391,12 @@ void VulkanGraphicsDevice::init() {
 
 		//vkCreateRenderPass2();
 	}
+}
+
+VkCommandBuffer VulkanGraphicsDevice::borrow_command_buffer() {
+	VkCommandBuffer cb = _command_buffers.top();
+	_command_buffers.pop();
+	return cb;
 }
 
 VkShaderModule VulkanGraphicsDevice::load_shader_module(const char* path) {

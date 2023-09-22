@@ -4,10 +4,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <vector>
+#include <stack>
 #include "volk.h"
 #include "vma.h"
+#include "slotmap.h"
 #define FRAMES_IN_FLIGHT 2		//Number of simultaneous frames the GPU could be working on
-#define PIPELINE_CACHE ".pipelinecache"
+#define PIPELINE_CACHE_FILENAME ".pipelinecache"
 
 struct VulkanGraphicsDevice {
 	uint32_t graphics_queue_family_idx;
@@ -22,6 +24,8 @@ struct VulkanGraphicsDevice {
 	VkCommandPool command_pool;
 	VkCommandBuffer command_buffers[FRAMES_IN_FLIGHT];
 	VkPipelineCache pipeline_cache;
+	
+	VkSemaphore image_upload_semaphore;			//Timeline semaphore
 
 	//These two fields can be members of the graphics device struct because
 	//we are assuming bindless resource management
@@ -31,8 +35,9 @@ struct VulkanGraphicsDevice {
 	VmaAllocator allocator;
 
     void init();
+	VkCommandBuffer borrow_command_buffer();
 	VkShaderModule load_shader_module(const char* path);
 
 private:
-
+	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _command_buffers;
 };

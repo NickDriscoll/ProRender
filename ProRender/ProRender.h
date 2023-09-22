@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 //#include <unistd.h>
 #include <vector>
 #include <hlsl++.h>
@@ -18,7 +19,6 @@
 #include "SDL_main.h"
 #include "SDL_vulkan.h"
 #include "VulkanWindow.h"
-#include "slotmap.h"
 #include "volk.h"
 #include "vma.h"
 #include "stb_image.h"
