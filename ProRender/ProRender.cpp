@@ -240,36 +240,11 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	//Random slotmap testing in my main function
-	slotmap<uint32_t> test_map;
-	test_map.alloc(1024);
-	uint64_t k1 = test_map.insert(1);
-	uint64_t k2 = test_map.insert(2);
-	uint64_t k3 = test_map.insert(3);
-	test_map.remove(k2);
-	uint64_t k4 = test_map.insert(4);
-	test_map.insert(5);
-	test_map.insert(6);
-	test_map.insert(7);
-	test_map.remove(k1);
-	test_map.remove(k3);
-	test_map.insert(8);
-	test_map.insert(9);
-
-	uint32_t count = 0;
-	for (uint32_t i = 0; count < test_map.count(); i++) {
-		if (!test_map.is_live(i)) continue;
-
-		uint32_t& element = test_map.ptr()[i];
-		printf("In slot %i: %i\n", i, element);
-		count += 1;
+	//Create VkImage and all associated objects
+	{
+		//Create staging buffer
+		
 	}
-
-	printf("Trying to get k2: %i\n", test_map.get(k2));
-	printf("Trying to get k4: %i\n", test_map.get(k4));
-
-	hlslpp::float4x4 test;
-
 
 	//Main loop
 	uint64_t ticks = SDL_GetTicks64();

@@ -19,6 +19,9 @@
 #include "VulkanWindow.h"
 #include "slotmap.h"
 
+#define VMA_IMPLEMENTATION
+#include "vk_mem_alloc.h"
+
 #ifdef _WIN32
 	#define VK_USE_PLATFORM_WIN32_KHR
 #endif

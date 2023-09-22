@@ -2,28 +2,29 @@
 #include <stack>
 #include <assert.h>
 
-#define EXTRACT_IDX(key) (key & 0x00000000FFFFFFFF)
+#define EXTRACT_IDX(key) (key & 0xFFFFFFFF)
 #define EXTRACT_GENERATION(key) (key >> 32)
 
 template<class T>
 struct slotmap {
     void alloc(uint32_t size) {
-        assert(data.size() == 0);
+        assert(_data.size() == 0);
 
-        data.resize(size);
+        _data.resize(size);
         generation_bits.resize(size);
 
-        //TODO: There has to be a better way!
         std::vector<uint32_t> free_inds;
         free_inds.resize(size);
+
+        //TODO: There has to be a better way!
         for (uint32_t i = 0; i < size; i++) {
             free_inds[i] = size - i - 1;
         }
         free_indices = std::stack(free_inds);
     }
 
-    T* ptr() {
-        return data.data();
+    T* data() {
+        return _data.data();
     }
 
     T* get(uint64_t key) {
@@ -31,7 +32,7 @@ struct slotmap {
         uint32_t gen = static_cast<uint32_t>(EXTRACT_GENERATION(key));
         T* d = nullptr;
         if (gen == generation_bits[idx]) {
-            d = &data[idx];
+            d = &_data[idx];
         }
         return d;
     }
@@ -55,7 +56,7 @@ struct slotmap {
     }
 
     bool is_live(uint32_t idx) {
-        if (data.size() == 0) return false;
+        if (_data.size() == 0) return false;
 
         uint32_t i = idx / 64;
         return live_bits[i] & (1 << (idx % 64));
@@ -78,7 +79,7 @@ struct slotmap {
     }
 
 private:
-    std::vector<T> data = {};
+    std::vector<T> _data = {};
     std::vector<uint32_t> generation_bits = {};
     std::vector<uint64_t> live_bits = {};           //Nth least significant bit indicates if slot N is live
     std::stack<uint32_t, std::vector<uint32_t>> free_indices;
