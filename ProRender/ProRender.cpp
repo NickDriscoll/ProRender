@@ -1,10 +1,4 @@
-﻿#define VOLK_IMPLEMENTATION
-#include "volk.h"
-
-#define VMA_IMPLEMENTATION
-#include "vk_mem_alloc.h"
-
-#include "ProRender.h"
+﻿#include "ProRender.h"
 
 int main(int argc, char* argv[]) {
 	printf("Argument 0: %s\n", argv[0]);
@@ -240,10 +234,50 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	//Create VkImage and all associated objects
+	//Create VkImage and all associated objects from start to finish
 	{
+		//Load image data
+		stbi_uc* image_bytes;
+		int x, y, channels;
+		{
+			image_bytes = stbi_load("images/normal.png", &x, &y, &channels, 0);
+
+			if (!image_bytes) {
+				printf("Loading image failed.\n");
+				exit(-1);
+			}
+		}
+
 		//Create staging buffer
+		VkBuffer staging_buffer;
+		VmaAllocation staging_buffer_allocation;
+		{
+			VkBufferCreateInfo buffer_info = {};
+			buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			buffer_info.size = x * y * channels;
+			buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+			buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+			buffer_info.queueFamilyIndexCount = 1;
+			buffer_info.pQueueFamilyIndices = &vgd.graphics_queue_family_idx;
+
+			VmaAllocationCreateInfo alloc_info = {};
+			alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+			alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
+			alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+			alloc_info.priority = 1.0;
+
+			if (vmaCreateBuffer(vgd.allocator, &buffer_info, &alloc_info, &staging_buffer, &staging_buffer_allocation, nullptr) != VK_SUCCESS) {
+				printf("Creating staging buffer failed.\n");
+				exit(-1);
+			}
+		}
+
+		//Create image
+		{
+
+		}
 		
+		vmaDestroyBuffer(vgd.allocator, staging_buffer, staging_buffer_allocation);
 	}
 
 	//Main loop
@@ -437,6 +471,8 @@ int main(int argc, char* argv[]) {
 	}
 
 	//Cleanup resources
+
+
 	vkDestroySemaphore(vgd.device, window.semaphore, vgd.alloc_callbacks);
 	for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
 		vkDestroyFramebuffer(vgd.device, swapchain_framebuffers[i], vgd.alloc_callbacks);

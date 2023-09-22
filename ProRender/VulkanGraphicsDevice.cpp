@@ -211,7 +211,6 @@ void VulkanGraphicsDevice::init() {
 	volkLoadDevice(device);
 
 	//Initialize VMA
-	VmaAllocator allocator;
 	{
 		VmaAllocatorCreateInfo info = {};
 		info.flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT;

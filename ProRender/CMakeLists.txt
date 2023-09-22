@@ -14,6 +14,7 @@ add_executable (
 	"VulkanWindow.h"
 	"VulkanWindow.cpp"
 	"slotmap.h"
+	"header_libs.cpp"
 )
 
 #Include SDL2
@@ -42,6 +43,11 @@ add_custom_command(
 	COMMAND ${CMAKE_COMMAND} -E make_directory
 			"${CMAKE_CURRENT_BINARY_DIR}/bin/shaders")
 
+add_custom_command(
+	TARGET ProRender POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E make_directory
+			"${CMAKE_CURRENT_BINARY_DIR}/bin/images")
+
 #Compile HLSL vertex shaders
 #message("Current source dir: ${CMAKE_CURRENT_SOURCE_DIR}")
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert")
@@ -65,6 +71,19 @@ foreach(file ${files})
 		POST_BUILD
 		COMMAND "$ENV{VULKAN_SDK}/bin/dxc" -spirv -T ps_6_7 -Fo "${CMAKE_CURRENT_BINARY_DIR}/bin/shaders/${filename}.spv" "${file}"
 		VERBATIM)
+endforeach()
+
+
+file(GLOB files "${CMAKE_SOURCE_DIR}/images/*")
+foreach(file ${files})
+	#message(INFO "frag shader ${file}")
+	cmake_path(GET file FILENAME filename)
+	add_custom_command(
+		TARGET ProRender
+		POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy
+				${file}
+				${CMAKE_CURRENT_BINARY_DIR}/bin/images/)
 endforeach()
 
 #Copy SDL2.dll to output directory
