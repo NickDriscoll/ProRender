@@ -235,9 +235,17 @@ int main(int argc, char* argv[]) {
 	}
 
 	//Create VkImage and all associated objects from start to finish
-	VkImage image;
+	VkCommandBuffer upload_cb;
+	VkBuffer staging_buffer;
+	VmaAllocation staging_buffer_allocation;
+	uint64_t image_upload_id;
+
+	VkImage sampled_image;
+	VkImageView sampled_image_view;
 	VmaAllocation image_allocation;
 	{
+		VkFormat image_format = VK_FORMAT_R8G8B8A8_SNORM;
+
 		//Load image data
 		stbi_uc* image_bytes;
 		int x, y, channels;
@@ -251,8 +259,6 @@ int main(int argc, char* argv[]) {
 		}
 
 		//Create staging buffer
-		VkBuffer staging_buffer;
-		VmaAllocation staging_buffer_allocation;
 		VmaAllocationInfo sb_alloc_info;
 		{
 			VkBufferCreateInfo buffer_info = {};
@@ -286,7 +292,7 @@ int main(int argc, char* argv[]) {
 			VkImageCreateInfo info = {};
 			info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 			info.imageType = VK_IMAGE_TYPE_2D;
-			info.format = VK_FORMAT_R8G8B8A8_SNORM;
+			info.format = image_format;
 			info.extent = {
 				.width = static_cast<uint32_t>(x),
 				.height = static_cast<uint32_t>(y),
@@ -307,34 +313,166 @@ int main(int argc, char* argv[]) {
 			alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			alloc_info.priority = 1.0;
 
-			if (vmaCreateImage(vgd.allocator, &info, &alloc_info, &image, &image_allocation, nullptr) != VK_SUCCESS) {
+			if (vmaCreateImage(vgd.allocator, &info, &alloc_info, &sampled_image, &image_allocation, nullptr) != VK_SUCCESS) {
 				printf("Creating staging buffer failed.\n");
 				exit(-1);
 			}
 		}
 
-		//Record CopyBufferToImage commands
+		//Create image view
 		{
-			VkCommandBuffer upload_cb = vgd.borrow_command_buffer();
+			VkImageSubresourceRange subresource_range = {};
+			subresource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			subresource_range.baseMipLevel = 0;
+			subresource_range.levelCount = 1;
+			subresource_range.baseArrayLayer = 0;
+			subresource_range.layerCount = 1;
 
+			VkImageViewCreateInfo info = {};
+			info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			info.image = sampled_image;
+			info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			info.format = image_format;
+			info.components = COMPONENT_MAPPING_DEFAULT;
+			info.subresourceRange = subresource_range;
+
+			if (vkCreateImageView(vgd.device, &info, vgd.alloc_callbacks, &sampled_image_view) != VK_SUCCESS) {
+				printf("Creating image view failed.\n");
+				exit(-1);
+			}
+		}
+
+		//Record CopyBufferToImage commands
+		upload_cb = vgd.borrow_command_buffer();
+		{
 			{
-				VkImageMemoryBarrier2 barrier = {};
-				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-				barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+				VkCommandBufferBeginInfo info = {};
+				info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+				info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+				vkBeginCommandBuffer(upload_cb, &info);
+			}
+
+			//Record barrier to transition into optimal transfer dst layout
+			{
+				VkImageMemoryBarrier2KHR barrier = {};
+				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR;
+				barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
+				barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
+				barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 				
 				barrier.srcQueueFamilyIndex = vgd.graphics_queue_family_idx;
 				barrier.dstQueueFamilyIndex = vgd.graphics_queue_family_idx;
 
-				VkDependencyInfo info = {};
+				barrier.image = sampled_image;
+				barrier.subresourceRange = {
+					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+					.baseMipLevel = 0,
+					.levelCount = 1,
+					.baseArrayLayer = 0,
+					.layerCount = 1
+				};
+
+				VkDependencyInfoKHR info = {};
 				info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 				info.imageMemoryBarrierCount = 1;
 				info.pImageMemoryBarriers = &barrier;
 
-				//vkCmdPipelineBarrier2(upload_cb, &info);
+				vkCmdPipelineBarrier2KHR(upload_cb, &info);
 			}
+
+			//Record buffer copy to image
+			{
+				VkBufferImageCopy region = {
+					.bufferOffset = 0,
+					.bufferRowLength = 0,
+					.bufferImageHeight = 0,
+					.imageSubresource = {
+						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+						.mipLevel = 0,
+						.baseArrayLayer = 0,
+						.layerCount = 1
+					},
+					.imageOffset = 0,
+					.imageExtent = {
+						.width = static_cast<uint32_t>(x),
+						.height = static_cast<uint32_t>(y),
+						.depth = 1
+					}
+				};
+
+				vkCmdCopyBufferToImage(upload_cb, staging_buffer, sampled_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+			}
+
+			//Record barrier to transition into optimal shader sampling layout
+			{
+				VkImageMemoryBarrier2KHR barrier = {};
+				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR;
+				barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
+				barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
+				barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+				barrier.dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+				barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+				
+				barrier.srcQueueFamilyIndex = vgd.graphics_queue_family_idx;
+				barrier.dstQueueFamilyIndex = vgd.graphics_queue_family_idx;
+
+				barrier.image = sampled_image;
+				barrier.subresourceRange = {
+					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+					.baseMipLevel = 0,
+					.levelCount = 1,
+					.baseArrayLayer = 0,
+					.layerCount = 1
+				};
+
+				VkDependencyInfoKHR info = {};
+				info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+				info.imageMemoryBarrierCount = 1;
+				info.pImageMemoryBarriers = &barrier;
+
+				vkCmdPipelineBarrier2KHR(upload_cb, &info);
+			}
+
+			vkEndCommandBuffer(upload_cb);
+		}
+
+		//Submit upload command buffer
+		VkQueue q;
+		vkGetDeviceQueue(vgd.device, vgd.graphics_queue_family_idx, 1, &q);
+		{
+			uint64_t wait_value = 200;
+			uint64_t signal_value = vgd.image_upload_requests + 1;
+			VkTimelineSemaphoreSubmitInfo ts_info = {};
+			ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+			ts_info.waitSemaphoreValueCount = 1;
+			ts_info.pWaitSemaphoreValues = &wait_value;
+			ts_info.signalSemaphoreValueCount = 1;
+			ts_info.pSignalSemaphoreValues = &signal_value;
+
+			VkPipelineStageFlags flags[] = { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
+			VkSubmitInfo info = {};
+			info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			info.pNext = &ts_info;
+			info.waitSemaphoreCount = 1;
+			info.pWaitSemaphores = &graphics_timeline_semaphore;
+			info.signalSemaphoreCount = 1;
+			info.pSignalSemaphores = &vgd.image_upload_semaphore;
+			info.commandBufferCount = 1;
+			info.pCommandBuffers = &upload_cb;
+			info.pWaitDstStageMask = flags;
+
+			if (vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE) != VK_SUCCESS) {
+				printf("Queue submit failed.\n");
+				exit(-1);
+			}
+			vgd.image_upload_requests += 1;
+			image_upload_id = vgd.image_upload_requests;
 		}
 		
-		vmaDestroyBuffer(vgd.allocator, staging_buffer, staging_buffer_allocation);
+		//vmaDestroyBuffer(vgd.allocator, staging_buffer, staging_buffer_allocation);
 	}
 
 	//Main loop
@@ -355,12 +493,13 @@ int main(int argc, char* argv[]) {
 			}
 		}
 
-		//Draw triangle
+		//Draw
 		{
 			//Acquire swapchain image for this frame
 			uint32_t acquired_image_idx;
 			vkAcquireNextImageKHR(vgd.device, window.swapchain, U64_MAX, window.semaphore, VK_NULL_HANDLE, &acquired_image_idx);
 			
+			//Wait for command buffer to finish execution before trying to record to it
 			if (current_frame >= FRAMES_IN_FLIGHT) {
 				uint64_t wait_value = current_frame - FRAMES_IN_FLIGHT + 1;
 				VkSemaphoreWaitInfo info = {};
@@ -373,6 +512,13 @@ int main(int argc, char* argv[]) {
 					printf("Waiting for graphics timeline semaphore failed.\n");
 					exit(-1);
 				}
+			}
+
+			static bool done_that = false;
+			uint64_t value;
+			vkGetSemaphoreCounterValue(vgd.device, vgd.image_upload_semaphore, &value);
+			if (!done_that && value >= 1) {
+				vgd.return_command_buffer(upload_cb);
 			}
 
 			VkCommandBuffer current_cb = vgd.command_buffers[current_frame % FRAMES_IN_FLIGHT];
@@ -444,7 +590,13 @@ int main(int argc, char* argv[]) {
 
 			float time = static_cast<float>(ticks) * 1.5f / 1000.0f;
 			vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4, &time);
-			vkCmdDraw(current_cb, 6, 1, 0, 0);
+
+			uint64_t upload_semaphore_value = 0;
+			vkGetSemaphoreCounterValue(vgd.device, vgd.image_upload_semaphore, &upload_semaphore_value);
+
+			if (upload_semaphore_value >= image_upload_id) {
+				vkCmdDraw(current_cb, 6, 1, 0, 0);
+			}
 
 			vkCmdEndRenderPass(current_cb);
 			vkEndCommandBuffer(current_cb);
@@ -453,27 +605,24 @@ int main(int argc, char* argv[]) {
 			VkQueue q;
 			vkGetDeviceQueue(vgd.device, vgd.graphics_queue_family_idx, 0, &q);
 			{
-				uint64_t wait_values[] = {current_frame , 0};
-				uint64_t signal_values[] = {current_frame + 1 , 0};
+				uint64_t signal_values[] = {current_frame + 1, 0};
 				VkTimelineSemaphoreSubmitInfo ts_info = {};
 				ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-				ts_info.waitSemaphoreValueCount = 2;
-				ts_info.pWaitSemaphoreValues = wait_values;
 				ts_info.signalSemaphoreValueCount = 2;
 				ts_info.pSignalSemaphoreValues = signal_values;
 
-				VkPipelineStageFlags flags[] = { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+				VkPipelineStageFlags wait_flags[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT };
 				VkSubmitInfo info = {};
-				VkSemaphore semaphores[] = { graphics_timeline_semaphore, window.semaphore };
+				VkSemaphore signal_semaphores[] = { graphics_timeline_semaphore, window.semaphore };
 				info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 				info.pNext = &ts_info;
-				info.waitSemaphoreCount = 2;
-				info.pWaitSemaphores = semaphores;
+				info.waitSemaphoreCount = 1;
+				info.pWaitSemaphores = &window.semaphore;
 				info.signalSemaphoreCount = 2;
-				info.pSignalSemaphores = semaphores;
+				info.pSignalSemaphores = signal_semaphores;
 				info.commandBufferCount = 1;
 				info.pCommandBuffers = &current_cb;
-				info.pWaitDstStageMask = flags;
+				info.pWaitDstStageMask = wait_flags;
 
 				if (vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE) != VK_SUCCESS) {
 					printf("Queue submit failed.\n");
@@ -529,7 +678,9 @@ int main(int argc, char* argv[]) {
 
 	//Cleanup resources
 
-	vmaDestroyImage(vgd.allocator, image, image_allocation);
+	vkDestroyImageView(vgd.device, sampled_image_view, vgd.alloc_callbacks);
+	vmaDestroyImage(vgd.allocator, sampled_image, image_allocation);
+	vmaDestroyBuffer(vgd.allocator, staging_buffer, staging_buffer_allocation);
 
 
 	vkDestroySemaphore(vgd.device, window.semaphore, vgd.alloc_callbacks);

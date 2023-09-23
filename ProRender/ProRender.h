@@ -9,10 +9,9 @@
 #include <chrono>
 #include <filesystem>
 #include <stdio.h>
-#include <stdint.h>
+//#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-//#include <unistd.h>
 #include <vector>
 #include <hlsl++.h>
 #include "SDL.h"
@@ -22,6 +21,10 @@
 #include "volk.h"
 #include "vma.h"
 #include "stb_image.h"
+
+#ifdef _WIN32
+	#define VK_USE_PLATFORM_WIN32_KHR
+#endif
 
 #ifdef __linux__
 	#define VK_USE_PLATFORM_XLIB_KHR

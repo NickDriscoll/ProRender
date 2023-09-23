@@ -157,25 +157,22 @@ void VulkanGraphicsDevice::init() {
 	//Vulkan device creation
 	{
 		std::vector<VkDeviceQueueCreateInfo> queue_infos;
+		queue_infos.reserve(3);
 
 		float priority = 1.0;	//Static priority value because of course
 
 		//We always have a general GRAPHICS queue family
-		VkDeviceQueueCreateInfo g_queue_info;
-		g_queue_info.pNext = nullptr;
+		VkDeviceQueueCreateInfo g_queue_info = {};
 		g_queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		g_queue_info.flags = 0;
 		g_queue_info.queueFamilyIndex = graphics_queue_family_idx;
-		g_queue_info.queueCount = 1;
+		g_queue_info.queueCount = 2;
 		g_queue_info.pQueuePriorities = &priority;
 		queue_infos.push_back(g_queue_info);
 
 		//If we have a dedicated compute queue family
 		if (graphics_queue_family_idx != compute_queue_family_idx) {
-			VkDeviceQueueCreateInfo c_queue_info;
-			c_queue_info.pNext = nullptr;
+			VkDeviceQueueCreateInfo c_queue_info = {};
 			c_queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-			c_queue_info.flags = 0;
 			c_queue_info.queueFamilyIndex = compute_queue_family_idx;
 			c_queue_info.queueCount = 1;
 			c_queue_info.pQueuePriorities = &priority;
@@ -184,17 +181,18 @@ void VulkanGraphicsDevice::init() {
 
 		//If we have a dedicated transfer queue family
 		if (graphics_queue_family_idx != transfer_queue_family_idx) {
-			VkDeviceQueueCreateInfo t_queue_info;
-			t_queue_info.pNext = nullptr;
+			VkDeviceQueueCreateInfo t_queue_info = {};
 			t_queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-			t_queue_info.flags = 0;
 			t_queue_info.queueFamilyIndex = transfer_queue_family_idx;
 			t_queue_info.queueCount = 1;
 			t_queue_info.pQueuePriorities = &priority;
 			queue_infos.push_back(t_queue_info);
 		}
 
-		std::vector<const char*> extension_names = {"VK_KHR_swapchain"};
+		std::vector<const char*> extension_names = {
+			VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+			VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME
+		};
 
 		VkDeviceCreateInfo device_info = {};
 		device_info.pNext = &device_features;
@@ -370,33 +368,16 @@ void VulkanGraphicsDevice::init() {
 	{
 
 	}
-
-	//Create render pass
-	{
-		VkAttachmentDescription2 attach_info = {};
-		attach_info.sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
-		attach_info.format = VK_FORMAT_B8G8R8A8_SRGB;
-		attach_info.samples = VK_SAMPLE_COUNT_1_BIT;
-		attach_info.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		attach_info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		attach_info.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		attach_info.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		attach_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		attach_info.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-
-		VkRenderPassCreateInfo2 info = {};
-		info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO_2;
-
-
-		//vkCreateRenderPass2();
-	}
 }
 
 VkCommandBuffer VulkanGraphicsDevice::borrow_command_buffer() {
 	VkCommandBuffer cb = _command_buffers.top();
 	_command_buffers.pop();
 	return cb;
+}
+
+void VulkanGraphicsDevice::return_command_buffer(VkCommandBuffer cb) {
+	_command_buffers.push(cb);
 }
 
 VkShaderModule VulkanGraphicsDevice::load_shader_module(const char* path) {

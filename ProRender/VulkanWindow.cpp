@@ -94,12 +94,6 @@ void VulkanWindow::init(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 	swapchain_image_views.resize(swapchain_image_count);
 	{
 		for (uint32_t i = 0; i < swapchain_image_count; i++) {
-			VkComponentMapping mapping;
-			mapping.r = VkComponentSwizzle::VK_COMPONENT_SWIZZLE_R;
-			mapping.g = VkComponentSwizzle::VK_COMPONENT_SWIZZLE_G;
-			mapping.b = VkComponentSwizzle::VK_COMPONENT_SWIZZLE_B;
-			mapping.a = VkComponentSwizzle::VK_COMPONENT_SWIZZLE_A;
-
 			VkImageSubresourceRange subresource_range = {};
 			subresource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			subresource_range.baseMipLevel = 0;
@@ -112,7 +106,7 @@ void VulkanWindow::init(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 			info.image = swapchain_images[i];
 			info.viewType = VK_IMAGE_VIEW_TYPE_2D;
 			info.format = VK_FORMAT_B8G8R8A8_SRGB;
-			info.components = mapping;
+			info.components = COMPONENT_MAPPING_DEFAULT;
 			info.subresourceRange = subresource_range;
 
 			if (vkCreateImageView(vgd.device, &info, vgd.alloc_callbacks, &swapchain_image_views[i]) != VK_SUCCESS) {
