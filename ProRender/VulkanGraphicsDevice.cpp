@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include "VulkanGraphicsDevice.h"
 
-void VulkanGraphicsDevice::init() {
+VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	alloc_callbacks = nullptr;			//TODO: Custom allocator
 	vma_alloc_callbacks = nullptr;
 
@@ -247,7 +247,22 @@ void VulkanGraphicsDevice::init() {
 		pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		pool_info.queueFamilyIndex = graphics_queue_family_idx;
 
-		if (vkCreateCommandPool(device, &pool_info, alloc_callbacks, &command_pool) != VK_SUCCESS) {
+		if (vkCreateCommandPool(device, &pool_info, alloc_callbacks, &graphics_command_pool) != VK_SUCCESS) {
+			printf("Creating main command pool failed.\n");
+			exit(-1);
+		}
+	}
+	printf("Command pool created.\n");
+
+	//Create command pool
+	{
+		VkCommandPoolCreateInfo pool_info;
+		pool_info.pNext = nullptr;
+		pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+		pool_info.queueFamilyIndex = transfer_queue_family_idx;
+
+		if (vkCreateCommandPool(device, &pool_info, alloc_callbacks, &transfer_command_pool) != VK_SUCCESS) {
 			printf("Creating main command pool failed.\n");
 			exit(-1);
 		}
@@ -260,7 +275,7 @@ void VulkanGraphicsDevice::init() {
 
 		VkCommandBufferAllocateInfo cb_info = {};
 		cb_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		cb_info.commandPool = command_pool;
+		cb_info.commandPool = transfer_command_pool;
 		cb_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		cb_info.commandBufferCount = storage.size();
 
@@ -269,14 +284,14 @@ void VulkanGraphicsDevice::init() {
 			exit(-1);
 		}
 
-		_command_buffers = std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>>(storage);
+		_transfer_command_buffers = std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>>(storage);
 	}
 
 	//Allocate command buffers
 	{
 		VkCommandBufferAllocateInfo cb_info = {};
 		cb_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		cb_info.commandPool = command_pool;
+		cb_info.commandPool = graphics_command_pool;
 		cb_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		cb_info.commandBufferCount = FRAMES_IN_FLIGHT;
 
@@ -370,14 +385,53 @@ void VulkanGraphicsDevice::init() {
 	}
 }
 
-VkCommandBuffer VulkanGraphicsDevice::borrow_command_buffer() {
-	VkCommandBuffer cb = _command_buffers.top();
-	_command_buffers.pop();
+VulkanGraphicsDevice::~VulkanGraphicsDevice() {
+	//Write pipeline cache to file
+	{
+		size_t data_size;
+		if (vkGetPipelineCacheData(device, pipeline_cache, &data_size, nullptr) != VK_SUCCESS) {
+			printf("Pipeline cache size query failed.\n");
+			exit(-1);
+		}
+
+		std::vector<uint8_t> cache_data;
+		cache_data.resize(data_size);
+		if (vkGetPipelineCacheData(device, pipeline_cache, &data_size, cache_data.data()) != VK_SUCCESS) {
+			printf("Pipeline cache data query failed.\n");
+			exit(-1);
+		}
+
+		FILE* f = fopen(PIPELINE_CACHE_FILENAME, "wb");
+		if (fwrite(cache_data.data(), sizeof(uint8_t), data_size, f) == 0) {
+			printf("Error writing pipeline cache data.\n");
+			exit(-1);
+		}
+		fclose(f);
+	}
+	
+	
+	vkDestroySemaphore(device, image_upload_semaphore, alloc_callbacks);
+
+	vkDestroyPipelineLayout(device, pipeline_layout, alloc_callbacks);
+	vkDestroyDescriptorSetLayout(device, descriptor_set_layout, alloc_callbacks);
+	vkDestroyCommandPool(device, transfer_command_pool, alloc_callbacks);
+	vkDestroyCommandPool(device, graphics_command_pool, alloc_callbacks);
+	vkDestroyPipelineCache(device, pipeline_cache, alloc_callbacks);
+
+	vmaDestroyAllocator(allocator);
+
+	vkDestroyDevice(device, alloc_callbacks);
+	vkDestroyInstance(instance, alloc_callbacks);
+}
+
+VkCommandBuffer VulkanGraphicsDevice::borrow_transfer_command_buffer() {
+	VkCommandBuffer cb = _transfer_command_buffers.top();
+	_transfer_command_buffers.pop();
 	return cb;
 }
 
 void VulkanGraphicsDevice::return_command_buffer(VkCommandBuffer cb) {
-	_command_buffers.push(cb);
+	_transfer_command_buffers.push(cb);
 }
 
 VkShaderModule VulkanGraphicsDevice::load_shader_module(const char* path) {

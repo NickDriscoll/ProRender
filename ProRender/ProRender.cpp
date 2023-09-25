@@ -12,8 +12,7 @@ int main(int argc, char* argv[]) {
 	SDL_Window* sdl_window = SDL_CreateWindow("losing my mind", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, x_resolution, y_resolution, SDL_WINDOW_VULKAN);
 
 	//Init vulkan graphics device
-	VulkanGraphicsDevice vgd;
-	vgd.init();
+	VulkanGraphicsDevice vgd = VulkanGraphicsDevice();
 
 	//Init the vulkan window
 	VulkanWindow window;
@@ -248,9 +247,10 @@ int main(int argc, char* argv[]) {
 
 		//Load image data
 		stbi_uc* image_bytes;
-		int x, y, channels;
+		int x, y;
+		int channels = 4;
 		{
-			image_bytes = stbi_load("images/normal.png", &x, &y, &channels, 0);
+			image_bytes = stbi_load("images/stressed_miyamoto.jpg", &x, &y, nullptr, 4);
 
 			if (!image_bytes) {
 				printf("Loading image failed.\n");
@@ -267,7 +267,7 @@ int main(int argc, char* argv[]) {
 			buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 			buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 			buffer_info.queueFamilyIndexCount = 1;
-			buffer_info.pQueueFamilyIndices = &vgd.graphics_queue_family_idx;
+			buffer_info.pQueueFamilyIndices = &vgd.transfer_queue_family_idx;
 
 			VmaAllocationCreateInfo alloc_info = {};
 			alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -305,7 +305,7 @@ int main(int argc, char* argv[]) {
 			info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 			info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 			info.queueFamilyIndexCount = 1;
-			info.pQueueFamilyIndices = &vgd.graphics_queue_family_idx;
+			info.pQueueFamilyIndices = &vgd.transfer_queue_family_idx;
 			info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 			VmaAllocationCreateInfo alloc_info = {};
@@ -343,7 +343,7 @@ int main(int argc, char* argv[]) {
 		}
 
 		//Record CopyBufferToImage commands
-		upload_cb = vgd.borrow_command_buffer();
+		upload_cb = vgd.borrow_transfer_command_buffer();
 		{
 			{
 				VkCommandBufferBeginInfo info = {};
@@ -362,8 +362,8 @@ int main(int argc, char* argv[]) {
 				barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 				barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 				
-				barrier.srcQueueFamilyIndex = vgd.graphics_queue_family_idx;
-				barrier.dstQueueFamilyIndex = vgd.graphics_queue_family_idx;
+				barrier.srcQueueFamilyIndex = vgd.transfer_queue_family_idx;
+				barrier.dstQueueFamilyIndex = vgd.transfer_queue_family_idx;
 
 				barrier.image = sampled_image;
 				barrier.subresourceRange = {
@@ -406,6 +406,7 @@ int main(int argc, char* argv[]) {
 			}
 
 			//Record barrier to transition into optimal shader sampling layout
+			//as well as queue ownership transfer to the graphics queue
 			{
 				VkImageMemoryBarrier2KHR barrier = {};
 				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR;
@@ -416,7 +417,7 @@ int main(int argc, char* argv[]) {
 				barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 				barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 				
-				barrier.srcQueueFamilyIndex = vgd.graphics_queue_family_idx;
+				barrier.srcQueueFamilyIndex = vgd.transfer_queue_family_idx;
 				barrier.dstQueueFamilyIndex = vgd.graphics_queue_family_idx;
 
 				barrier.image = sampled_image;
@@ -441,14 +442,11 @@ int main(int argc, char* argv[]) {
 
 		//Submit upload command buffer
 		VkQueue q;
-		vkGetDeviceQueue(vgd.device, vgd.graphics_queue_family_idx, 1, &q);
+		vkGetDeviceQueue(vgd.device, vgd.transfer_queue_family_idx, 0, &q);
 		{
-			uint64_t wait_value = 200;
 			uint64_t signal_value = vgd.image_upload_requests + 1;
 			VkTimelineSemaphoreSubmitInfo ts_info = {};
 			ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-			ts_info.waitSemaphoreValueCount = 1;
-			ts_info.pWaitSemaphoreValues = &wait_value;
 			ts_info.signalSemaphoreValueCount = 1;
 			ts_info.pSignalSemaphoreValues = &signal_value;
 
@@ -456,8 +454,6 @@ int main(int argc, char* argv[]) {
 			VkSubmitInfo info = {};
 			info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 			info.pNext = &ts_info;
-			info.waitSemaphoreCount = 1;
-			info.pWaitSemaphores = &graphics_timeline_semaphore;
 			info.signalSemaphoreCount = 1;
 			info.pSignalSemaphores = &vgd.image_upload_semaphore;
 			info.commandBufferCount = 1;
@@ -653,35 +649,15 @@ int main(int argc, char* argv[]) {
 	//Wait until all GPU queues have drained before cleaning up resources
 	vkDeviceWaitIdle(vgd.device);
 
-	//Write pipeline cache to file
-	{
-		size_t data_size;
-		if (vkGetPipelineCacheData(vgd.device, vgd.pipeline_cache, &data_size, nullptr) != VK_SUCCESS) {
-			printf("Pipeline cache size query failed.\n");
-			exit(-1);
-		}
-
-		std::vector<uint8_t> cache_data;
-		cache_data.resize(data_size);
-		if (vkGetPipelineCacheData(vgd.device, vgd.pipeline_cache, &data_size, cache_data.data()) != VK_SUCCESS) {
-			printf("Pipeline cache data query failed.\n");
-			exit(-1);
-		}
-
-		FILE* f = fopen(PIPELINE_CACHE_FILENAME, "wb");
-		if (fwrite(cache_data.data(), sizeof(uint8_t), data_size, f) == 0) {
-			printf("Error writing pipeline cache data.\n");
-			exit(-1);
-		}
-		fclose(f);
-	}
-
 	//Cleanup resources
 
 	vkDestroyImageView(vgd.device, sampled_image_view, vgd.alloc_callbacks);
 	vmaDestroyImage(vgd.allocator, sampled_image, image_allocation);
 	vmaDestroyBuffer(vgd.allocator, staging_buffer, staging_buffer_allocation);
+	vkDestroySemaphore(vgd.device, graphics_timeline_semaphore, vgd.alloc_callbacks);
 
+	vkDestroyPipeline(vgd.device, main_pipeline, vgd.alloc_callbacks);
+	vkDestroyRenderPass(vgd.device, render_pass, vgd.alloc_callbacks);
 
 	vkDestroySemaphore(vgd.device, window.semaphore, vgd.alloc_callbacks);
 	for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
@@ -692,22 +668,6 @@ int main(int argc, char* argv[]) {
 	}
 	vkDestroySwapchainKHR(vgd.device, window.swapchain, vgd.alloc_callbacks);
 	vkDestroySurfaceKHR(vgd.instance, window.surface, vgd.alloc_callbacks);
-	
-	vkDestroySemaphore(vgd.device, vgd.image_upload_semaphore, vgd.alloc_callbacks);
-
-	vkDestroySemaphore(vgd.device, graphics_timeline_semaphore, vgd.alloc_callbacks);
-	vkDestroyPipeline(vgd.device, main_pipeline, vgd.alloc_callbacks);
-	vkDestroyRenderPass(vgd.device, render_pass, vgd.alloc_callbacks);
-
-	vkDestroyPipelineLayout(vgd.device, vgd.pipeline_layout, vgd.alloc_callbacks);
-	vkDestroyDescriptorSetLayout(vgd.device, vgd.descriptor_set_layout, vgd.alloc_callbacks);
-	vkDestroyCommandPool(vgd.device, vgd.command_pool, vgd.alloc_callbacks);
-	vkDestroyPipelineCache(vgd.device, vgd.pipeline_cache, vgd.alloc_callbacks);
-
-	vmaDestroyAllocator(vgd.allocator);
-
-	vkDestroyDevice(vgd.device, vgd.alloc_callbacks);
-	vkDestroyInstance(vgd.instance, vgd.alloc_callbacks);
 	
 	SDL_Quit();
 

@@ -9,7 +9,7 @@
 #include "vma.h"
 #include "slotmap.h"
 #define FRAMES_IN_FLIGHT 2		//Number of simultaneous frames the GPU could be working on
-#define PIPELINE_CACHE_FILENAME ".pipelinecache"
+#define PIPELINE_CACHE_FILENAME ".shadercache"
 
 constexpr VkComponentMapping COMPONENT_MAPPING_DEFAULT = {
 	.r = VK_COMPONENT_SWIZZLE_R,
@@ -28,7 +28,8 @@ struct VulkanGraphicsDevice {
 	VkDevice device;
 	const VkAllocationCallbacks* alloc_callbacks;
 	const VmaDeviceMemoryCallbacks* vma_alloc_callbacks;
-	VkCommandPool command_pool;
+	VkCommandPool graphics_command_pool;
+	VkCommandPool transfer_command_pool;
 	VkCommandBuffer command_buffers[FRAMES_IN_FLIGHT];
 	VkPipelineCache pipeline_cache;
 	
@@ -42,11 +43,13 @@ struct VulkanGraphicsDevice {
 
 	VmaAllocator allocator;
 
-    void init();
-	VkCommandBuffer borrow_command_buffer();
+	VkCommandBuffer borrow_transfer_command_buffer();
 	void return_command_buffer(VkCommandBuffer cb);
 	VkShaderModule load_shader_module(const char* path);
 
+	VulkanGraphicsDevice();
+	~VulkanGraphicsDevice();
+
 private:
-	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _command_buffers;
+	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _transfer_command_buffers;
 };

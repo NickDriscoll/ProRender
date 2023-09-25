@@ -7,6 +7,16 @@
 
 template<class T>
 struct slotmap {
+    
+#ifndef SLOTMAP_IMPLEMENTATION
+    void alloc(uint32_t size);
+    uint32_t count();
+    T* data();
+    T* get(uint64_t key);
+    uint64_t insert(T thing);
+    bool is_live(uint32_t idx);
+    void remove(uint64_t key);
+#else
     void alloc(uint32_t size) {
         assert(_data.size() == 0);
 
@@ -21,6 +31,10 @@ struct slotmap {
             free_inds[i] = size - i - 1;
         }
         free_indices = std::stack(free_inds);
+    }
+
+    uint32_t count() {
+        return _count;
     }
 
     T* data() {
@@ -73,10 +87,7 @@ struct slotmap {
         uint32_t live_idx = idx / 64;
         live_bits[live_idx] &= ~static_cast<uint64_t>(1 << (idx % 64));
     }
-
-    uint32_t count() {
-        return _count;
-    }
+#endif
 
 private:
     std::vector<T> _data = {};
