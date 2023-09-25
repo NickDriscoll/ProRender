@@ -62,6 +62,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	//Vulkan physical device selection
 	VkPhysicalDeviceTimelineSemaphoreFeatures semaphore_features = {};
 	VkPhysicalDeviceSynchronization2Features sync2_features = {};
+	VkPhysicalDeviceDescriptorIndexingFeatures desciptor_indexing_features = {};
 	{
 		uint32_t physical_device_count = 0;
 		//Getting physical device count by passing nullptr as last param
@@ -135,10 +136,17 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 				semaphore_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
 				sync2_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
 				device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+				desciptor_indexing_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
 
+				sync2_features.pNext = &desciptor_indexing_features;
 				semaphore_features.pNext = &sync2_features;
 				device_features.pNext = &semaphore_features;
 				vkGetPhysicalDeviceFeatures2(physical_device, &device_features);
+
+				if (!desciptor_indexing_features.runtimeDescriptorArray) {
+					printf("No support for descriptor arrays on this device.\n");
+					exit(-1);
+				}
 
 				if (!semaphore_features.timelineSemaphore) {
 					printf("No support for timeline semaphores on this device.\n");
@@ -348,21 +356,65 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 
 	//Pipeline layout
 	{
+		//Immutable sampler creation
+		VkSampler sampler;
+		{
+			VkSamplerCreateInfo info = {
+				.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+				.magFilter = VK_FILTER_LINEAR,
+				.minFilter = VK_FILTER_LINEAR,
+				.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+				.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+				.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+				.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+				.anisotropyEnable = VK_TRUE,
+				.maxAnisotropy = 16.0
+			};
+
+			if (vkCreateSampler(device, &info, alloc_callbacks, &sampler) != VK_SUCCESS) {
+				printf("Creating sampler failed.\n");
+				exit(-1);
+			}
+		}
+
 		//Descriptor set layout
 		{
+			std::vector<VkDescriptorSetLayoutBinding> bindings;
+
+			VkDescriptorSetLayoutBinding sampled_image_binding = {
+				.binding = 0,
+				.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+				.descriptorCount = 1,
+				.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+			};
+			bindings.push_back(sampled_image_binding);
+
+
+			VkDescriptorSetLayoutBinding sampler_binding = {
+				.binding = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+				.descriptorCount = 1,
+				.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+				.pImmutableSamplers = &sampler
+			};
+			bindings.push_back(sampler_binding);
+
 			VkDescriptorSetLayoutCreateInfo info = {};
 			info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+			info.bindingCount = bindings.size();
+			info.pBindings = bindings.data();
 
 			if (vkCreateDescriptorSetLayout(device, &info, alloc_callbacks, &descriptor_set_layout) != VK_SUCCESS) {
 				printf("Creating descriptor set layout failed.\n");
 				exit(-1);
 			}
+			//vkDestroySampler(device, sampler, alloc_callbacks);
 		}
 
-		VkPushConstantRange range = {};
-		range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		VkPushConstantRange range;
+		range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 		range.offset = 0;
-		range.size = 4;
+		range.size = 8;
 
 		VkPipelineLayoutCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -381,7 +433,44 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 
 	//Create bindless descriptor set
 	{
+		{
+			VkDescriptorPoolSize sizes[] = {
+				{
+					.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+					.descriptorCount = 1,
+				},
+				{
+					.type = VK_DESCRIPTOR_TYPE_SAMPLER,
+					.descriptorCount = 1
+				}
+			};
 
+			VkDescriptorPoolCreateInfo info = {
+				.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+				.maxSets = 1,
+				.poolSizeCount = 2,
+				.pPoolSizes = sizes
+			};
+
+			if (vkCreateDescriptorPool(device, &info, alloc_callbacks, &descriptor_pool) != VK_SUCCESS) {
+				printf("Creating descriptor pool failed.\n");
+				exit(-1);
+			}
+		}
+
+		{
+			VkDescriptorSetAllocateInfo info = {
+				.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+				.descriptorPool = descriptor_pool,
+				.descriptorSetCount = 1,
+				.pSetLayouts = &descriptor_set_layout
+			};
+
+			if (vkAllocateDescriptorSets(device, &info, &descriptor_set) != VK_SUCCESS) {
+				printf("Allocating descriptor set failed.\n");
+				exit(-1);
+			}
+		}
 	}
 }
 

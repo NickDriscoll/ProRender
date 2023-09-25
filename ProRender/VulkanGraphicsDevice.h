@@ -40,6 +40,8 @@ struct VulkanGraphicsDevice {
 	//we are assuming bindless resource management
 	VkDescriptorSetLayout descriptor_set_layout;
 	VkPipelineLayout pipeline_layout;
+	VkDescriptorPool descriptor_pool;
+	VkDescriptorSet descriptor_set;
 
 	VmaAllocator allocator;		//Thank you, AMD
 

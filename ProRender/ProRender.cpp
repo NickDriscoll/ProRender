@@ -243,14 +243,14 @@ int main(int argc, char* argv[]) {
 	VkImageView sampled_image_view;
 	VmaAllocation image_allocation;
 	{
-		VkFormat image_format = VK_FORMAT_R8G8B8A8_SNORM;
+		VkFormat image_format = VK_FORMAT_R8G8B8A8_SRGB;
 
 		//Load image data
 		stbi_uc* image_bytes;
 		int x, y;
 		int channels = 4;
 		{
-			image_bytes = stbi_load("images/stressed_miyamoto.jpg", &x, &y, nullptr, 4);
+			image_bytes = stbi_load("images/stressed_miyamoto.png", &x, &y, nullptr, 4);
 
 			if (!image_bytes) {
 				printf("Loading image failed.\n");
@@ -521,13 +521,35 @@ int main(int argc, char* argv[]) {
 			vkBeginCommandBuffer(current_cb, &begin_info);
 
 			static bool done_that = false;
-			uint64_t value;
-			vkGetSemaphoreCounterValue(vgd.device, vgd.image_upload_semaphore, &value);
-			if (!done_that && value >= 1) {
+			uint64_t upload_semaphore_value;
+			vkGetSemaphoreCounterValue(vgd.device, vgd.image_upload_semaphore, &upload_semaphore_value);
+			if (!done_that && upload_semaphore_value >= 1) {
 				wait_semaphores.push_back(vgd.image_upload_semaphore);
-				wait_semaphore_values.push_back(value);
+				wait_semaphore_values.push_back(upload_semaphore_value);
 
 				vgd.return_command_buffer(upload_cb);
+				
+				//Write descriptor sets
+				{
+					VkDescriptorImageInfo info = {
+						.imageView = sampled_image_view,
+						.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+					};
+					VkDescriptorImageInfo info2 = {};
+					VkWriteDescriptorSet writes[] = {
+						{
+							.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+							.dstSet = vgd.descriptor_set,
+							.dstBinding = 0,
+							.dstArrayElement = 0,
+							.descriptorCount = 1,
+							.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+							.pImageInfo = &info
+						}
+					};
+
+					vkUpdateDescriptorSets(vgd.device, 1, writes, 0, nullptr);
+				}
 
 				//Graphics queue acquire ownership of the image
 				//Also barrier afterwards bc of 
@@ -563,6 +585,7 @@ int main(int argc, char* argv[]) {
 			}
 
 			vkCmdBindPipeline(current_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, main_pipeline);
+			vkCmdBindDescriptorSets(current_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.pipeline_layout, 0, 1, &vgd.descriptor_set, 0, nullptr);
 
 			//Begin render pass
 			{
@@ -622,10 +645,7 @@ int main(int argc, char* argv[]) {
 			}
 
 			float time = static_cast<float>(ticks) * 1.5f / 1000.0f;
-			vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4, &time);
-
-			uint64_t upload_semaphore_value = 0;
-			vkGetSemaphoreCounterValue(vgd.device, vgd.image_upload_semaphore, &upload_semaphore_value);
+			vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 4, &time);
 
 			if (upload_semaphore_value >= image_upload_id) {
 				vkCmdDraw(current_cb, 6, 1, 0, 0);
