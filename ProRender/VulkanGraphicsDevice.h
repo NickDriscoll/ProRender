@@ -41,7 +41,7 @@ struct VulkanGraphicsDevice {
 	VkDescriptorSetLayout descriptor_set_layout;
 	VkPipelineLayout pipeline_layout;
 
-	VmaAllocator allocator;
+	VmaAllocator allocator;		//Thank you, AMD
 
 	VkCommandBuffer borrow_transfer_command_buffer();
 	void return_command_buffer(VkCommandBuffer cb);

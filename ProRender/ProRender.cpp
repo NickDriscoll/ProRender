@@ -412,10 +412,9 @@ int main(int argc, char* argv[]) {
 				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR;
 				barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
 				barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
-				barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 				barrier.dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
-				barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-				barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+				barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+				barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				
 				barrier.srcQueueFamilyIndex = vgd.transfer_queue_family_idx;
 				barrier.dstQueueFamilyIndex = vgd.graphics_queue_family_idx;
@@ -493,7 +492,7 @@ int main(int argc, char* argv[]) {
 		{
 			//Acquire swapchain image for this frame
 			uint32_t acquired_image_idx;
-			vkAcquireNextImageKHR(vgd.device, window.swapchain, U64_MAX, window.semaphore, VK_NULL_HANDLE, &acquired_image_idx);
+			vkAcquireNextImageKHR(vgd.device, window.swapchain, U64_MAX, window.acquire_semaphore, VK_NULL_HANDLE, &acquired_image_idx);
 			
 			//Wait for command buffer to finish execution before trying to record to it
 			if (current_frame >= FRAMES_IN_FLIGHT) {
@@ -510,13 +509,9 @@ int main(int argc, char* argv[]) {
 				}
 			}
 
-			static bool done_that = false;
-			uint64_t value;
-			vkGetSemaphoreCounterValue(vgd.device, vgd.image_upload_semaphore, &value);
-			if (!done_that && value >= 1) {
-				vgd.return_command_buffer(upload_cb);
-			}
-
+			std::vector<VkSemaphore> wait_semaphores = {window.acquire_semaphore};
+			std::vector<uint64_t> wait_semaphore_values = {0};
+			std::vector<VkPipelineStageFlags> wait_flags = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
 			VkCommandBuffer current_cb = vgd.command_buffers[current_frame % FRAMES_IN_FLIGHT];
 
 			VkCommandBufferBeginInfo begin_info = {
@@ -524,6 +519,48 @@ int main(int argc, char* argv[]) {
 				.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
 			};
 			vkBeginCommandBuffer(current_cb, &begin_info);
+
+			static bool done_that = false;
+			uint64_t value;
+			vkGetSemaphoreCounterValue(vgd.device, vgd.image_upload_semaphore, &value);
+			if (!done_that && value >= 1) {
+				wait_semaphores.push_back(vgd.image_upload_semaphore);
+				wait_semaphore_values.push_back(value);
+
+				vgd.return_command_buffer(upload_cb);
+
+				//Graphics queue acquire ownership of the image
+				//Also barrier afterwards bc of 
+				{
+					VkImageMemoryBarrier2KHR barrier = {};
+					barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR;
+					barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
+					barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT_KHR;
+					barrier.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+					barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+					barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+					
+					barrier.srcQueueFamilyIndex = vgd.transfer_queue_family_idx;
+					barrier.dstQueueFamilyIndex = vgd.graphics_queue_family_idx;
+
+					barrier.image = sampled_image;
+					barrier.subresourceRange = {
+						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+						.baseMipLevel = 0,
+						.levelCount = 1,
+						.baseArrayLayer = 0,
+						.layerCount = 1
+					};
+
+					VkDependencyInfoKHR info = {};
+					info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+					info.imageMemoryBarrierCount = 1;
+					info.pImageMemoryBarriers = &barrier;
+
+					vkCmdPipelineBarrier2KHR(current_cb, &info);
+				}
+				done_that = true;
+			}
 
 			vkCmdBindPipeline(current_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, main_pipeline);
 
@@ -603,22 +640,23 @@ int main(int argc, char* argv[]) {
 			{
 				uint64_t signal_values[] = {current_frame + 1, 0};
 				VkTimelineSemaphoreSubmitInfo ts_info = {};
+				ts_info.waitSemaphoreValueCount = wait_semaphore_values.size();
+				ts_info.pWaitSemaphoreValues = wait_semaphore_values.data();
 				ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
 				ts_info.signalSemaphoreValueCount = 2;
 				ts_info.pSignalSemaphoreValues = signal_values;
 
-				VkPipelineStageFlags wait_flags[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT };
 				VkSubmitInfo info = {};
-				VkSemaphore signal_semaphores[] = { graphics_timeline_semaphore, window.semaphore };
+				VkSemaphore signal_semaphores[] = { graphics_timeline_semaphore, window.present_semaphore };
 				info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 				info.pNext = &ts_info;
-				info.waitSemaphoreCount = 1;
-				info.pWaitSemaphores = &window.semaphore;
+				info.waitSemaphoreCount = wait_semaphores.size();
+				info.pWaitSemaphores = wait_semaphores.data();
+				info.pWaitDstStageMask = wait_flags.data();
 				info.signalSemaphoreCount = 2;
 				info.pSignalSemaphores = signal_semaphores;
 				info.commandBufferCount = 1;
 				info.pCommandBuffers = &current_cb;
-				info.pWaitDstStageMask = wait_flags;
 
 				if (vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE) != VK_SUCCESS) {
 					printf("Queue submit failed.\n");
@@ -631,7 +669,7 @@ int main(int argc, char* argv[]) {
 				VkPresentInfoKHR info = {};
 				info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 				info.waitSemaphoreCount = 1;
-				info.pWaitSemaphores = &window.semaphore;
+				info.pWaitSemaphores = &window.present_semaphore;
 				info.swapchainCount = 1;
 				info.pSwapchains = &window.swapchain;
 				info.pImageIndices = &acquired_image_idx;
@@ -659,7 +697,8 @@ int main(int argc, char* argv[]) {
 	vkDestroyPipeline(vgd.device, main_pipeline, vgd.alloc_callbacks);
 	vkDestroyRenderPass(vgd.device, render_pass, vgd.alloc_callbacks);
 
-	vkDestroySemaphore(vgd.device, window.semaphore, vgd.alloc_callbacks);
+	vkDestroySemaphore(vgd.device, window.acquire_semaphore, vgd.alloc_callbacks);
+	vkDestroySemaphore(vgd.device, window.present_semaphore, vgd.alloc_callbacks);
 	for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
 		vkDestroyFramebuffer(vgd.device, swapchain_framebuffers[i], vgd.alloc_callbacks);
 	}

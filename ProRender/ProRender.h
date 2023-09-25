@@ -6,6 +6,14 @@
 
 // TODO: Reference additional headers your program requires here.
 
+#ifdef _WIN32
+	#define VK_USE_PLATFORM_WIN32_KHR
+#endif
+
+#ifdef __linux__
+	#define VK_USE_PLATFORM_XLIB_KHR
+#endif
+
 #include <chrono>
 #include <filesystem>
 #include <stdio.h>
@@ -21,14 +29,6 @@
 #include "volk.h"
 #include "vma.h"
 #include "stb_image.h"
-
-#ifdef _WIN32
-	#define VK_USE_PLATFORM_WIN32_KHR
-#endif
-
-#ifdef __linux__
-	#define VK_USE_PLATFORM_XLIB_KHR
-#endif
 
 constexpr uint64_t U64_MAX = 0xFFFFFFFFFFFFFFFF;
 

@@ -165,7 +165,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		VkDeviceQueueCreateInfo g_queue_info = {};
 		g_queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 		g_queue_info.queueFamilyIndex = graphics_queue_family_idx;
-		g_queue_info.queueCount = 2;
+		g_queue_info.queueCount = 1;
 		g_queue_info.pQueuePriorities = &priority;
 		queue_infos.push_back(g_queue_info);
 

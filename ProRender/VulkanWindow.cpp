@@ -120,7 +120,17 @@ void VulkanWindow::init(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 	{
 		VkSemaphoreCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		if (vkCreateSemaphore(vgd.device, &info, vgd.alloc_callbacks, &semaphore) != VK_SUCCESS) {
+		if (vkCreateSemaphore(vgd.device, &info, vgd.alloc_callbacks, &acquire_semaphore) != VK_SUCCESS) {
+			printf("Creating swapchain acquire semaphore failed.\n");
+			exit(-1);
+		}
+	}
+
+	//Create the present semaphore
+	{
+		VkSemaphoreCreateInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		if (vkCreateSemaphore(vgd.device, &info, vgd.alloc_callbacks, &present_semaphore) != VK_SUCCESS) {
 			printf("Creating swapchain acquire semaphore failed.\n");
 			exit(-1);
 		}
