@@ -234,6 +234,21 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
+	//Graphics fence
+	VkFence graphics_fence;
+	{
+		VkFenceCreateInfo info = {
+			.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+			.flags = VK_FENCE_CREATE_SIGNALED_BIT
+		};
+		
+
+		if (vkCreateFence(vgd.device, &info, vgd.alloc_callbacks, &graphics_fence) != VK_SUCCESS) {
+			printf("Creating graphics fence failed.\n");
+			exit(-1);
+		}
+	}
+
 	//Create VkImage and all associated objects from start to finish
 	VkCommandBuffer upload_cb;
 	VkBuffer staging_buffer;
@@ -283,7 +298,7 @@ int main(int argc, char* argv[]) {
 
 		//Copy image data to staging buffer
 		{
-			memcpy(sb_alloc_info.pMappedData, image_bytes, static_cast<size_t>(x * y * channels));
+			//memcpy(sb_alloc_info.pMappedData, image_bytes, static_cast<size_t>(x * y * channels));
 			free(image_bytes);
 		}
 
@@ -439,12 +454,17 @@ int main(int argc, char* argv[]) {
 			vkEndCommandBuffer(upload_cb);
 		}
 
+		if (vgd.graphics_queue_family_idx != vgd.transfer_queue_family_idx) {
+			printf("They're different!\n");
+		}
+
 		//Submit upload command buffer
-		VkQueue q;
-		vkGetDeviceQueue(vgd.device, vgd.graphics_queue_family_idx, 1, &q);
+		VkQueue upload_q;
+		vkGetDeviceQueue(vgd.device, vgd.transfer_queue_family_idx, 0, &upload_q);
 		{
-			uint64_t wait_value = 200;
+			uint64_t wait_value = 2;
 			uint64_t signal_value = vgd.image_upload_requests + 1;
+
 			VkTimelineSemaphoreSubmitInfo ts_info = {};
 			ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
 			ts_info.waitSemaphoreValueCount = 1;
@@ -464,7 +484,7 @@ int main(int argc, char* argv[]) {
 			info.pCommandBuffers = &upload_cb;
 			info.pWaitDstStageMask = flags;
 
-			if (vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE) != VK_SUCCESS) {
+			if (vkQueueSubmit(upload_q, 1, &info, VK_NULL_HANDLE) != VK_SUCCESS) {
 				printf("Queue submit failed.\n");
 				exit(-1);
 			}
@@ -496,6 +516,16 @@ int main(int argc, char* argv[]) {
 		//Draw
 		{
 			//Acquire swapchain image for this frame
+			if (vkWaitForFences(vgd.device, 1, &graphics_fence, VK_TRUE, U64_MAX) != VK_SUCCESS) {
+				printf("Waiting graphics fence failed.\n");
+				exit(-1);
+			}
+			if (vkResetFences(vgd.device, 1, &graphics_fence) != VK_SUCCESS) {
+				printf("Reset graphics fence failed.\n");
+				exit(-1);
+			}
+			
+
 			uint32_t acquired_image_idx;
 			vkAcquireNextImageKHR(vgd.device, window.swapchain, U64_MAX, window.semaphore, VK_NULL_HANDLE, &acquired_image_idx);
 			
@@ -521,7 +551,7 @@ int main(int argc, char* argv[]) {
 				vgd.return_command_buffer(upload_cb);
 			}
 
-			VkCommandBuffer current_cb = vgd.command_buffers[current_frame % FRAMES_IN_FLIGHT];
+			VkCommandBuffer current_cb = vgd.graphics_command_buffers[current_frame % FRAMES_IN_FLIGHT];
 
 			VkCommandBufferBeginInfo begin_info = {
 				.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -613,7 +643,7 @@ int main(int argc, char* argv[]) {
 
 				VkPipelineStageFlags wait_flags[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT };
 				VkSubmitInfo info = {};
-				VkSemaphore signal_semaphores[] = { graphics_timeline_semaphore, window.semaphore };
+				VkSemaphore signal_semaphores[] = { graphics_timeline_semaphore, window.present_semaphore };
 				info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 				info.pNext = &ts_info;
 				info.waitSemaphoreCount = 1;
@@ -624,7 +654,7 @@ int main(int argc, char* argv[]) {
 				info.pCommandBuffers = &current_cb;
 				info.pWaitDstStageMask = wait_flags;
 
-				if (vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE) != VK_SUCCESS) {
+				if (vkQueueSubmit(q, 1, &info, graphics_fence) != VK_SUCCESS) {
 					printf("Queue submit failed.\n");
 					exit(-1);
 				}
@@ -635,7 +665,7 @@ int main(int argc, char* argv[]) {
 				VkPresentInfoKHR info = {};
 				info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 				info.waitSemaphoreCount = 1;
-				info.pWaitSemaphores = &window.semaphore;
+				info.pWaitSemaphores = &window.present_semaphore;
 				info.swapchainCount = 1;
 				info.pSwapchains = &window.swapchain;
 				info.pImageIndices = &acquired_image_idx;
@@ -701,7 +731,7 @@ int main(int argc, char* argv[]) {
 
 	vkDestroyPipelineLayout(vgd.device, vgd.pipeline_layout, vgd.alloc_callbacks);
 	vkDestroyDescriptorSetLayout(vgd.device, vgd.descriptor_set_layout, vgd.alloc_callbacks);
-	vkDestroyCommandPool(vgd.device, vgd.command_pool, vgd.alloc_callbacks);
+	vkDestroyCommandPool(vgd.device, vgd.graphics_command_pool, vgd.alloc_callbacks);
 	vkDestroyPipelineCache(vgd.device, vgd.pipeline_cache, vgd.alloc_callbacks);
 
 	vmaDestroyAllocator(vgd.allocator);

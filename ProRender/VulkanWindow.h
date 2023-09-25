@@ -9,6 +9,7 @@ struct VulkanWindow {
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapchain;
 	VkSemaphore semaphore;
+	VkSemaphore present_semaphore;
 	std::vector<VkImage> swapchain_images;
 	std::vector<VkImageView> swapchain_image_views;
 

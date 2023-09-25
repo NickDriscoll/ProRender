@@ -69,7 +69,7 @@ void VulkanWindow::init(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 	swapchain_info.pQueueFamilyIndices = &vgd.graphics_queue_family_idx;
 	swapchain_info.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	swapchain_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	swapchain_info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+	swapchain_info.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
 	swapchain_info.clipped = VK_TRUE;
 
 	if (vkCreateSwapchainKHR(vgd.device, &swapchain_info, vgd.alloc_callbacks, &swapchain) != VK_SUCCESS) {
@@ -121,6 +121,16 @@ void VulkanWindow::init(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 		VkSemaphoreCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 		if (vkCreateSemaphore(vgd.device, &info, vgd.alloc_callbacks, &semaphore) != VK_SUCCESS) {
+			printf("Creating swapchain acquire semaphore failed.\n");
+			exit(-1);
+		}
+	}
+
+	//Create the present semaphore
+	{
+		VkSemaphoreCreateInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		if (vkCreateSemaphore(vgd.device, &info, vgd.alloc_callbacks, &present_semaphore) != VK_SUCCESS) {
 			printf("Creating swapchain acquire semaphore failed.\n");
 			exit(-1);
 		}

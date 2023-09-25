@@ -157,16 +157,16 @@ void VulkanGraphicsDevice::init() {
 	//Vulkan device creation
 	{
 		std::vector<VkDeviceQueueCreateInfo> queue_infos;
-		queue_infos.reserve(3);
 
 		float priority = 1.0;	//Static priority value because of course
 
 		//We always have a general GRAPHICS queue family
+		float priorities[] = {1.0, 1.0};
 		VkDeviceQueueCreateInfo g_queue_info = {};
 		g_queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 		g_queue_info.queueFamilyIndex = graphics_queue_family_idx;
 		g_queue_info.queueCount = 2;
-		g_queue_info.pQueuePriorities = &priority;
+		g_queue_info.pQueuePriorities = priorities;
 		queue_infos.push_back(g_queue_info);
 
 		//If we have a dedicated compute queue family
@@ -247,7 +247,22 @@ void VulkanGraphicsDevice::init() {
 		pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		pool_info.queueFamilyIndex = graphics_queue_family_idx;
 
-		if (vkCreateCommandPool(device, &pool_info, alloc_callbacks, &command_pool) != VK_SUCCESS) {
+		if (vkCreateCommandPool(device, &pool_info, alloc_callbacks, &graphics_command_pool) != VK_SUCCESS) {
+			printf("Creating main command pool failed.\n");
+			exit(-1);
+		}
+	}
+	printf("Command pool created.\n");
+
+	//Create command pool
+	{
+		VkCommandPoolCreateInfo pool_info;
+		pool_info.pNext = nullptr;
+		pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+		pool_info.queueFamilyIndex = transfer_queue_family_idx;
+
+		if (vkCreateCommandPool(device, &pool_info, alloc_callbacks, &transfer_command_pool) != VK_SUCCESS) {
 			printf("Creating main command pool failed.\n");
 			exit(-1);
 		}
@@ -260,7 +275,7 @@ void VulkanGraphicsDevice::init() {
 
 		VkCommandBufferAllocateInfo cb_info = {};
 		cb_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		cb_info.commandPool = command_pool;
+		cb_info.commandPool = transfer_command_pool;
 		cb_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		cb_info.commandBufferCount = storage.size();
 
@@ -276,11 +291,11 @@ void VulkanGraphicsDevice::init() {
 	{
 		VkCommandBufferAllocateInfo cb_info = {};
 		cb_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		cb_info.commandPool = command_pool;
+		cb_info.commandPool = graphics_command_pool;
 		cb_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		cb_info.commandBufferCount = FRAMES_IN_FLIGHT;
 
-		if (vkAllocateCommandBuffers(device, &cb_info, command_buffers) != VK_SUCCESS) {
+		if (vkAllocateCommandBuffers(device, &cb_info, graphics_command_buffers) != VK_SUCCESS) {
 			printf("Creating main command buffers failed.\n");
 			exit(-1);
 		}

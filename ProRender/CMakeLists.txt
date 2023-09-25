@@ -87,11 +87,11 @@ foreach(file ${files})
 endforeach()
 
 #Copy SDL2.dll to output directory
-add_custom_command(
-	TARGET ProRender POST_BUILD
-	COMMAND ${CMAKE_COMMAND} -E copy
-			${CMAKE_SOURCE_DIR}/redist/SDL2.dll
-			${CMAKE_CURRENT_BINARY_DIR}/bin/SDL2.dll)
+#add_custom_command(
+#	TARGET ProRender POST_BUILD
+#	COMMAND ${CMAKE_COMMAND} -E copy
+#			${CMAKE_SOURCE_DIR}/redist/SDL2.dll
+#			${CMAKE_CURRENT_BINARY_DIR}/bin/SDL2.dll)
 
 #TODO: Figure out how to make this work on windows and linux simultaneously
 add_custom_command(
@@ -99,7 +99,7 @@ add_custom_command(
 		COMMAND ${CMAKE_COMMAND} -E copy
 				${CMAKE_CURRENT_BINARY_DIR}/Debug/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}	#windows
 				#${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}			#linux
-				${CMAKE_CURRENT_BINARY_DIR}/bin/)
+				${CMAKE_CURRENT_BINARY_DIR}/bin/${PROJECT_NAME}10${CMAKE_EXECUTABLE_SUFFIX})
 
 
 
