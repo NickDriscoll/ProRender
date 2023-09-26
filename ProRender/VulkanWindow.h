@@ -5,7 +5,7 @@
 #include "VulkanGraphicsDevice.h"
 
 struct VulkanWindow {
-	VkFormat preferred_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;	//This seems to be a pretty standard/common swapchain format
+	VkFormat preferred_swapchain_format;	//This seems to be a pretty standard/common swapchain format
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapchain;
 	VkSemaphore acquire_semaphore;

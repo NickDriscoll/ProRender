@@ -645,7 +645,8 @@ int main(int argc, char* argv[]) {
 			}
 
 			float time = static_cast<float>(ticks) * 1.5f / 1000.0f;
-			vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 4, &time);
+			uint32_t bytes[] = { std::bit_cast<uint32_t>(time), 0 };
+			vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 8, bytes);
 
 			if (upload_semaphore_value >= image_upload_id) {
 				vkCmdDraw(current_cb, 6, 1, 0, 0);

@@ -4,6 +4,8 @@ void VulkanWindow::init(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
     //Save surface
     this->surface = surface;
 
+	preferred_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
+
     //Query for surface capabilities
 	VkSurfaceCapabilitiesKHR surface_capabilities = {};
 	if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vgd.physical_device, surface, &surface_capabilities) != VK_SUCCESS) {
@@ -24,16 +26,17 @@ void VulkanWindow::init(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 		exit(-1);
 	}
 
-	bool found_preferred_format = false;
+	VkSurfaceFormatKHR preferred_format = {};
 	for (uint32_t i = 0; i < format_count; i++) {
 		VkFormat format = formats[i].format;
+		VkColorSpaceKHR color_space = formats[i].colorSpace;
 		if (format == preferred_swapchain_format) {
-			found_preferred_format = true;
-			break;
+			preferred_format = formats[i];
+			//break;
 		}
 	}
-	if (!found_preferred_format) {
-		printf("Surface doesn't support VK_FORMAT_B8G8R8A8_SRGB.\n");
+	if (preferred_format.format == 0) {
+		printf("Surface doesn't support preferred format.\n");
 		exit(-1);
 	}
 
@@ -59,8 +62,8 @@ void VulkanWindow::init(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 	swapchain_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	swapchain_info.surface = surface;
 	swapchain_info.minImageCount = surface_capabilities.minImageCount;
-	swapchain_info.imageFormat = preferred_swapchain_format;
-	swapchain_info.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+	swapchain_info.imageFormat = preferred_format.format;
+	swapchain_info.imageColorSpace = preferred_format.colorSpace;
 	swapchain_info.imageExtent = surface_capabilities.currentExtent;
 	swapchain_info.imageArrayLayers = 1;
 	swapchain_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -105,7 +108,7 @@ void VulkanWindow::init(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 			info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 			info.image = swapchain_images[i];
 			info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			info.format = VK_FORMAT_B8G8R8A8_SRGB;
+			info.format = preferred_format.format;
 			info.components = COMPONENT_MAPPING_DEFAULT;
 			info.subresourceRange = subresource_range;
 
