@@ -5,6 +5,8 @@
 #define EXTRACT_IDX(key) (key & 0xFFFFFFFF)
 #define EXTRACT_GENERATION(key) (key >> 32)
 
+//#define SLOTMAP_IMPLEMENTATION
+
 template<class T>
 struct slotmap {
     

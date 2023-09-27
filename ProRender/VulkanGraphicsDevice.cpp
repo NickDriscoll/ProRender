@@ -3,8 +3,10 @@
 #include "VulkanGraphicsDevice.h"
 
 VulkanGraphicsDevice::VulkanGraphicsDevice() {
-	alloc_callbacks = nullptr;			//TODO: Custom allocator
+	alloc_callbacks = nullptr;			//TODO: Custom allocator(s)
 	vma_alloc_callbacks = nullptr;
+
+	_immutable_samplers = std::vector<VkSampler>();
 
 	//Initialize volk
 	if (volkInitialize() != VK_SUCCESS) {
@@ -376,6 +378,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 				exit(-1);
 			}
 		}
+		_immutable_samplers.push_back(sampler);
 
 		//Descriptor set layout
 		{
@@ -389,13 +392,12 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 			};
 			bindings.push_back(sampled_image_binding);
 
-
 			VkDescriptorSetLayoutBinding sampler_binding = {
 				.binding = 1,
 				.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-				.descriptorCount = 1,
+				.descriptorCount = static_cast<uint32_t>(_immutable_samplers.size()),
 				.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-				.pImmutableSamplers = &sampler
+				.pImmutableSamplers = _immutable_samplers.data()
 			};
 			bindings.push_back(sampler_binding);
 
@@ -498,10 +500,14 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 		fclose(f);
 	}
 	
+	for (uint32_t i = 0; i < _immutable_samplers.size(); i++) {
+		vkDestroySampler(device, _immutable_samplers[i], alloc_callbacks);
+	}
 	
 	vkDestroySemaphore(device, image_upload_semaphore, alloc_callbacks);
 
 	vkDestroyPipelineLayout(device, pipeline_layout, alloc_callbacks);
+	vkDestroyDescriptorPool(device, descriptor_pool, alloc_callbacks);
 	vkDestroyDescriptorSetLayout(device, descriptor_set_layout, alloc_callbacks);
 	vkDestroyCommandPool(device, transfer_command_pool, alloc_callbacks);
 	vkDestroyCommandPool(device, graphics_command_pool, alloc_callbacks);
@@ -519,7 +525,7 @@ VkCommandBuffer VulkanGraphicsDevice::borrow_transfer_command_buffer() {
 	return cb;
 }
 
-void VulkanGraphicsDevice::return_command_buffer(VkCommandBuffer cb) {
+void VulkanGraphicsDevice::return_transfer_command_buffer(VkCommandBuffer cb) {
 	_transfer_command_buffers.push(cb);
 }
 

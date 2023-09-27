@@ -243,7 +243,7 @@ int main(int argc, char* argv[]) {
 	VkImageView sampled_image_view;
 	VmaAllocation image_allocation;
 	{
-		VkFormat image_format = VK_FORMAT_R8G8B8A8_SRGB;
+		VkFormat image_format = VK_FORMAT_R8G8B8A8_UNORM;
 
 		//Load image data
 		stbi_uc* image_bytes;
@@ -272,7 +272,7 @@ int main(int argc, char* argv[]) {
 			VmaAllocationCreateInfo alloc_info = {};
 			alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 			alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
-			alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+			alloc_info.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 			alloc_info.priority = 1.0;
 
 			if (vmaCreateBuffer(vgd.allocator, &buffer_info, &alloc_info, &staging_buffer, &staging_buffer_allocation, &sb_alloc_info) != VK_SUCCESS) {
@@ -527,7 +527,7 @@ int main(int argc, char* argv[]) {
 				wait_semaphores.push_back(vgd.image_upload_semaphore);
 				wait_semaphore_values.push_back(upload_semaphore_value);
 
-				vgd.return_command_buffer(upload_cb);
+				vgd.return_transfer_command_buffer(upload_cb);
 				
 				//Write descriptor sets
 				{

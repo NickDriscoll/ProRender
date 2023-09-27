@@ -19,15 +19,16 @@ constexpr VkComponentMapping COMPONENT_MAPPING_DEFAULT = {
 };
 
 struct VulkanGraphicsDevice {
-	uint32_t graphics_queue_family_idx;
-	uint32_t compute_queue_family_idx;
-	uint32_t transfer_queue_family_idx;
 	VkInstance instance;
 	VkPhysicalDevice physical_device;
 	VkPhysicalDeviceFeatures2 device_features;
 	VkDevice device;
+
+	uint32_t graphics_queue_family_idx;
+	uint32_t compute_queue_family_idx;
+	uint32_t transfer_queue_family_idx;
+
 	const VkAllocationCallbacks* alloc_callbacks;
-	const VmaDeviceMemoryCallbacks* vma_alloc_callbacks;
 	VkCommandPool graphics_command_pool;
 	VkCommandPool transfer_command_pool;
 	VkCommandBuffer command_buffers[FRAMES_IN_FLIGHT];
@@ -44,14 +45,16 @@ struct VulkanGraphicsDevice {
 	VkDescriptorSet descriptor_set;
 
 	VmaAllocator allocator;		//Thank you, AMD
+	const VmaDeviceMemoryCallbacks* vma_alloc_callbacks;
 
 	VkCommandBuffer borrow_transfer_command_buffer();
-	void return_command_buffer(VkCommandBuffer cb);
+	void return_transfer_command_buffer(VkCommandBuffer cb);
 	VkShaderModule load_shader_module(const char* path);
 
 	VulkanGraphicsDevice();
 	~VulkanGraphicsDevice();
 
 private:
+	std::vector<VkSampler> _immutable_samplers;
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _transfer_command_buffers;
 };
