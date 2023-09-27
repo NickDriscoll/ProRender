@@ -526,6 +526,7 @@ int main(int argc, char* argv[]) {
 				wait_semaphore_values.push_back(upload_semaphore_value);
 
 				vgd.return_transfer_command_buffer(upload_cb);
+				vmaDestroyBuffer(vgd.allocator, staging_buffer, staging_buffer_allocation);
 				
 				//Write descriptor sets
 				{
