@@ -14,6 +14,7 @@
 	#define VK_USE_PLATFORM_XLIB_KHR
 #endif
 
+#include <bit>
 #include <chrono>
 #include <filesystem>
 #include <stdio.h>

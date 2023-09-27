@@ -6,13 +6,22 @@ struct PushConstants {
     uint image_idx;
 } pc;
 
+// static const float2 POSITIONS[6] = {
+//     -0.75, -0.75,                       //Top left
+//     -0.75, 0.75,                        //Bottom left
+//     0.75, -0.75,                        //Top right
+//     -0.75, 0.75,                        //Bottom left
+//     0.75, 0.75,                         //Bottom right
+//     0.75, -0.75,                        //Top right
+// };
+
 static const float2 POSITIONS[6] = {
-    -0.75, -0.75,                       //Top left
-    -0.75, 0.75,                        //Bottom left
-    0.75, -0.75,                        //Top right
-    -0.75, 0.75,                        //Bottom left
-    0.75, 0.75,                         //Bottom right
-    0.75, -0.75,                        //Top right
+    -1.0, -1.0,                       //Top left
+    -1.0, 1.0,                        //Bottom left
+    1.0, -1.0,                        //Top right
+    -1.0, 1.0,                        //Bottom left
+    1.0, 1.0,                         //Bottom right
+    1.0, -1.0,                        //Top right
 };
 
 static const float2 UVS[6] = {

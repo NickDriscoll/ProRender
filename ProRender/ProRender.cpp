@@ -466,8 +466,6 @@ int main(int argc, char* argv[]) {
 			vgd.image_upload_requests += 1;
 			image_upload_id = vgd.image_upload_requests;
 		}
-		
-		//vmaDestroyBuffer(vgd.allocator, staging_buffer, staging_buffer_allocation);
 	}
 
 	//Main loop
@@ -712,7 +710,6 @@ int main(int argc, char* argv[]) {
 
 	vkDestroyImageView(vgd.device, sampled_image_view, vgd.alloc_callbacks);
 	vmaDestroyImage(vgd.allocator, sampled_image, image_allocation);
-	vmaDestroyBuffer(vgd.allocator, staging_buffer, staging_buffer_allocation);
 	vkDestroySemaphore(vgd.device, graphics_timeline_semaphore, vgd.alloc_callbacks);
 
 	vkDestroyPipeline(vgd.device, main_pipeline, vgd.alloc_callbacks);
