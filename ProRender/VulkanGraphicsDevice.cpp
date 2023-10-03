@@ -4,7 +4,8 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	alloc_callbacks = nullptr;			//TODO: Custom allocator(s)
 	vma_alloc_callbacks = nullptr;
 
-	_render_passes.alloc(1024);
+	_render_passes.alloc(32);
+	_graphics_pipelines.alloc(32);
 	_immutable_samplers = std::vector<VkSampler>();
 
 	//Initialize volk
@@ -544,7 +545,7 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 	VulkanMultisampleState* ms_state,
 	VulkanDepthStencilState* ds_state,
 	VulkanColorBlendState* blend_state,
-	VulkanGraphicsPipeline* out_pipelines,
+	uint64_t* out_pipelines_handles,
 	uint32_t pipeline_count
 ) {
 	//Non-varying pipeline elements
@@ -612,7 +613,6 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 		//Input assembly state
 		VkPipelineInputAssemblyStateCreateInfo ia_info = {};
 		ia_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-		//ia_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		ia_info.topology = ia_state[i].topology;
 		ia_info.flags = ia_state[i].flags;
 		ia_info.primitiveRestartEnable = ia_state[i].primitiveRestartEnable;
@@ -629,8 +629,6 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 		//These will _always_ be dynamic pipeline states
 		VkPipelineViewportStateCreateInfo viewport_info = {};
 		viewport_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-		//viewport_info.viewportCount = 1;
-		//viewport_info.scissorCount = 1;
 		viewport_info.flags = vp_state[i].flags;
 		viewport_info.viewportCount = vp_state[i].viewportCount;
 		viewport_info.pViewports = vp_state[i].pViewports;
@@ -641,13 +639,6 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 		//Rasterization state info
 		VkPipelineRasterizationStateCreateInfo rast_info = {};
 		rast_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-		//rast_info.depthClampEnable = VK_FALSE;
-		//rast_info.rasterizerDiscardEnable = VK_FALSE;
-		//rast_info.polygonMode = VK_POLYGON_MODE_FILL;
-		//rast_info.cullMode = VK_CULL_MODE_BACK_BIT;
-		//rast_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-		//rast_info.depthBiasEnable = VK_FALSE;
-		//rast_info.lineWidth = 1.0;
 		rast_info.flags = raster_state[i].flags;
 		rast_info.depthClampEnable = raster_state[i].depthClampEnable;
 		rast_info.rasterizerDiscardEnable = raster_state[i].rasterizerDiscardEnable;
@@ -664,8 +655,6 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 		//Multisample state
 		VkPipelineMultisampleStateCreateInfo multi_info = {};
 		multi_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		//multi_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-		//multi_info.sampleShadingEnable = VK_FALSE;
 		multi_info.flags = ms_state[i].flags;
 		multi_info.rasterizationSamples = ms_state[i].rasterizationSamples;
 		multi_info.sampleShadingEnable = ms_state[i].sampleShadingEnable;
@@ -678,11 +667,6 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 		//Depth stencil state
 		VkPipelineDepthStencilStateCreateInfo depth_stencil_info = {};
 		depth_stencil_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-		//depth_stencil_info.depthTestEnable = VK_TRUE;
-		//depth_stencil_info.depthWriteEnable = VK_TRUE;
-		//depth_stencil_info.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
-		//depth_stencil_info.depthBoundsTestEnable = VK_FALSE;
-		//depth_stencil_info.stencilTestEnable = VK_FALSE;
 		depth_stencil_info.flags = ds_state[i].flags;
 		depth_stencil_info.depthTestEnable = ds_state[i].depthTestEnable;
 		depth_stencil_info.depthWriteEnable = ds_state[i].depthWriteEnable;
@@ -694,30 +678,6 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 		depth_stencil_info.minDepthBounds = ds_state[i].minDepthBounds;
 		depth_stencil_info.maxDepthBounds = ds_state[i].maxDepthBounds;
 		ds_infos.push_back(depth_stencil_info);
-
-		// VkPipelineColorBlendStateCreateInfo blend_info = {};
-		// VkPipelineColorBlendAttachmentState blend_att = {};
-		// {
-		// 	//Blend func description
-		// 	VkColorComponentFlags component_flags = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		// 	blend_att.blendEnable = VK_TRUE;
-		// 	blend_att.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
-		// 	blend_att.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
-		// 	blend_att.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-		// 	blend_att.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
-		// 	blend_att.alphaBlendOp = VK_BLEND_OP_ADD;
-		// 	blend_att.colorWriteMask = component_flags;
-
-
-		// 	//Blend state
-		// 	blend_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-		// 	blend_info.attachmentCount = 1;
-		// 	blend_info.pAttachments = &blend_att;
-		// 	blend_info.blendConstants[0] = 1.0;
-		// 	blend_info.blendConstants[1] = 1.0;
-		// 	blend_info.blendConstants[2] = 1.0;
-		// 	blend_info.blendConstants[3] = 1.0;
-		// }
 
 		VkPipelineColorBlendStateCreateInfo blend_info = {};
 		blend_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -760,13 +720,17 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 	}
 
 	for (uint32_t i = 0; i < pipeline_count; i++) {
-		out_pipelines[i] = {
+		out_pipelines_handles[i] = _graphics_pipelines.insert({
 			.pipeline = pipelines[i]
-		};
+		});
 	}
 
 	vkDestroyShaderModule(device, vertex_shader, alloc_callbacks);
 	vkDestroyShaderModule(device, fragment_shader, alloc_callbacks);
+}
+
+VulkanGraphicsPipeline* VulkanGraphicsDevice::get_graphics_pipeline(uint64_t handle) {
+	return _graphics_pipelines.get(handle);
 }
 
 uint64_t VulkanGraphicsDevice::create_render_pass(VkRenderPassCreateInfo& info) {

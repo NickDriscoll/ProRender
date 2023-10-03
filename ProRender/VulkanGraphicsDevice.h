@@ -21,6 +21,7 @@ constexpr VkComponentMapping COMPONENT_MAPPING_DEFAULT = {
 };
 
 struct VulkanGraphicsDevice {
+	const VkAllocationCallbacks* alloc_callbacks;
 	VkInstance instance;
 	VkPhysicalDevice physical_device;
 	VkPhysicalDeviceFeatures2 device_features;
@@ -30,7 +31,6 @@ struct VulkanGraphicsDevice {
 	uint32_t compute_queue_family_idx;
 	uint32_t transfer_queue_family_idx;
 
-	const VkAllocationCallbacks* alloc_callbacks;
 	VkCommandPool graphics_command_pool;
 	VkCommandPool transfer_command_pool;
 	VkCommandBuffer command_buffers[FRAMES_IN_FLIGHT];
@@ -61,9 +61,10 @@ struct VulkanGraphicsDevice {
 		VulkanMultisampleState* ms_state,
 		VulkanDepthStencilState* ds_state,
 		VulkanColorBlendState* blend_state,
-		VulkanGraphicsPipeline* out_pipelines,
+		uint64_t* out_pipelines_handles,
 		uint32_t pipeline_count
 	);
+	VulkanGraphicsPipeline* get_graphics_pipeline(uint64_t key);
 
 	uint64_t create_render_pass(VkRenderPassCreateInfo& info);
 	VkRenderPass* get_render_pass(uint64_t key);
@@ -75,6 +76,7 @@ struct VulkanGraphicsDevice {
 
 private:
 	slotmap<VkRenderPass> _render_passes;
+	slotmap<VulkanGraphicsPipeline> _graphics_pipelines;
 	std::vector<VkSampler> _immutable_samplers;
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _transfer_command_buffers;
 };
