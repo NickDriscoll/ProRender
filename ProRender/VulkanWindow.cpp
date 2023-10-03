@@ -1,9 +1,12 @@
 #include "VulkanWindow.h"
 
-void VulkanWindow::init(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
+VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
     //Save surface
     this->surface = surface;
 
+	instance = vgd.instance;
+	device = vgd.device;
+	alloc_callbacks = vgd.alloc_callbacks;
 	preferred_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
 
     //Query for surface capabilities
@@ -28,10 +31,9 @@ void VulkanWindow::init(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 
 	VkSurfaceFormatKHR preferred_format = {};
 	for (uint32_t i = 0; i < format_count; i++) {
-		VkFormat format = formats[i].format;
-		VkColorSpaceKHR color_space = formats[i].colorSpace;
-		if (format == preferred_swapchain_format) {
-			preferred_format = formats[i];
+		VkSurfaceFormatKHR format = formats[i];
+		if (format.format == preferred_swapchain_format) {
+			preferred_format = format;
 			//break;
 		}
 	}
@@ -138,4 +140,14 @@ void VulkanWindow::init(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 			exit(-1);
 		}
 	}
+}
+
+VulkanWindow::~VulkanWindow() {
+	vkDestroySemaphore(device, acquire_semaphore, alloc_callbacks);
+	vkDestroySemaphore(device, present_semaphore, alloc_callbacks);
+	for (uint32_t i = 0; i < swapchain_image_views.size(); i++) {
+		vkDestroyImageView(device, swapchain_image_views[i], alloc_callbacks);
+	}
+	vkDestroySwapchainKHR(device, swapchain, alloc_callbacks);
+	vkDestroySurfaceKHR(instance, surface, alloc_callbacks);
 }

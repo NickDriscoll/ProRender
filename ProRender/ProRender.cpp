@@ -15,16 +15,12 @@ int main(int argc, char* argv[]) {
 	VulkanGraphicsDevice vgd = VulkanGraphicsDevice();
 
 	//Init the vulkan window
-	VulkanWindow window;
-	{
-		VkSurfaceKHR surface;
-		if (SDL_Vulkan_CreateSurface(sdl_window, vgd.instance, &surface) == SDL_FALSE) {
-			printf("Creating VkSurface failed.\n");
-			exit(-1);
-		}
-
-		window.init(vgd, surface);
+	VkSurfaceKHR window_surface;
+	if (SDL_Vulkan_CreateSurface(sdl_window, vgd.instance, &window_surface) == SDL_FALSE) {
+		printf("Creating VkSurface failed.\n");
+		exit(-1);
 	}
+	VulkanWindow window = VulkanWindow(vgd, window_surface);
 
 	//Render pass object creation
 	VkRenderPass render_pass;
@@ -51,12 +47,14 @@ int main(int argc, char* argv[]) {
 			.pColorAttachments = &attachment_ref
 		};
 
-		VkRenderPassCreateInfo info = {};
-		info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		info.attachmentCount = 1;
-		info.pAttachments = &color_attachment;
-		info.subpassCount = 1;
-		info.pSubpasses = &subpass;
+		VkRenderPassCreateInfo info = {
+			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+			.attachmentCount = 1,
+			.pAttachments = &color_attachment,
+			.subpassCount = 1,
+			.pSubpasses = &subpass
+		};
+		
 
 		if (vkCreateRenderPass(vgd.device, &info, vgd.alloc_callbacks, &render_pass) != VK_SUCCESS) {
 			printf("Creating render pass failed.\n");
@@ -161,6 +159,7 @@ int main(int argc, char* argv[]) {
 		{
 			//Blend func description
 			VkColorComponentFlags component_flags = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+			
 			blend_state.blendEnable = VK_TRUE;
 			blend_state.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
 			blend_state.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
@@ -242,15 +241,16 @@ int main(int argc, char* argv[]) {
 	VkImage sampled_image;
 	VkImageView sampled_image_view;
 	VmaAllocation image_allocation;
+	uint32_t source_queue_family = vgd.transfer_queue_family_idx;
 	{
-		VkFormat image_format = VK_FORMAT_R8G8B8A8_UNORM;
+		VkFormat image_format = VK_FORMAT_R8G8B8A8_UNORM;			//TODO: Just what is even happening with the image format :( UNORM works for everything??!???
 
 		//Load image data
 		stbi_uc* image_bytes;
 		int x, y;
 		int channels = 4;
 		{
-			image_bytes = stbi_load("images/stressed_miyamoto.png", &x, &y, nullptr, 4);
+			image_bytes = stbi_load("images/stressed_miyamoto.png", &x, &y, nullptr, STBI_rgb_alpha);
 
 			if (!image_bytes) {
 				printf("Loading image failed.\n");
@@ -305,7 +305,7 @@ int main(int argc, char* argv[]) {
 			info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 			info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 			info.queueFamilyIndexCount = 1;
-			info.pQueueFamilyIndices = &vgd.transfer_queue_family_idx;
+			info.pQueueFamilyIndices = &source_queue_family;
 			info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 			VmaAllocationCreateInfo alloc_info = {};
@@ -345,6 +345,7 @@ int main(int argc, char* argv[]) {
 		//Record CopyBufferToImage commands
 		upload_cb = vgd.borrow_transfer_command_buffer();
 		{
+			//Begin command buffer
 			{
 				VkCommandBufferBeginInfo info = {};
 				info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -361,9 +362,6 @@ int main(int argc, char* argv[]) {
 				barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
 				barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 				barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-				
-				barrier.srcQueueFamilyIndex = vgd.transfer_queue_family_idx;
-				barrier.dstQueueFamilyIndex = vgd.transfer_queue_family_idx;
 
 				barrier.image = sampled_image;
 				barrier.subresourceRange = {
@@ -416,7 +414,7 @@ int main(int argc, char* argv[]) {
 				barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 				barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				
-				barrier.srcQueueFamilyIndex = vgd.transfer_queue_family_idx;
+				barrier.srcQueueFamilyIndex = source_queue_family;
 				barrier.dstQueueFamilyIndex = vgd.graphics_queue_family_idx;
 
 				barrier.image = sampled_image;
@@ -443,7 +441,8 @@ int main(int argc, char* argv[]) {
 		VkQueue q;
 		vkGetDeviceQueue(vgd.device, vgd.transfer_queue_family_idx, 0, &q);
 		{
-			uint64_t signal_value = vgd.image_upload_requests + 1;
+			vgd.image_upload_requests += 1;
+			uint64_t signal_value = vgd.image_upload_requests;
 			VkTimelineSemaphoreSubmitInfo ts_info = {};
 			ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
 			ts_info.signalSemaphoreValueCount = 1;
@@ -463,7 +462,6 @@ int main(int argc, char* argv[]) {
 				printf("Queue submit failed.\n");
 				exit(-1);
 			}
-			vgd.image_upload_requests += 1;
 			image_upload_id = vgd.image_upload_requests;
 		}
 	}
@@ -551,7 +549,6 @@ int main(int argc, char* argv[]) {
 				}
 
 				//Graphics queue acquire ownership of the image
-				//Also barrier afterwards bc of 
 				{
 					VkImageMemoryBarrier2KHR barrier = {};
 					barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR;
@@ -561,7 +558,7 @@ int main(int argc, char* argv[]) {
 					barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 					barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 					
-					barrier.srcQueueFamilyIndex = vgd.transfer_queue_family_idx;
+					barrier.srcQueueFamilyIndex = source_queue_family;
 					barrier.dstQueueFamilyIndex = vgd.graphics_queue_family_idx;
 
 					barrier.image = sampled_image;
@@ -716,16 +713,9 @@ int main(int argc, char* argv[]) {
 	vkDestroyPipeline(vgd.device, main_pipeline, vgd.alloc_callbacks);
 	vkDestroyRenderPass(vgd.device, render_pass, vgd.alloc_callbacks);
 
-	vkDestroySemaphore(vgd.device, window.acquire_semaphore, vgd.alloc_callbacks);
-	vkDestroySemaphore(vgd.device, window.present_semaphore, vgd.alloc_callbacks);
 	for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
 		vkDestroyFramebuffer(vgd.device, swapchain_framebuffers[i], vgd.alloc_callbacks);
 	}
-	for (uint32_t i = 0; i < window.swapchain_image_views.size(); i++) {
-		vkDestroyImageView(vgd.device, window.swapchain_image_views[i], vgd.alloc_callbacks);
-	}
-	vkDestroySwapchainKHR(vgd.device, window.swapchain, vgd.alloc_callbacks);
-	vkDestroySurfaceKHR(vgd.instance, window.surface, vgd.alloc_callbacks);
 	
 	SDL_Quit();
 

@@ -5,9 +5,11 @@
 #include <stdio.h>
 #include <vector>
 #include <stack>
+#include <filesystem>
 #include "volk.h"
 #include "vma.h"
 #include "slotmap.h"
+#include "VulkanGraphicsPipeline.h"
 #define FRAMES_IN_FLIGHT 2		//Number of simultaneous frames the GPU could be working on
 #define PIPELINE_CACHE_FILENAME ".shadercache"
 
@@ -49,12 +51,27 @@ struct VulkanGraphicsDevice {
 
 	VkCommandBuffer borrow_transfer_command_buffer();
 	void return_transfer_command_buffer(VkCommandBuffer cb);
+
+	void create_graphics_pipelines(
+		uint64_t render_pass_handle,
+		VulkanInputAssemblyState* ia_state,
+		VulkanTesselationState* tess_state,
+		VulkanViewportState* vp_state,
+		VulkanRasterizationState* raster_state,
+		VulkanMultisampleState* ms_state,
+		VulkanDepthStencilState* ds_state,
+		VulkanColorBlendState* blend_state,
+		VulkanGraphicsPipeline* out_pipelines,
+		uint32_t pipeline_count
+	);
+
 	VkShaderModule load_shader_module(const char* path);
 
 	VulkanGraphicsDevice();
 	~VulkanGraphicsDevice();
 
 private:
+	slotmap<VkRenderPass> _render_passes;
 	std::vector<VkSampler> _immutable_samplers;
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _transfer_command_buffers;
 };

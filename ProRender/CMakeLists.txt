@@ -11,10 +11,11 @@ add_executable (
 	"ProRender.h"
 	"VulkanGraphicsDevice.cpp"
 	"VulkanGraphicsDevice.h"
+	"VulkanGraphicsPipeline.h"
 	"VulkanWindow.h"
 	"VulkanWindow.cpp"
-	"slotmap.h"
 	"header_libs.cpp"
+	"slotmap.h"
 )
 
 #Include SDL2

@@ -46,7 +46,7 @@ VertexOutput main(uint idx : SV_VertexID) {
     VertexOutput output;
     //float2 position = POSITIONS[idx] * (sin(pc.time) * 0.1 + 1.0);
     float2 position = POSITIONS[idx];
-    float3 color = float3(UVS[idx], 0.0);
+    float3 color = COLORS[idx];
     output.color = color;
     output.uvs = UVS[idx];
     output.position = float4(position, 0.0, 1.0);

@@ -5,6 +5,11 @@
 #include "VulkanGraphicsDevice.h"
 
 struct VulkanWindow {
+	//Vulkan device references
+	VkInstance instance;
+	VkDevice device;
+	const VkAllocationCallbacks* alloc_callbacks;
+
 	VkFormat preferred_swapchain_format;	//This seems to be a pretty standard/common swapchain format
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapchain;
@@ -13,5 +18,6 @@ struct VulkanWindow {
 	std::vector<VkImage> swapchain_images;
 	std::vector<VkImageView> swapchain_image_views;
 
-	void init(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface);
+	VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface);
+	~VulkanWindow();
 };
