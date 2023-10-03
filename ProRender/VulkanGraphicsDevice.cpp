@@ -501,6 +501,14 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 	for (uint32_t i = 0; i < _immutable_samplers.size(); i++) {
 		vkDestroySampler(device, _immutable_samplers[i], alloc_callbacks);
 	}
+
+	uint32_t rp_seen = 0;
+	for (uint32_t i = 0; rp_seen < _render_passes.count(); i++) {
+		if (!_render_passes.is_live(i)) continue;
+		rp_seen += 1;
+
+		vkDestroyRenderPass(device, _render_passes.data()[i], alloc_callbacks);
+	}
 	
 	vkDestroySemaphore(device, image_upload_semaphore, alloc_callbacks);
 
@@ -729,13 +737,13 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 		info.stageCount = 2;
 		info.pStages = shader_stage_creates;
 		info.pVertexInputState = &vert_input_info;
-		info.pInputAssemblyState = &ia_info;
-		info.pTessellationState = &tess_info;
-		info.pViewportState = &viewport_info;
-		info.pRasterizationState = &rast_info;
-		info.pMultisampleState = &multi_info;
-		info.pDepthStencilState = &depth_stencil_info;
-		info.pColorBlendState = &blend_info;
+		info.pInputAssemblyState = &ia_infos[i];
+		info.pTessellationState = &tess_infos[i];
+		info.pViewportState = &vs_infos[i];
+		info.pRasterizationState = &rast_infos[i];
+		info.pMultisampleState = &multi_infos[i];
+		info.pDepthStencilState = &ds_infos[i];
+		info.pColorBlendState = &blend_infos[i];
 		info.pDynamicState = &dynamic_info;
 		info.layout = pipeline_layout;
 		info.renderPass = *_render_passes.get(render_pass_handle);
@@ -759,6 +767,19 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 
 	vkDestroyShaderModule(device, vertex_shader, alloc_callbacks);
 	vkDestroyShaderModule(device, fragment_shader, alloc_callbacks);
+}
+
+uint64_t VulkanGraphicsDevice::create_render_pass(VkRenderPassCreateInfo& info) {
+	VkRenderPass render_pass;	
+	if (vkCreateRenderPass(device, &info, alloc_callbacks, &render_pass) != VK_SUCCESS) {
+		printf("Creating render pass failed.\n");
+		exit(-1);
+	}
+	return _render_passes.insert(render_pass);
+}
+
+VkRenderPass* VulkanGraphicsDevice::get_render_pass(uint64_t key) {
+	return _render_passes.get(key);
 }
 
 VkShaderModule VulkanGraphicsDevice::load_shader_module(const char* path) {

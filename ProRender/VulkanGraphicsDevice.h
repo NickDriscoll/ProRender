@@ -65,6 +65,9 @@ struct VulkanGraphicsDevice {
 		uint32_t pipeline_count
 	);
 
+	uint64_t create_render_pass(VkRenderPassCreateInfo& info);
+	VkRenderPass* get_render_pass(uint64_t key);
+
 	VkShaderModule load_shader_module(const char* path);
 
 	VulkanGraphicsDevice();

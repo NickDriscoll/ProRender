@@ -68,7 +68,7 @@ template<class T>
 uint64_t slotmap<T>::insert(T thing) {
     uint32_t free_idx = free_indices.top();
     free_indices.pop();
-    data[free_idx] = thing;
+    _data[free_idx] = thing;
     uint32_t generation = generation_bits[free_idx];
     uint32_t live_idx = free_idx / 64;
     if (live_bits.size() <= live_idx) {
