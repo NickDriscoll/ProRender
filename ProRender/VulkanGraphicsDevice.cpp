@@ -334,7 +334,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 
 		std::vector<uint8_t> cache_data;
 		if (std::filesystem::exists(PIPELINE_CACHE_FILENAME)) {
-			printf("Found pipeline cache.\n");
+			printf("Found pipeline cache file.\n");
 			uint32_t pipeline_size = std::filesystem::file_size(PIPELINE_CACHE_FILENAME);
 			cache_data.resize(pipeline_size);
 			FILE* f = fopen(PIPELINE_CACHE_FILENAME, "rb");
@@ -409,13 +409,12 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 				printf("Creating descriptor set layout failed.\n");
 				exit(-1);
 			}
-			//vkDestroySampler(device, sampler, alloc_callbacks);
 		}
 
 		VkPushConstantRange range;
 		range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 		range.offset = 0;
-		range.size = 8;
+		range.size = 16;
 
 		VkPipelineLayoutCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -538,6 +537,7 @@ void VulkanGraphicsDevice::return_transfer_command_buffer(VkCommandBuffer cb) {
 
 void VulkanGraphicsDevice::create_graphics_pipelines(
 	uint64_t render_pass_handle,
+	const char** shaderfiles,
 	VulkanInputAssemblyState* ia_state,
 	VulkanTesselationState* tess_state,
 	VulkanViewportState* vp_state,
@@ -562,26 +562,8 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 	dynamic_info.dynamicStateCount = 2;
 	dynamic_info.pDynamicStates = dyn_states;
 
-	//Shader stages
-	VkShaderModule vertex_shader = this->load_shader_module("shaders/test.vert.spv");
-	VkShaderModule fragment_shader = this->load_shader_module("shaders/test.frag.spv");
-	VkPipelineShaderStageCreateInfo shader_stage_creates[2];
-	{
-
-		VkPipelineShaderStageCreateInfo vert_info = {};
-		vert_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		vert_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
-		vert_info.module = vertex_shader;
-		vert_info.pName = "main";
-		shader_stage_creates[0] = vert_info;
-
-		VkPipelineShaderStageCreateInfo frag_info = {};
-		frag_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		frag_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		frag_info.module = fragment_shader;
-		frag_info.pName = "main";
-		shader_stage_creates[1] = frag_info;
-	}
+	std::vector<VkPipelineShaderStageCreateInfo> shader_stage_infos;
+	shader_stage_infos.reserve(2 * pipeline_count);
 
 	std::vector<VkPipelineInputAssemblyStateCreateInfo> ia_infos;
 	ia_infos.reserve(pipeline_count);
@@ -619,6 +601,26 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 	//Varying pipeline elements
 	uint32_t blend_attachment_state_offset = 0;
 	for (uint32_t i = 0; i < pipeline_count; i++) {
+
+		//Shader stages
+		VkShaderModule vertex_shader = this->load_shader_module(shaderfiles[2 * i]);
+		VkShaderModule fragment_shader = this->load_shader_module(shaderfiles[2 * i + 1]);
+		{
+			VkPipelineShaderStageCreateInfo vert_info = {};
+			vert_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+			vert_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
+			vert_info.module = vertex_shader;
+			vert_info.pName = "main";
+			shader_stage_infos.push_back(vert_info);
+
+			VkPipelineShaderStageCreateInfo frag_info = {};
+			frag_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+			frag_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+			frag_info.module = fragment_shader;
+			frag_info.pName = "main";
+			shader_stage_infos.push_back(frag_info);
+		}
+		const VkPipelineShaderStageCreateInfo* shader_stage_ptr = shader_stage_infos.data() + 2 * i;
 
 		//Input assembly state
 		VkPipelineInputAssemblyStateCreateInfo ia_info = {};
@@ -723,7 +725,7 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 		VkGraphicsPipelineCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 		info.stageCount = 2;
-		info.pStages = shader_stage_creates;
+		info.pStages = shader_stage_ptr;
 		info.pVertexInputState = &vert_input_info;
 		info.pInputAssemblyState = &ia_infos[i];
 		info.pTessellationState = &tess_infos[i];
@@ -751,10 +753,10 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 		out_pipelines_handles[i] = _graphics_pipelines.insert({
 			.pipeline = pipelines[i]
 		});
-	}
 
-	vkDestroyShaderModule(device, vertex_shader, alloc_callbacks);
-	vkDestroyShaderModule(device, fragment_shader, alloc_callbacks);
+		vkDestroyShaderModule(device, shader_stage_infos[2 * i].module, alloc_callbacks);
+		vkDestroyShaderModule(device, shader_stage_infos[2 * i + 1].module, alloc_callbacks);
+	}
 }
 
 VulkanGraphicsPipeline* VulkanGraphicsDevice::get_graphics_pipeline(uint64_t handle) {

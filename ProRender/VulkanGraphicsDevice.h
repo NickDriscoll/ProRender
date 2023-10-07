@@ -54,6 +54,7 @@ struct VulkanGraphicsDevice {
 
 	void create_graphics_pipelines(
 		uint64_t render_pass_handle,
+		const char** shaderfiles,
 		VulkanInputAssemblyState* ia_state,
 		VulkanTesselationState* tess_state,
 		VulkanViewportState* vp_state,

@@ -1,11 +1,5 @@
 #include "structs.hlsl"
 
-[[vk::push_constant]]
-struct PushConstants {
-    float time;
-    uint image_idx;
-} pc;
-
 // static const float2 POSITIONS[6] = {
 //     -0.75, -0.75,                       //Top left
 //     -0.75, 0.75,                        //Bottom left
@@ -46,6 +40,10 @@ VertexOutput main(uint idx : SV_VertexID) {
     VertexOutput output;
     //float2 position = POSITIONS[idx] * (sin(pc.time) * 0.1 + 1.0);
     float2 position = POSITIONS[idx];
+    float scale = 0.5;
+    position *= scale;
+    position += -1.0 + scale + (2.0 * scale * float2(pc.x_coord, pc.y_coord));
+
     float3 color = COLORS[idx];
     output.color = color;
     output.uvs = UVS[idx];

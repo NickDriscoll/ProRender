@@ -1,10 +1,6 @@
 ﻿#include "ProRender.h"
 
 int main(int argc, char* argv[]) {
-	printf("Argument 0: %s\n", argv[0]);
-
-	//printf("current dir: %s\n", get_current_dir_name());
-
 	SDL_Init(SDL_INIT_VIDEO);	//Initialize SDL
 
 	const uint32_t x_resolution = 720;
@@ -132,8 +128,11 @@ int main(int argc, char* argv[]) {
 			}
 		};
 
+		const char* shaders[] = { "shaders/test.vert.spv", "shaders/test.frag.spv", "shaders/test.vert.spv", "shaders/test.frag.spv" };
+
 		vgd.create_graphics_pipelines(
 			render_pass_id,
+			shaders,
 			ia_states,
 			tess_states,
 			vs_states,
@@ -585,11 +584,16 @@ int main(int argc, char* argv[]) {
 			}
 
 			float time = static_cast<float>(ticks) * 1.5f / 1000.0f;
-			uint32_t bytes[] = { std::bit_cast<uint32_t>(time), 0 };
-			vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 8, bytes);
 
-			if (upload_semaphore_value >= image_upload_id) {
-				vkCmdDraw(current_cb, 6, 1, 0, 0);
+			for (uint32_t i = 0; i < 4; i++) {
+				uint32_t x = i & 1;
+				uint32_t y = i > 1;
+				uint32_t bytes[] = { std::bit_cast<uint32_t>(time), 0, x, y };
+				vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, bytes);
+
+				if (upload_semaphore_value >= image_upload_id) {
+					vkCmdDraw(current_cb, 6, 1, 0, 0);
+				}
 			}
 
 			vkCmdEndRenderPass(current_cb);
