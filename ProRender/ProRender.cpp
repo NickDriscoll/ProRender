@@ -149,22 +149,7 @@ int main(int argc, char* argv[]) {
 	printf("Created graphics pipeline.\n");
 
 	//Create graphics pipeline timeline semaphore
-	VkSemaphore graphics_timeline_semaphore;
-	{
-		VkSemaphoreTypeCreateInfo type_info = {};
-		type_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-		type_info.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-		type_info.initialValue = 0;
-
-		VkSemaphoreCreateInfo info = {};
-		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		info.pNext = &type_info;
-
-		if (vkCreateSemaphore(vgd.device, &info, vgd.alloc_callbacks, &graphics_timeline_semaphore) != VK_SUCCESS) {
-			printf("Creating graphics timeline semaphore failed.\n");
-			exit(-1);
-		}
-	}
+	VkSemaphore graphics_timeline_semaphore = vgd.create_timeline_semaphore(0);
 
 	//Create VkImage and all associated objects from start to finish
 	VkCommandBuffer upload_cb;
@@ -175,7 +160,8 @@ int main(int argc, char* argv[]) {
 	VkImage sampled_image;
 	VkImageView sampled_image_view;
 	VmaAllocation image_allocation;
-	uint32_t source_queue_family = vgd.transfer_queue_family_idx;
+
+	//This block creates the image + a staging buffer and submits work to the transfer queue family
 	{
 		VkFormat image_format = VK_FORMAT_R8G8B8A8_UNORM;			//TODO: Just what is even happening with the image format :( UNORM works for everything??!???
 
@@ -239,7 +225,7 @@ int main(int argc, char* argv[]) {
 			info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 			info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 			info.queueFamilyIndexCount = 1;
-			info.pQueueFamilyIndices = &source_queue_family;
+			info.pQueueFamilyIndices = &vgd.transfer_queue_family_idx;
 			info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 			VmaAllocationCreateInfo alloc_info = {};
@@ -348,7 +334,7 @@ int main(int argc, char* argv[]) {
 				barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 				barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				
-				barrier.srcQueueFamilyIndex = source_queue_family;
+				barrier.srcQueueFamilyIndex = vgd.transfer_queue_family_idx;
 				barrier.dstQueueFamilyIndex = vgd.graphics_queue_family_idx;
 
 				barrier.image = sampled_image;
@@ -398,6 +384,28 @@ int main(int argc, char* argv[]) {
 			}
 			image_upload_id = vgd.image_upload_requests;
 		}
+				
+		//Write descriptor sets
+		{
+			VkDescriptorImageInfo info = {
+				.imageView = sampled_image_view,
+				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+			};
+			VkDescriptorImageInfo info2 = {};
+			VkWriteDescriptorSet writes[] = {
+				{
+					.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+					.dstSet = vgd.descriptor_set,
+					.dstBinding = 0,
+					.dstArrayElement = 0,
+					.descriptorCount = 1,
+					.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+					.pImageInfo = &info
+				}
+			};
+
+			vkUpdateDescriptorSets(vgd.device, 1, writes, 0, nullptr);
+		}
 	}
 
 	//Main loop
@@ -432,6 +440,11 @@ int main(int argc, char* argv[]) {
 			//Acquire swapchain image for this frame
 			uint32_t acquired_image_idx;
 			vkAcquireNextImageKHR(vgd.device, window.swapchain, U64_MAX, window.acquire_semaphore, VK_NULL_HANDLE, &acquired_image_idx);
+
+			std::vector<VkSemaphore> wait_semaphores = {window.acquire_semaphore};
+			std::vector<uint64_t> wait_semaphore_values = {0};
+			std::vector<VkPipelineStageFlags> wait_flags = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
+			VkCommandBuffer current_cb = vgd.command_buffers[current_frame % FRAMES_IN_FLIGHT];
 			
 			//Wait for command buffer to finish execution before trying to record to it
 			if (current_frame >= FRAMES_IN_FLIGHT) {
@@ -448,48 +461,26 @@ int main(int argc, char* argv[]) {
 				}
 			}
 
-			std::vector<VkSemaphore> wait_semaphores = {window.acquire_semaphore};
-			std::vector<uint64_t> wait_semaphore_values = {0};
-			std::vector<VkPipelineStageFlags> wait_flags = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
-			VkCommandBuffer current_cb = vgd.command_buffers[current_frame % FRAMES_IN_FLIGHT];
-
 			VkCommandBufferBeginInfo begin_info = {
 				.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 				.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
 			};
 			vkBeginCommandBuffer(current_cb, &begin_info);
 
-			static bool done_that = false;
+
+			//If upload semaphore value is larger than uploads completed, then that means there are images that
+			//are ready to be acquired by the graphics queue family
 			uint64_t upload_semaphore_value;
 			vkGetSemaphoreCounterValue(vgd.device, vgd.image_upload_semaphore, &upload_semaphore_value);
-			if (!done_that && upload_semaphore_value >= 1) {
+			if (vgd.image_uploads_completed < upload_semaphore_value) {
+
+				//TODO: I don't think we technically need to do a GPU-side semaphore wait,
+				//as we're only in this if statement because one or more image data transfers have completed
 				wait_semaphores.push_back(vgd.image_upload_semaphore);
 				wait_semaphore_values.push_back(upload_semaphore_value);
 
 				vgd.return_transfer_command_buffer(upload_cb);
 				vmaDestroyBuffer(vgd.allocator, staging_buffer, staging_buffer_allocation);
-				
-				//Write descriptor sets
-				{
-					VkDescriptorImageInfo info = {
-						.imageView = sampled_image_view,
-						.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-					};
-					VkDescriptorImageInfo info2 = {};
-					VkWriteDescriptorSet writes[] = {
-						{
-							.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-							.dstSet = vgd.descriptor_set,
-							.dstBinding = 0,
-							.dstArrayElement = 0,
-							.descriptorCount = 1,
-							.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-							.pImageInfo = &info
-						}
-					};
-
-					vkUpdateDescriptorSets(vgd.device, 1, writes, 0, nullptr);
-				}
 
 				//Graphics queue acquire ownership of the image
 				{
@@ -501,7 +492,7 @@ int main(int argc, char* argv[]) {
 					barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 					barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 					
-					barrier.srcQueueFamilyIndex = source_queue_family;
+					barrier.srcQueueFamilyIndex = vgd.transfer_queue_family_idx;
 					barrier.dstQueueFamilyIndex = vgd.graphics_queue_family_idx;
 
 					barrier.image = sampled_image;
@@ -520,7 +511,7 @@ int main(int argc, char* argv[]) {
 
 					vkCmdPipelineBarrier2KHR(current_cb, &info);
 				}
-				done_that = true;
+				vgd.image_uploads_completed += 1;
 			}
 
 			vkCmdBindPipeline(current_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(current_pipeline_handle)->pipeline);

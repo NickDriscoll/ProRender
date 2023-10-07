@@ -5,6 +5,7 @@ struct VulkanGraphicsPipeline {
 };
 
 //Might not even be necessary?
+//Shouldn't need this bc we are opinionated about vertex pulling
 // struct VulkanVertexInputState {
 
 // };

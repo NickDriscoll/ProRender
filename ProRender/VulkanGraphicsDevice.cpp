@@ -338,7 +338,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 			uint32_t pipeline_size = std::filesystem::file_size(PIPELINE_CACHE_FILENAME);
 			cache_data.resize(pipeline_size);
 			FILE* f = fopen(PIPELINE_CACHE_FILENAME, "rb");
-			if (fread(cache_data.data(), sizeof(uint8_t), pipeline_size, f) == 0) {
+			if (fread(cache_data.data(), 1, pipeline_size, f) == 0) {
 				printf("Error reading pipeline cache.\n");
 				exit(-1);
 			}
@@ -491,7 +491,7 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 		}
 
 		FILE* f = fopen(PIPELINE_CACHE_FILENAME, "wb");
-		if (fwrite(cache_data.data(), sizeof(uint8_t), data_size, f) == 0) {
+		if (fwrite(cache_data.data(), 1, data_size, f) == 0) {
 			printf("Error writing pipeline cache data.\n");
 			exit(-1);
 		}
@@ -603,6 +603,7 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 	for (uint32_t i = 0; i < pipeline_count; i++) {
 
 		//Shader stages
+		//TODO: This assumes that graphics pipelines just have a vertex and fragment shader, but it might be nice to support hardware tessellation. Idk.
 		VkShaderModule vertex_shader = this->load_shader_module(shaderfiles[2 * i]);
 		VkShaderModule fragment_shader = this->load_shader_module(shaderfiles[2 * i + 1]);
 		{
@@ -759,6 +760,24 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 	}
 }
 
+VkSemaphore VulkanGraphicsDevice::create_timeline_semaphore(uint64_t initial_value) {
+	VkSemaphoreTypeCreateInfo type_info = {};
+	type_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+	type_info.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+	type_info.initialValue = initial_value;
+
+	VkSemaphoreCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	info.pNext = &type_info;
+
+	VkSemaphore ts;
+	if (vkCreateSemaphore(device, &info, alloc_callbacks, &ts) != VK_SUCCESS) {
+		printf("Creating timeline semaphore failed.\n");
+		exit(-1);
+	}
+	return ts;
+}
+
 VulkanGraphicsPipeline* VulkanGraphicsDevice::get_graphics_pipeline(uint64_t handle) {
 	return _graphics_pipelines.get(handle);
 }
@@ -786,7 +805,7 @@ VkShaderModule VulkanGraphicsDevice::load_shader_module(const char* path) {
 
 	//Read spv bytes
 	FILE* shader_spv = fopen(path, "rb");
-	if (fread(spv_bytes.data(), sizeof(uint8_t), spv_size, shader_spv) == 0) {
+	if (fread(spv_bytes.data(), 1, spv_size, shader_spv) == 0) {
 		printf("Zero bytes read when trying to read %s\n", path);
 		exit(-1);
 	}
