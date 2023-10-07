@@ -607,7 +607,17 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 	std::vector<VkGraphicsPipelineCreateInfo> pipeline_infos;
 	pipeline_infos.reserve(pipeline_count);
 
+	std::vector<VkPipelineColorBlendAttachmentState> blend_attachment_states;
+	{
+		uint32_t total_attachment_count = 0;
+		for (uint32_t i = 0; i < pipeline_count; i++) {
+			total_attachment_count += blend_state[i].attachmentCount;
+		}
+		blend_attachment_states.reserve(total_attachment_count);
+	}
+
 	//Varying pipeline elements
+	uint32_t blend_attachment_state_offset = 0;
 	for (uint32_t i = 0; i < pipeline_count; i++) {
 
 		//Input assembly state
@@ -679,13 +689,31 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 		depth_stencil_info.maxDepthBounds = ds_state[i].maxDepthBounds;
 		ds_infos.push_back(depth_stencil_info);
 
+		uint32_t current_attachment_count = blend_state[i].attachmentCount;
+		for (uint32_t j = 0; j < current_attachment_count; j++) {
+			const VulkanColorBlendAttachmentState state = blend_state[i].pAttachments[j];
+
+			VkPipelineColorBlendAttachmentState blend_attachment_state = {};
+			blend_attachment_state.blendEnable = state.blendEnable;
+			blend_attachment_state.srcColorBlendFactor = state.srcColorBlendFactor;
+			blend_attachment_state.dstColorBlendFactor = state.dstColorBlendFactor;
+			blend_attachment_state.colorBlendOp = state.colorBlendOp;
+			blend_attachment_state.srcAlphaBlendFactor = state.srcAlphaBlendFactor;
+			blend_attachment_state.dstAlphaBlendFactor = state.dstAlphaBlendFactor;
+			blend_attachment_state.alphaBlendOp = state.alphaBlendOp;
+			blend_attachment_state.colorWriteMask = state.colorWriteMask;
+			blend_attachment_states.push_back(blend_attachment_state);
+		}
+		VkPipelineColorBlendAttachmentState* blend_attachment_state_ptr = blend_attachment_states.data() + blend_attachment_state_offset;
+		blend_attachment_state_offset += current_attachment_count;
+
 		VkPipelineColorBlendStateCreateInfo blend_info = {};
 		blend_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 		blend_info.flags = blend_state[i].flags;
 		blend_info.logicOpEnable = blend_state[i].logicOpEnable;
 		blend_info.logicOp = blend_state[i].logicOp;
-		blend_info.attachmentCount = blend_state[i].attachmentCount;
-		blend_info.pAttachments = blend_state[i].pAttachments;
+		blend_info.attachmentCount = current_attachment_count;
+		blend_info.pAttachments = blend_attachment_state_ptr;
 		blend_info.blendConstants[0] = blend_state[i].blendConstants[0];
 		blend_info.blendConstants[1] = blend_state[i].blendConstants[1];
 		blend_info.blendConstants[2] = blend_state[i].blendConstants[2];

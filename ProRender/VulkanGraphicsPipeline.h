@@ -82,7 +82,7 @@ struct VulkanColorBlendState {
     VkBool32                                      logicOpEnable         = VK_FALSE;
     VkLogicOp                                     logicOp               = VK_LOGIC_OP_CLEAR;
     uint32_t                                      attachmentCount       = 0;
-    const VkPipelineColorBlendAttachmentState*    pAttachments          = nullptr;
+    const VulkanColorBlendAttachmentState*        pAttachments          = nullptr;
     float                                         blendConstants[4]     = {1.0, 1.0, 1.0, 1.0};
 };
 

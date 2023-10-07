@@ -81,7 +81,6 @@ int main(int argc, char* argv[]) {
 
 	//Create graphics pipelines
 	uint64_t current_pipeline_handle = 0;
-	//std::vector<VulkanGraphicsPipeline> graphics_pipelines;
 	uint64_t pipeline_handles[] = {0, 0};
 	uint64_t normal_pipeline_handle;
 	uint64_t wire_pipeline_handle;
@@ -117,28 +116,19 @@ int main(int argc, char* argv[]) {
 			{},
 			{}
 		};
-
-		//VkPipelineColorBlendStateCreateInfo blend_info = {};
-		VkPipelineColorBlendAttachmentState blend_state = {};
 		
 		//Blend func description
 		VkColorComponentFlags component_flags = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
-		blend_state.blendEnable = VK_TRUE;
-		blend_state.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
-		blend_state.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
-		blend_state.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-		blend_state.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
-		blend_state.alphaBlendOp = VK_BLEND_OP_ADD;
-		blend_state.colorWriteMask = component_flags;
+		VulkanColorBlendAttachmentState blend_attachment_state = {};
 		VulkanColorBlendState blend_states[] = {
 			{
 				.attachmentCount = 1,
-				.pAttachments = &blend_state
+				.pAttachments = &blend_attachment_state
 			},
 			{
 				.attachmentCount = 1,
-				.pAttachments = &blend_state
+				.pAttachments = &blend_attachment_state
 			}
 		};
 
