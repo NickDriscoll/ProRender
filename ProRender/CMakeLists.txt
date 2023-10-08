@@ -8,14 +8,9 @@ set(CMAKE_BUILD_TYPE Debug)
 add_executable (
 	ProRender
 	"ProRender.cpp"
-	"ProRender.h"
 	"VulkanGraphicsDevice.cpp"
-	"VulkanGraphicsDevice.h"
-	"VulkanGraphicsPipeline.h"
-	"VulkanWindow.h"
 	"VulkanWindow.cpp"
 	"header_libs.cpp"
-	"slotmap.h"
 )
 
 #Include SDL2

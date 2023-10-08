@@ -9,3 +9,6 @@
 
 #define SLOTMAP_IMPLEMENTATION
 #include "slotmap.h"
+
+#define TIMER_IMPLEMENTATION
+#include "timer.h"

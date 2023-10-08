@@ -10,6 +10,7 @@
 #include "vma.h"
 #include "slotmap.h"
 #include "stb_image.h"
+#include "timer.h"
 #include "VulkanGraphicsPipeline.h"
 #define FRAMES_IN_FLIGHT 2		//Number of simultaneous frames the GPU could be working on
 #define PIPELINE_CACHE_FILENAME ".shadercache"

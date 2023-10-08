@@ -825,6 +825,9 @@ uint64_t VulkanGraphicsDevice::load_images(
 
 	VulkanImageUploadBatch current_batch = {};
 
+	Timer timer;
+	timer.start();
+
 	//Load image data from disk
 	std::vector<stbi_image> raw_images;
 	raw_images.resize(image_count);
@@ -840,6 +843,7 @@ uint64_t VulkanGraphicsDevice::load_images(
 
 		total_staging_size += raw_images[i].x * raw_images[i].y * channels;
 	}
+	printf("Loading images into host memory took %fms.\n", timer.check());
 
 	//Create staging buffer
 	VkBuffer staging_buffer;
@@ -870,7 +874,6 @@ uint64_t VulkanGraphicsDevice::load_images(
 			.allocation = staging_buffer_allocation
 		});
 	}
-	
 
 	//Copy image data to staging buffer
 	{

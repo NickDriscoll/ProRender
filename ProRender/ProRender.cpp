@@ -1,6 +1,9 @@
 ﻿#include "ProRender.h"
 
 int main(int argc, char* argv[]) {
+	Timer app_timer;
+	app_timer.start();
+
 	SDL_Init(SDL_INIT_VIDEO);	//Initialize SDL
 
 	const uint32_t x_resolution = 720;
@@ -172,6 +175,8 @@ int main(int argc, char* argv[]) {
 			formats
 		);
 	}
+
+	printf("Initialization time took %fms.\n", app_timer.check());
 	
 	//Main loop
 	uint64_t ticks = SDL_GetTicks64();
