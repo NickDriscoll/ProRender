@@ -18,12 +18,12 @@ struct slotmap {
     T* get(uint64_t key);
     uint64_t insert(T thing);
     bool is_live(uint32_t idx);
-    void remove(uint64_t key);
+    void remove(uint32_t idx);
 
 private:
     std::vector<T> _data = {};
     std::vector<uint32_t> generation_bits = {};
-    std::vector<uint64_t> live_bits = {};           //Nth least significant bit indicates if slot N is live
+    std::vector<uint64_t> live_bits = {};           //Nth least significant bit indicates if slot N is live TODO: should just use top gen bit for this
     std::stack<uint32_t, std::vector<uint32_t>> free_indices;
     uint32_t _count = 0;
 };
@@ -88,9 +88,7 @@ bool slotmap<T>::is_live(uint32_t idx) {
 }
 
 template<class T>
-void slotmap<T>::remove(uint64_t key) {
-    uint32_t idx = EXTRACT_IDX(key);
-    uint32_t gen = static_cast<uint32_t>(EXTRACT_GENERATION(key));
+void slotmap<T>::remove(uint32_t idx) {
     free_indices.push(idx);
     generation_bits[idx] += 1;
     _count -= 1;

@@ -9,6 +9,7 @@
 #include "volk.h"
 #include "vma.h"
 #include "slotmap.h"
+#include "stb_image.h"
 #include "VulkanGraphicsPipeline.h"
 #define FRAMES_IN_FLIGHT 2		//Number of simultaneous frames the GPU could be working on
 #define PIPELINE_CACHE_FILENAME ".shadercache"
@@ -20,6 +21,30 @@ constexpr VkComponentMapping COMPONENT_MAPPING_DEFAULT = {
 	.a = VK_COMPONENT_SWIZZLE_A,
 };
 
+struct VulkanBuffer {
+	VkBuffer buffer;
+	VmaAllocation allocation;
+};
+
+struct VulkanPendingImage {
+	uint64_t image_upload_batch_id;
+	VkImage image;
+	VkImageView image_view;
+	VmaAllocation image_allocation;
+};
+
+struct VulkanAvailableImage {
+	VkImage image;
+	VkImageView image_view;
+	VmaAllocation image_allocation;
+};
+
+struct VulkanImageUploadBatch {
+	uint64_t upload_id;
+	uint64_t staging_buffer_id;
+	VkCommandBuffer command_buffer;
+};
+
 struct VulkanGraphicsDevice {
 	const VkAllocationCallbacks* alloc_callbacks;
 	VkInstance instance;
@@ -29,7 +54,6 @@ struct VulkanGraphicsDevice {
 	VkPipelineCache pipeline_cache;
 
 	//Queue family indices
-	//Used to check
 	uint32_t graphics_queue_family_idx;
 	uint32_t compute_queue_family_idx;
 	uint32_t transfer_queue_family_idx;
@@ -39,9 +63,9 @@ struct VulkanGraphicsDevice {
 	VkCommandBuffer command_buffers[FRAMES_IN_FLIGHT];
 	
 	//State related to image uploading system
-	VkSemaphore image_upload_semaphore;			//Timeline semaphore
+	VkSemaphore image_upload_semaphore;			//Timeline semaphore whose value increments by one for each image upload batch
 	uint64_t image_upload_requests = 0;
-	uint64_t image_uploads_completed = 0;
+	uint64_t image_upload_batches_completed = 0;
 
 	//These fields can be members of the graphics device struct because
 	//we are assuming bindless resource management
@@ -69,8 +93,17 @@ struct VulkanGraphicsDevice {
 		uint64_t* out_pipelines_handles,
 		uint32_t pipeline_count
 	);
+	uint64_t load_images(
+		uint32_t image_count,
+		const char** filenames,
+		VkFormat* image_formats
+
+	);
+	uint64_t tick_image_uploads(VkCommandBuffer render_cb, std::vector<VkSemaphore>& wait_semaphores, std::vector<uint64_t>& wait_semaphore_values);
 
 	VkSemaphore create_timeline_semaphore(uint64_t initial_value);
+	uint64_t check_timeline_semaphore(VkSemaphore semaphore);
+
 	uint64_t create_render_pass(VkRenderPassCreateInfo& info);
 
 	VkRenderPass* get_render_pass(uint64_t key);
@@ -82,6 +115,12 @@ struct VulkanGraphicsDevice {
 	~VulkanGraphicsDevice();
 
 private:
+
+	slotmap<VulkanBuffer> _buffers;
+
+	slotmap<VulkanAvailableImage> _available_images;
+	slotmap<VulkanPendingImage> _pending_images;
+	slotmap<VulkanImageUploadBatch> _image_upload_batches;
 
 	slotmap<VkRenderPass> _render_passes;
 	slotmap<VulkanGraphicsPipeline> _graphics_pipelines;
