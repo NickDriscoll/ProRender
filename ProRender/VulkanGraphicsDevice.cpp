@@ -514,6 +514,39 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 		fclose(f);
 	}
 	
+	for (uint32_t i = 0; i < _image_upload_batches.count(); i++) {
+		static uint32_t seen = 0;
+		if (!_image_upload_batches.is_live(i)) continue;
+		seen += 1;
+
+		VulkanImageUploadBatch* im = _image_upload_batches.data() + i;
+
+		auto buffer = _buffers.get(im->staging_buffer_id);
+		vmaDestroyBuffer(allocator, buffer->buffer, buffer->allocation);
+	}
+	
+	for (uint32_t i = 0; i < _available_images.count(); i++) {
+		static uint32_t seen = 0;
+		if (!_available_images.is_live(i)) continue;
+		seen += 1;
+
+		VulkanAvailableImage* im = _available_images.data() + i;
+
+		vkDestroyImageView(device, im->image_view, alloc_callbacks);
+		vmaDestroyImage(allocator, im->image, im->image_allocation);
+	}
+	
+	for (uint32_t i = 0; i < _pending_images.count(); i++) {
+		static uint32_t seen = 0;
+		if (!_pending_images.is_live(i)) continue;
+		seen += 1;
+
+		VulkanPendingImage* im = _pending_images.data() + i;
+
+		vkDestroyImageView(device, im->image_view, alloc_callbacks);
+		vmaDestroyImage(allocator, im->image, im->image_allocation);
+	}
+	
 	for (uint32_t i = 0; i < _immutable_samplers.size(); i++) {
 		vkDestroySampler(device, _immutable_samplers[i], alloc_callbacks);
 	}
