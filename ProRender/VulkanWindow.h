@@ -11,6 +11,7 @@ struct VulkanWindow {
 	const VkAllocationCallbacks* alloc_callbacks;
 
 	VkFormat preferred_swapchain_format;	//This seems to be a pretty standard/common swapchain format
+	VkPresentModeKHR preferred_present_mode;
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapchain;
 	VkSemaphore acquire_semaphore;

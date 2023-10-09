@@ -8,6 +8,7 @@ VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 	device = vgd.device;
 	alloc_callbacks = vgd.alloc_callbacks;
 	preferred_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
+	preferred_present_mode = VK_PRESENT_MODE_FIFO_KHR;
 
     //Query for surface capabilities
 	VkSurfaceCapabilitiesKHR surface_capabilities = {};
@@ -74,7 +75,7 @@ VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 	swapchain_info.pQueueFamilyIndices = &vgd.graphics_queue_family_idx;
 	swapchain_info.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	swapchain_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	swapchain_info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+	swapchain_info.presentMode = preferred_present_mode;
 	swapchain_info.clipped = VK_TRUE;
 
 	if (vkCreateSwapchainKHR(vgd.device, &swapchain_info, vgd.alloc_callbacks, &swapchain) != VK_SUCCESS) {

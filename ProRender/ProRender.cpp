@@ -176,13 +176,15 @@ int main(int argc, char* argv[]) {
 		);
 	}
 
-	printf("Initialization time took %fms.\n", app_timer.check());
+	printf("Initialization time took %.2fms.\n", app_timer.check());
 	
 	//Main loop
 	uint64_t ticks = SDL_GetTicks64();
 	bool running = true;
 	uint64_t current_frame = 0;
 	while (running) {
+		Timer frame_timer;
+		frame_timer.start();
 		uint64_t tick_delta = SDL_GetTicks64() - ticks;
 		ticks = SDL_GetTicks64();
 
@@ -362,6 +364,9 @@ int main(int argc, char* argv[]) {
 					exit(-1);
 				}
 			}
+
+			if (current_frame % 300 == 0)
+				printf("Frame %i took %.2fms\n", current_frame, frame_timer.check());
 		}
 		current_frame++;
 	}
