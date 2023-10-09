@@ -7,6 +7,10 @@ struct Timer {
 #ifndef TIMER_IMPLEMENTATION
     void start();
     double check();
+    void print(const char* title);
+
+    Timer();
+    Timer(const char* name);
 
 #else
 
@@ -19,8 +23,22 @@ struct Timer {
         return d.count();
     }
 
+    void print(const char* title) {
+        printf("%s: %s took %.4fms.\n", name, title, check());
+    }
+
+    Timer() {
+        Timer("");
+    }
+
+    Timer(const char* name) {
+        this->name = name;
+        this->start_time = std::chrono::steady_clock::now();
+    }
+
 #endif
 
 private:
+    const char* name;
     std::chrono::time_point<std::chrono::steady_clock> start_time;
 };

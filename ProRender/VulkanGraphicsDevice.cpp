@@ -1,6 +1,8 @@
 #include "VulkanGraphicsDevice.h"
 
 VulkanGraphicsDevice::VulkanGraphicsDevice() {
+	Timer timer = Timer("VGD initialization");
+
 	alloc_callbacks = nullptr;			//TODO: Custom allocator(s)
 	vma_alloc_callbacks = nullptr;
 
@@ -17,7 +19,8 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		printf("RIP\n");
 		exit(-1);
 	}
-	printf("Volk initialized.\n");
+	timer.print("Volk initialization");
+	timer.start();
 
 	//Vulkan instance creation
 	uint32_t VK_API_VERSION = VK_MAKE_API_VERSION(0, 1, 2, 0);
@@ -55,11 +58,15 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		inst_info.enabledExtensionCount = extension_names.size();
 		inst_info.ppEnabledExtensionNames = extension_names.data();
 
+		timer.print("Vulkan instance params");
+		timer.start();
+
 		if (vkCreateInstance(&inst_info, alloc_callbacks, &instance) != VK_SUCCESS) {
 			printf("Instance creation failed.\n");
 			exit(-1);
 		}
-		printf("Instance created.\n");
+		timer.print("just the vkCreateInstance() call");
+		timer.start();
 	}
 
 	//Load all Vulkan instance functions
@@ -168,6 +175,9 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		}
 	}
 
+	timer.print("Physical device selection");
+	timer.start();
+
 	//Vulkan device creation
 	{
 		std::vector<VkDeviceQueueCreateInfo> queue_infos;
@@ -225,7 +235,8 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 			exit(-1);
 		}
 	}
-	printf("Logical device created.\n");
+	timer.print("Logical device creation");
+	timer.start();
 
 	//Load all device functions
 	volkLoadDevice(device);
@@ -251,7 +262,8 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 			exit(-1);
 		}
 	}
-	printf("VMA memory allocator created.\n");
+	timer.print("VMA initialized");
+	timer.start();
 
 	//Create command pool
 	{
@@ -316,21 +328,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	}
 	printf("Command buffers allocated.\n");
 
-	{
-		VkSemaphoreTypeCreateInfo type_info = {};
-		type_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-		type_info.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-		type_info.initialValue = 0;
-
-		VkSemaphoreCreateInfo info = {};
-		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		info.pNext = &type_info;
-
-		if (vkCreateSemaphore(device, &info, alloc_callbacks, &image_upload_semaphore) != VK_SUCCESS) {
-			printf("Creating image upload timeline semaphore failed.\n");
-			exit(-1);
-		}
-	}
+	image_upload_semaphore = create_timeline_semaphore(0);
 
 	//Create pipeline cache
 	{

@@ -1,18 +1,22 @@
 ﻿#include "ProRender.h"
 
 int main(int argc, char* argv[]) {
-	Timer app_timer;
+	Timer app_timer = Timer("Main function");
 	app_timer.start();
 
 	SDL_Init(SDL_INIT_VIDEO);	//Initialize SDL
+	app_timer.print("SDL Initialization");
+	app_timer.start();
+
+	//Init vulkan graphics device
+	VulkanGraphicsDevice vgd = VulkanGraphicsDevice();
+	app_timer.print("VGD Initialization");
+	app_timer.start();
 
 	const uint32_t x_resolution = 720;
 	const uint32_t y_resolution = 720;
 	SDL_Window* sdl_window = SDL_CreateWindow("losing my mind", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, x_resolution, y_resolution, SDL_WINDOW_VULKAN);
-
-	//Init vulkan graphics device
-	VulkanGraphicsDevice vgd = VulkanGraphicsDevice();
-
+	
 	//Init the vulkan window
 	VkSurfaceKHR window_surface;
 	if (SDL_Vulkan_CreateSurface(sdl_window, vgd.instance, &window_surface) == SDL_FALSE) {
@@ -20,6 +24,8 @@ int main(int argc, char* argv[]) {
 		exit(-1);
 	}
 	VulkanWindow window = VulkanWindow(vgd, window_surface);
+	app_timer.print("Window creation");
+	app_timer.start();
 
 	//Render pass object creation
 	uint64_t render_pass_id;
@@ -175,8 +181,6 @@ int main(int argc, char* argv[]) {
 			formats
 		);
 	}
-
-	printf("Initialization time took %.2fms.\n", app_timer.check());
 	
 	//Main loop
 	uint64_t ticks = SDL_GetTicks64();
@@ -376,8 +380,6 @@ int main(int argc, char* argv[]) {
 
 	//Cleanup resources
 
-	//vkDestroyImageView(vgd.device, sampled_image_view, vgd.alloc_callbacks);
-	//vmaDestroyImage(vgd.allocator, sampled_image, image_allocation);
 	vkDestroySemaphore(vgd.device, graphics_timeline_semaphore, vgd.alloc_callbacks);
 
 	vkDestroyPipeline(vgd.device, vgd.get_graphics_pipeline(normal_pipeline_handle)->pipeline, vgd.alloc_callbacks);
