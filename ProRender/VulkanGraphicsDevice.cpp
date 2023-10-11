@@ -565,6 +565,7 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 		vkDestroyRenderPass(device, _render_passes.data()[i], alloc_callbacks);
 	}
 
+	//Wait for all image upload threads
 	for (uint32_t i = 0; i < image_upload_threads.size(); i++) {
 		image_upload_threads[i].join();
 	}
@@ -1286,7 +1287,7 @@ VkShaderModule VulkanGraphicsDevice::load_shader_module(const char* path) {
 	info.codeSize = spv_size;
 	info.pCode = spv_bytes.data();
 	if (vkCreateShaderModule(device, &info, alloc_callbacks, &shader) != VK_SUCCESS) {
-		printf("Creating vertex shader module failed.\n");
+		printf("Creating shader module failed.\n");
 		exit(-1);
 	}
 

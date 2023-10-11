@@ -23,7 +23,7 @@ int main(int argc, char* argv[]) {
 		printf("Creating VkSurface failed.\n");
 		exit(-1);
 	}
-	VulkanWindow window = VulkanWindow(vgd, window_surface);
+	VulkanWindow window(vgd, window_surface);
 	app_timer.print("Window creation");
 	app_timer.start();
 
