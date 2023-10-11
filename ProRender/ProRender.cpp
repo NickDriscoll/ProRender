@@ -4,7 +4,7 @@ int main(int argc, char* argv[]) {
 	Timer init_timer = Timer("Init");
 	Timer app_timer = Timer("Main function");
 
-	SDL_Init(SDL_INIT_VIDEO);	//Initialize SDL
+	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);	//Initialize SDL
 	app_timer.print("SDL Initialization");
 	app_timer.start();
 
@@ -13,9 +13,10 @@ int main(int argc, char* argv[]) {
 	app_timer.print("VGD Initialization");
 	app_timer.start();
 
-	const uint32_t x_resolution = 720;
-	const uint32_t y_resolution = 720;
-	SDL_Window* sdl_window = SDL_CreateWindow("losing my mind", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, x_resolution, y_resolution, SDL_WINDOW_VULKAN);
+	uint32_t x_resolution = 720;
+	uint32_t y_resolution = 720;
+	uint32_t window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
+	SDL_Window* sdl_window = SDL_CreateWindow("losing my mind", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, x_resolution, y_resolution, window_flags);
 	
 	//Init the vulkan window
 	VkSurfaceKHR window_surface;
@@ -31,7 +32,7 @@ int main(int argc, char* argv[]) {
 	uint64_t render_pass_id;
 	{
 		VkAttachmentDescription color_attachment = {
-			.format = window.preferred_swapchain_format,
+			.format = window.format.format,
 			.samples = VK_SAMPLE_COUNT_1_BIT,
 			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -160,30 +161,7 @@ int main(int argc, char* argv[]) {
 	//Create graphics pipeline timeline semaphore
 	VkSemaphore graphics_timeline_semaphore = vgd.create_timeline_semaphore(0);
 
-	//Loading four images in a batch
-	// uint64_t image_batch_id;
-	// {
-	// 	const char* filenames[] = {
-	// 		"images/doogan.png",
-	// 		"images/birds-allowed.png",
-	// 		"images/stressed_miyamoto.png",
-	// 		"images/normal.png"
-	// 	};
-	// 	VkFormat formats[] = {
-	// 		VK_FORMAT_R8G8B8A8_UNORM,
-	// 		VK_FORMAT_R8G8B8A8_UNORM,
-	// 		VK_FORMAT_R8G8B8A8_UNORM,
-	// 		VK_FORMAT_R8G8B8A8_UNORM
-	// 	};
-	// 	image_batch_id = vgd.load_images(
-	// 		4,
-	// 		filenames,
-	// 		formats
-	// 	);
-	// }
-
-	uint64_t image_batch_id = 1;
-	//std::thread image_thread;
+	uint64_t image_batch_id;
 	{
 		const char* filenames[] = {
 			"images/doogan.png",
@@ -197,15 +175,7 @@ int main(int argc, char* argv[]) {
 			VK_FORMAT_R8G8B8A8_UNORM,
 			VK_FORMAT_R8G8B8A8_UNORM
 		};
-		vgd.load_images(4, filenames, formats);
-
-		// image_thread = std::thread(
-		// 	&VulkanGraphicsDevice::load_images,
-		// 	&vgd,
-		// 	4,
-		// 	filenames,
-		// 	formats
-		// );
+		image_batch_id = vgd.load_images(4, filenames, formats);
 	}
 
 	init_timer.print("App init");
@@ -217,25 +187,60 @@ int main(int argc, char* argv[]) {
 	while (running) {
 		Timer frame_timer;
 		frame_timer.start();
+
 		uint64_t tick_delta = SDL_GetTicks64() - ticks;
 		ticks = SDL_GetTicks64();
 
-		//Do input polling loop
-		SDL_Event current_event;
-		while (SDL_PollEvent(&current_event)) {
-			switch (current_event.type) {
-			case SDL_QUIT:
-				running = false;
-				break;
-			case SDL_KEYDOWN:
-				if (current_event.key.keysym.scancode == SDL_SCANCODE_SPACE) {
-					if (current_pipeline_handle == normal_pipeline_handle) {
-						current_pipeline_handle = wire_pipeline_handle;
-					} else {
-						current_pipeline_handle = normal_pipeline_handle;
+		{
+			//Do input polling loop
+			SDL_Event event;
+			while (SDL_PollEvent(&event)) {
+				switch (event.type) {
+				case SDL_QUIT:
+					running = false;
+					break;
+				case SDL_WINDOWEVENT:
+					switch (event.window.event) {
+						case SDL_WINDOWEVENT_SIZE_CHANGED:
+							x_resolution = event.window.data1;
+							y_resolution = event.window.data2;
+							printf("Resizing window to (%i, %i)\n", x_resolution, y_resolution);
+							window.resize(vgd, x_resolution, y_resolution);
+							
+							//Recreate swapchain framebuffers
+							{
+								swapchain_framebuffers.clear();
+								swapchain_framebuffers.resize(window.swapchain_images.size());
+								for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
+									VkFramebufferCreateInfo info = {};
+									info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+									info.renderPass = *vgd.get_render_pass(render_pass_id);
+									info.attachmentCount = 1;
+									info.pAttachments = &window.swapchain_image_views[i];
+									info.width = x_resolution;
+									info.height = y_resolution;
+									info.layers = 1;
+
+									if (vkCreateFramebuffer(vgd.device, &info, vgd.alloc_callbacks, &swapchain_framebuffers[i]) != VK_SUCCESS) {
+										printf("Creating swapchain framebuffer %i failed.\n", i);
+										exit(-1);
+									}
+								}
+							}
+
+							break;
 					}
+					break;
+				case SDL_KEYDOWN:
+					if (event.key.keysym.scancode == SDL_SCANCODE_SPACE) {
+						if (current_pipeline_handle == normal_pipeline_handle) {
+							current_pipeline_handle = wire_pipeline_handle;
+						} else {
+							current_pipeline_handle = normal_pipeline_handle;
+						}
+					}
+					break;
 				}
-				break;
 			}
 		}
 
@@ -314,8 +319,8 @@ int main(int argc, char* argv[]) {
 				VkViewport viewport = {
 					.x = 0,
 					.y = 0,
-					.width = x_resolution,
-					.height = y_resolution,
+					.width = (float)x_resolution,
+					.height = (float)y_resolution,
 					.minDepth = 0.0,
 					.maxDepth = 1.0
 				};
@@ -391,7 +396,12 @@ int main(int argc, char* argv[]) {
 				info.pImageIndices = &acquired_image_idx;
 				info.pResults = VK_NULL_HANDLE;
 
-				if (vkQueuePresentKHR(q, &info) != VK_SUCCESS) {
+				VkResult r = vkQueuePresentKHR(q, &info);
+				if (r == VK_SUBOPTIMAL_KHR) {
+					printf("Swapchain suboptimal.\n");
+				} else if (r == VK_ERROR_OUT_OF_DATE_KHR) {
+					printf("Swapchain out of date.\n");				
+				} else if (r != VK_SUCCESS) {
 					printf("Queue present failed.\n");
 					exit(-1);
 				}

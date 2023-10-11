@@ -1,3 +1,12 @@
 Handle window resizing
 Look into VK_KHR_display for fullscreen display
 
+Super short guide to smooth swapchain resizing
+1. Use old_swapchain when creating a new swapchain
+2. Never resize in the drawing thread, only call resize in the  OS 'resize callback/event'
+3. In the OS 'resize callback/even', repaint the scene.
+4. Never delete resources (images, views, framebuffers) in the resize. Instead put it in a delayed-deletion-queue. This will delete it when its no longer being used in a couple of frames
+5. Use dynamic viewport/scissor, use imageless framebuffer, and re-record command buffers every frame
+6. If the items in 4 and 5 are implemented, the resize function will not need to call vkDeviceWaitIdle()
+You put the swapchain resize in your "os callback to tell me that the window size has changed"
+-CharlesG - LunarG

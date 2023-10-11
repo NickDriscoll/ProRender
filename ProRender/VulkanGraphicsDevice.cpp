@@ -1082,8 +1082,8 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 	VkQueue q;
 	vkGetDeviceQueue(device, transfer_queue_family_idx, 0, &q);
 	{
-		image_upload_requests += 1;
-		uint64_t signal_value = image_upload_requests;
+		image_uploads_requested += 1;
+		uint64_t signal_value = image_uploads_requested;
 		VkTimelineSemaphoreSubmitInfo ts_info = {};
 		ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
 		ts_info.signalSemaphoreValueCount = 1;
@@ -1103,7 +1103,7 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 			printf("Queue submit failed.\n");
 			exit(-1);
 		}
-		current_batch.upload_id = image_upload_requests;
+		current_batch.upload_id = image_uploads_requested;
 
 		_image_upload_batches.insert(current_batch);
 	}
@@ -1213,7 +1213,7 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 			}
 		}
 		
-		image_upload_batches_completed += 1;
+		image_uploads_completed += 1;
 		_image_upload_batches.remove(i);
 	}
 	

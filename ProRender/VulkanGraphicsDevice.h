@@ -68,8 +68,8 @@ struct VulkanGraphicsDevice {
 	//State related to image uploading system
 	std::vector<std::thread> image_upload_threads;
 	VkSemaphore image_upload_semaphore;			//Timeline semaphore whose value increments by one for each image upload batch
-	uint64_t image_upload_requests = 0;
-	uint64_t image_upload_batches_completed = 0;
+	uint64_t image_uploads_requested = 0;
+	uint64_t image_uploads_completed = 0;
 
 	//These fields can be members of the graphics device struct because
 	//we are assuming bindless resource management

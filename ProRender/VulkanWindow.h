@@ -10,7 +10,7 @@ struct VulkanWindow {
 	VkDevice device;
 	const VkAllocationCallbacks* alloc_callbacks;
 
-	VkFormat preferred_swapchain_format;	//This seems to be a pretty standard/common swapchain format
+	VkSurfaceFormatKHR format;	//This seems to be a pretty standard/common swapchain format
 	VkPresentModeKHR preferred_present_mode;
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapchain;
@@ -21,4 +21,6 @@ struct VulkanWindow {
 
 	VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface);
 	~VulkanWindow();
+
+	void resize(VulkanGraphicsDevice& vgd, uint32_t x, uint32_t y);
 };
