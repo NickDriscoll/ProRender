@@ -15,6 +15,8 @@ VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 		printf("Getting VkSurface capabilities failed.\n");
 		exit(-1);
 	}
+	this->x_resolution = surface_capabilities.currentExtent.width;
+	this->y_resolution = surface_capabilities.currentExtent.height;
 
 	uint32_t format_count;
 	if (vkGetPhysicalDeviceSurfaceFormatsKHR(vgd.physical_device, surface, &format_count, nullptr) != VK_SUCCESS) {
@@ -73,7 +75,7 @@ VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 	swapchain_info.queueFamilyIndexCount = 1;
 	swapchain_info.pQueueFamilyIndices = &vgd.graphics_queue_family_idx;
 	swapchain_info.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-	swapchain_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	swapchain_info.compositeAlpha = VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR;
 	swapchain_info.presentMode = preferred_present_mode;
 	swapchain_info.clipped = VK_TRUE;
 
@@ -121,6 +123,61 @@ VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 		}
 	}
 
+	//Render pass object creation
+	{
+		VkAttachmentDescription color_attachment = {
+			.format = format.format,
+			.samples = VK_SAMPLE_COUNT_1_BIT,
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+		};
+
+		VkAttachmentReference attachment_ref = {
+			.attachment = 0,
+			.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+		};
+
+		VkSubpassDescription subpass = {
+			.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+			.colorAttachmentCount = 1,
+			.pColorAttachments = &attachment_ref
+		};
+
+		VkRenderPassCreateInfo info = {
+			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+			.attachmentCount = 1,
+			.pAttachments = &color_attachment,
+			.subpassCount = 1,
+			.pSubpasses = &subpass
+		};
+		
+		swapchain_renderpass = vgd.create_render_pass(info);
+	}
+
+	//Create swapchain framebuffers
+	{
+		swapchain_framebuffers.resize(swapchain_images.size());
+		for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
+			VkFramebufferCreateInfo info = {};
+			info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			info.renderPass = *vgd.get_render_pass(swapchain_renderpass);
+			info.attachmentCount = 1;
+			info.pAttachments = &swapchain_image_views[i];
+			info.width = x_resolution;
+			info.height = y_resolution;
+			info.layers = 1;
+
+			if (vkCreateFramebuffer(vgd.device, &info, vgd.alloc_callbacks, &swapchain_framebuffers[i]) != VK_SUCCESS) {
+				printf("Creating swapchain framebuffer %i failed.\n", i);
+				exit(-1);
+			}
+		}
+	}
+
 	//Create the acquire semaphore
 	{
 		VkSemaphoreCreateInfo info = {};
@@ -145,6 +202,9 @@ VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 VulkanWindow::~VulkanWindow() {
 	vkDestroySemaphore(device, acquire_semaphore, alloc_callbacks);
 	vkDestroySemaphore(device, present_semaphore, alloc_callbacks);
+	for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
+		vkDestroyFramebuffer(device, swapchain_framebuffers[i], alloc_callbacks);
+	}
 	for (uint32_t i = 0; i < swapchain_image_views.size(); i++) {
 		vkDestroyImageView(device, swapchain_image_views[i], alloc_callbacks);
 	}
@@ -152,8 +212,7 @@ VulkanWindow::~VulkanWindow() {
 	vkDestroySurfaceKHR(instance, surface, alloc_callbacks);
 }
 
-void VulkanWindow::resize(VulkanGraphicsDevice& vgd, uint32_t x, uint32_t y) {
-	
+void VulkanWindow::resize(VulkanGraphicsDevice& vgd) {
 	//Destroy old swapchain resources
 	for (uint32_t i = 0; i < swapchain_image_views.size(); i++) {
 		vkDestroyImageView(device, swapchain_image_views[i], alloc_callbacks);
@@ -166,6 +225,9 @@ void VulkanWindow::resize(VulkanGraphicsDevice& vgd, uint32_t x, uint32_t y) {
 		printf("Getting VkSurface capabilities failed.\n");
 		exit(-1);
 	}
+
+	this->x_resolution = surface_capabilities.currentExtent.width;
+	this->y_resolution = surface_capabilities.currentExtent.height;
 
 	VkSwapchainCreateInfoKHR swapchain_info = {};
 	swapchain_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -191,7 +253,6 @@ void VulkanWindow::resize(VulkanGraphicsDevice& vgd, uint32_t x, uint32_t y) {
 		exit(-1);
 	}
 	swapchain = new_swapchain;
-	printf("Created swapchain.\n");
 
 	uint32_t swapchain_image_count;
 	if (vkGetSwapchainImagesKHR(vgd.device, swapchain, &swapchain_image_count, nullptr) != VK_SUCCESS) {
@@ -227,6 +288,27 @@ void VulkanWindow::resize(VulkanGraphicsDevice& vgd, uint32_t x, uint32_t y) {
 
 			if (vkCreateImageView(vgd.device, &info, vgd.alloc_callbacks, &swapchain_image_views[i]) != VK_SUCCESS) {
 				printf("Creating swapchain image view %i failed.\n", i);
+				exit(-1);
+			}
+		}
+	}
+
+	//Recreate swapchain framebuffers
+	{
+		swapchain_framebuffers.clear();
+		swapchain_framebuffers.resize(swapchain_images.size());
+		for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
+			VkFramebufferCreateInfo info = {};
+			info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			info.renderPass = *vgd.get_render_pass(swapchain_renderpass);
+			info.attachmentCount = 1;
+			info.pAttachments = &swapchain_image_views[i];
+			info.width = x_resolution;
+			info.height = y_resolution;
+			info.layers = 1;
+
+			if (vkCreateFramebuffer(vgd.device, &info, vgd.alloc_callbacks, &swapchain_framebuffers[i]) != VK_SUCCESS) {
+				printf("Creating swapchain framebuffer %i failed.\n", i);
 				exit(-1);
 			}
 		}

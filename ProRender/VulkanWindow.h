@@ -5,6 +5,9 @@
 #include "VulkanGraphicsDevice.h"
 
 struct VulkanWindow {
+	uint32_t x_resolution;
+	uint32_t y_resolution;
+
 	//Vulkan device references
 	VkInstance instance;
 	VkDevice device;
@@ -16,11 +19,13 @@ struct VulkanWindow {
 	VkSwapchainKHR swapchain;
 	VkSemaphore acquire_semaphore;
 	VkSemaphore present_semaphore;
+	uint64_t swapchain_renderpass;
 	std::vector<VkImage> swapchain_images;
 	std::vector<VkImageView> swapchain_image_views;
+	std::vector<VkFramebuffer> swapchain_framebuffers;
 
 	VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface);
 	~VulkanWindow();
 
-	void resize(VulkanGraphicsDevice& vgd, uint32_t x, uint32_t y);
+	void resize(VulkanGraphicsDevice& vgd);
 };

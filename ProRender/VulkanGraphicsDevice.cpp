@@ -1139,6 +1139,7 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 
 		//TODO: I don't think we technically need to do a GPU-side semaphore wait,
 		//as we're only in this if statement because one or more image data transfers have completed
+		//this is only here bc validation layers complain
 		wait_semaphores.push_back(image_upload_semaphore);
 		wait_semaphore_values.push_back(timeline_value);
 

@@ -13,10 +13,10 @@ int main(int argc, char* argv[]) {
 	app_timer.print("VGD Initialization");
 	app_timer.start();
 
-	uint32_t x_resolution = 720;
-	uint32_t y_resolution = 720;
+	//uint32_t x_resolution = 720;
+	//uint32_t y_resolution = 720;
 	uint32_t window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
-	SDL_Window* sdl_window = SDL_CreateWindow("losing my mind", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, x_resolution, y_resolution, window_flags);
+	SDL_Window* sdl_window = SDL_CreateWindow("losing my mind", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 720, 720, window_flags);
 	
 	//Init the vulkan window
 	VkSurfaceKHR window_surface;
@@ -28,62 +28,26 @@ int main(int argc, char* argv[]) {
 	app_timer.print("Window creation");
 	app_timer.start();
 
-	//Render pass object creation
-	uint64_t render_pass_id;
-	{
-		VkAttachmentDescription color_attachment = {
-			.format = window.format.format,
-			.samples = VK_SAMPLE_COUNT_1_BIT,
-			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-			.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-		};
-
-		VkAttachmentReference attachment_ref = {
-			.attachment = 0,
-			.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-		};
-
-		VkSubpassDescription subpass = {
-			.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-			.colorAttachmentCount = 1,
-			.pColorAttachments = &attachment_ref
-		};
-
-		VkRenderPassCreateInfo info = {
-			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-			.attachmentCount = 1,
-			.pAttachments = &color_attachment,
-			.subpassCount = 1,
-			.pSubpasses = &subpass
-		};
-		
-		render_pass_id = vgd.create_render_pass(info);
-	}
-
 	//Create swapchain framebuffers
-	std::vector<VkFramebuffer> swapchain_framebuffers;
-	swapchain_framebuffers.resize(window.swapchain_images.size());
-	{
-		for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
-			VkFramebufferCreateInfo info = {};
-			info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			info.renderPass = *vgd.get_render_pass(render_pass_id);
-			info.attachmentCount = 1;
-			info.pAttachments = &window.swapchain_image_views[i];
-			info.width = x_resolution;
-			info.height = y_resolution;
-			info.layers = 1;
+	// std::vector<VkFramebuffer> swapchain_framebuffers;
+	// swapchain_framebuffers.resize(window.swapchain_images.size());
+	// {
+	// 	for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
+	// 		VkFramebufferCreateInfo info = {};
+	// 		info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	// 		info.renderPass = *vgd.get_render_pass(render_pass_id);
+	// 		info.attachmentCount = 1;
+	// 		info.pAttachments = &window.swapchain_image_views[i];
+	// 		info.width = x_resolution;
+	// 		info.height = y_resolution;
+	// 		info.layers = 1;
 
-			if (vkCreateFramebuffer(vgd.device, &info, vgd.alloc_callbacks, &swapchain_framebuffers[i]) != VK_SUCCESS) {
-				printf("Creating swapchain framebuffer %i failed.\n", i);
-				exit(-1);
-			}
-		}
-	}
+	// 		if (vkCreateFramebuffer(vgd.device, &info, vgd.alloc_callbacks, &swapchain_framebuffers[i]) != VK_SUCCESS) {
+	// 			printf("Creating swapchain framebuffer %i failed.\n", i);
+	// 			exit(-1);
+	// 		}
+	// 	}
+	// }
 
 	//Create graphics pipelines
 	uint64_t current_pipeline_handle = 0;
@@ -141,7 +105,7 @@ int main(int argc, char* argv[]) {
 		const char* shaders[] = { "shaders/test.vert.spv", "shaders/test.frag.spv", "shaders/test.vert.spv", "shaders/test.frag.spv" };
 
 		vgd.create_graphics_pipelines(
-			render_pass_id,
+			window.swapchain_renderpass,
 			shaders,
 			ia_states,
 			tess_states,
@@ -202,32 +166,7 @@ int main(int argc, char* argv[]) {
 				case SDL_WINDOWEVENT:
 					switch (event.window.event) {
 						case SDL_WINDOWEVENT_SIZE_CHANGED:
-							x_resolution = event.window.data1;
-							y_resolution = event.window.data2;
-							printf("Resizing window to (%i, %i)\n", x_resolution, y_resolution);
-							window.resize(vgd, x_resolution, y_resolution);
-							
-							//Recreate swapchain framebuffers
-							{
-								swapchain_framebuffers.clear();
-								swapchain_framebuffers.resize(window.swapchain_images.size());
-								for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
-									VkFramebufferCreateInfo info = {};
-									info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-									info.renderPass = *vgd.get_render_pass(render_pass_id);
-									info.attachmentCount = 1;
-									info.pAttachments = &window.swapchain_image_views[i];
-									info.width = x_resolution;
-									info.height = y_resolution;
-									info.layers = 1;
-
-									if (vkCreateFramebuffer(vgd.device, &info, vgd.alloc_callbacks, &swapchain_framebuffers[i]) != VK_SUCCESS) {
-										printf("Creating swapchain framebuffer %i failed.\n", i);
-										exit(-1);
-									}
-								}
-							}
-
+							window.resize(vgd);
 							break;
 					}
 					break;
@@ -290,8 +229,8 @@ int main(int argc, char* argv[]) {
 						.y = 0
 					},
 					.extent = {
-						.width = x_resolution,
-						.height = y_resolution
+						.width = window.x_resolution,
+						.height = window.y_resolution
 					}
 				};
 
@@ -305,8 +244,8 @@ int main(int argc, char* argv[]) {
 
 				VkRenderPassBeginInfo info = {};
 				info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-				info.renderPass = *vgd.get_render_pass(render_pass_id);
-				info.framebuffer = swapchain_framebuffers[acquired_image_idx];
+				info.renderPass = *vgd.get_render_pass(window.swapchain_renderpass);
+				info.framebuffer = window.swapchain_framebuffers[acquired_image_idx];
 				info.renderArea = area;
 				info.clearValueCount = 1;
 				info.pClearValues = &clear_color;
@@ -319,8 +258,8 @@ int main(int argc, char* argv[]) {
 				VkViewport viewport = {
 					.x = 0,
 					.y = 0,
-					.width = (float)x_resolution,
-					.height = (float)y_resolution,
+					.width = (float)window.x_resolution,
+					.height = (float)window.y_resolution,
 					.minDepth = 0.0,
 					.maxDepth = 1.0
 				};
@@ -332,8 +271,8 @@ int main(int argc, char* argv[]) {
 						.y = 0
 					},
 					.extent = {
-						.width = x_resolution,
-						.height = y_resolution
+						.width = window.x_resolution,
+						.height = window.y_resolution
 					}
 				};
 				vkCmdSetScissor(current_cb, 0, 1, &scissor);
@@ -400,7 +339,8 @@ int main(int argc, char* argv[]) {
 				if (r == VK_SUBOPTIMAL_KHR) {
 					printf("Swapchain suboptimal.\n");
 				} else if (r == VK_ERROR_OUT_OF_DATE_KHR) {
-					printf("Swapchain out of date.\n");				
+					printf("Swapchain out of date.\n");
+					window.resize(vgd);
 				} else if (r != VK_SUCCESS) {
 					printf("Queue present failed.\n");
 					exit(-1);
@@ -422,10 +362,6 @@ int main(int argc, char* argv[]) {
 
 	vkDestroyPipeline(vgd.device, vgd.get_graphics_pipeline(normal_pipeline_handle)->pipeline, vgd.alloc_callbacks);
 	vkDestroyPipeline(vgd.device, vgd.get_graphics_pipeline(wire_pipeline_handle)->pipeline, vgd.alloc_callbacks);
-
-	for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
-		vkDestroyFramebuffer(vgd.device, swapchain_framebuffers[i], vgd.alloc_callbacks);
-	}
 	
 	SDL_Quit();
 
