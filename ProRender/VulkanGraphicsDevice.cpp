@@ -230,13 +230,14 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		device_info.ppEnabledExtensionNames = extension_names.data();
 		device_info.pEnabledFeatures = nullptr;
 
+		timer.start();
 		if (vkCreateDevice(physical_device, &device_info, alloc_callbacks, &device) != VK_SUCCESS) {
 			printf("Creating logical device failed.\n");
 			exit(-1);
 		}
+		timer.print("Just calling vkCreateDevice()");
+		timer.start();
 	}
-	timer.print("Logical device creation");
-	timer.start();
 
 	//Load all device functions
 	volkLoadDevice(device);
@@ -278,7 +279,8 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 			exit(-1);
 		}
 	}
-	printf("Command pool created.\n");
+	timer.print("Graphics command pool creation");
+	timer.start();
 
 	//Create command pool
 	{
@@ -293,7 +295,8 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 			exit(-1);
 		}
 	}
-	printf("Command pool created.\n");
+	timer.print("Transfer command pool creation");
+	timer.start();
 
 	{
 		std::vector<VkCommandBuffer> storage;
@@ -326,7 +329,8 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 			exit(-1);
 		}
 	}
-	printf("Command buffers allocated.\n");
+	timer.print("Command buffer allocation");
+	timer.start();
 
 	image_upload_semaphore = create_timeline_semaphore(0);
 
@@ -356,7 +360,8 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 			exit(-1);
 		}
 	}
-	printf("Created pipeline cache.\n");
+	timer.print("Pipeline cache creation");
+	timer.start();
 
 	//Pipeline layout
 	{
@@ -443,7 +448,8 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 			exit(-1);
 		}
 	}
-	printf("Created pipeline layout.\n");
+	timer.print("Pipeline layout creation");
+	timer.start();
 
 	//Create bindless descriptor set
 	{
@@ -486,6 +492,8 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 			}
 		}
 	}
+	timer.print("Descriptor pool/set creation");
+	timer.start();
 }
 
 VulkanGraphicsDevice::~VulkanGraphicsDevice() {
@@ -555,6 +563,10 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 		rp_seen += 1;
 
 		vkDestroyRenderPass(device, _render_passes.data()[i], alloc_callbacks);
+	}
+
+	for (uint32_t i = 0; i < image_upload_threads.size(); i++) {
+		image_upload_threads[i].join();
 	}
 	
 	vkDestroySemaphore(device, image_upload_semaphore, alloc_callbacks);
@@ -807,13 +819,27 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 	}
 }
 
-//TODO: Just what is even happening with the image format :( UNORM works for everything??!???
-
 uint64_t VulkanGraphicsDevice::load_images(
 	uint32_t image_count,
 	const char** filenames,
 	VkFormat* image_formats
+) {
+	image_upload_threads.push_back(std::thread(
+		&VulkanGraphicsDevice::load_images_impl,
+		this,
+		4,
+		filenames,
+		image_formats
+	));
+	return 1;
+}
 
+//TODO: Just what is even happening with the image format :( UNORM works for everything??!???
+
+uint64_t VulkanGraphicsDevice::load_images_impl(
+	uint32_t image_count,
+	const char** filenames,
+	VkFormat* image_formats
 ) {
 	struct stbi_image {
 		stbi_uc* data;
@@ -822,9 +848,6 @@ uint64_t VulkanGraphicsDevice::load_images(
 	};
 
 	VulkanImageUploadBatch current_batch = {};
-
-	Timer timer;
-	timer.start();
 
 	//Load image data from disk
 	std::vector<stbi_image> raw_images;
@@ -841,8 +864,6 @@ uint64_t VulkanGraphicsDevice::load_images(
 
 		total_staging_size += raw_images[i].x * raw_images[i].y * channels;
 	}
-	printf("Loading images into host memory took %.2fms.\n", timer.check());
-	timer.start();
 
 	//Create staging buffer
 	VkBuffer staging_buffer;
@@ -873,8 +894,6 @@ uint64_t VulkanGraphicsDevice::load_images(
 			.allocation = staging_buffer_allocation
 		});
 	}
-	printf("Creating staging buffer took %.2fms.\n", timer.check());
-	timer.start();
 
 	//Copy image data to staging buffer
 	{
@@ -892,8 +911,6 @@ uint64_t VulkanGraphicsDevice::load_images(
 			mapped_head += num_bytes;
 		}
 	}
-	printf("Writing image data to staging buffer took %.2fms.\n", timer.check());
-	timer.start();
 	
 	//Create Vulkan images
 	std::vector<VkImage> images;

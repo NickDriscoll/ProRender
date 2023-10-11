@@ -28,7 +28,7 @@ struct Timer {
     }
 
     Timer() {
-        Timer("");
+        *this = Timer("");
     }
 
     Timer(const char* name) {

@@ -1,8 +1,8 @@
 ﻿#include "ProRender.h"
 
 int main(int argc, char* argv[]) {
+	Timer init_timer = Timer("Init");
 	Timer app_timer = Timer("Main function");
-	app_timer.start();
 
 	SDL_Init(SDL_INIT_VIDEO);	//Initialize SDL
 	app_timer.print("SDL Initialization");
@@ -161,10 +161,32 @@ int main(int argc, char* argv[]) {
 	VkSemaphore graphics_timeline_semaphore = vgd.create_timeline_semaphore(0);
 
 	//Loading four images in a batch
-	uint64_t image_batch_id;
+	// uint64_t image_batch_id;
+	// {
+	// 	const char* filenames[] = {
+	// 		"images/doogan.png",
+	// 		"images/birds-allowed.png",
+	// 		"images/stressed_miyamoto.png",
+	// 		"images/normal.png"
+	// 	};
+	// 	VkFormat formats[] = {
+	// 		VK_FORMAT_R8G8B8A8_UNORM,
+	// 		VK_FORMAT_R8G8B8A8_UNORM,
+	// 		VK_FORMAT_R8G8B8A8_UNORM,
+	// 		VK_FORMAT_R8G8B8A8_UNORM
+	// 	};
+	// 	image_batch_id = vgd.load_images(
+	// 		4,
+	// 		filenames,
+	// 		formats
+	// 	);
+	// }
+
+	uint64_t image_batch_id = 1;
+	//std::thread image_thread;
 	{
 		const char* filenames[] = {
-			"images/statue.jpg",
+			"images/doogan.png",
 			"images/birds-allowed.png",
 			"images/stressed_miyamoto.png",
 			"images/normal.png"
@@ -175,12 +197,18 @@ int main(int argc, char* argv[]) {
 			VK_FORMAT_R8G8B8A8_UNORM,
 			VK_FORMAT_R8G8B8A8_UNORM
 		};
-		image_batch_id = vgd.load_images(
-			4,
-			filenames,
-			formats
-		);
+		vgd.load_images(4, filenames, formats);
+
+		// image_thread = std::thread(
+		// 	&VulkanGraphicsDevice::load_images,
+		// 	&vgd,
+		// 	4,
+		// 	filenames,
+		// 	formats
+		// );
 	}
+
+	init_timer.print("App init");
 	
 	//Main loop
 	uint64_t ticks = SDL_GetTicks64();
@@ -369,8 +397,8 @@ int main(int argc, char* argv[]) {
 				}
 			}
 
-			if (current_frame % 300 == 0)
-				printf("Frame %i took %.2fms\n", current_frame, frame_timer.check());
+			//if (current_frame % 300 == 0)
+				//printf("Frame %i took %.2fms\n", current_frame, frame_timer.check());
 		}
 		current_frame++;
 	}

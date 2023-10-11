@@ -7,6 +7,7 @@
 #include <vector>
 #include <stack>
 #include <filesystem>
+#include <thread>
 #include "volk.h"
 #include "vma.h"
 #include "slotmap.h"
@@ -65,6 +66,7 @@ struct VulkanGraphicsDevice {
 	VkCommandBuffer command_buffers[FRAMES_IN_FLIGHT];
 	
 	//State related to image uploading system
+	std::vector<std::thread> image_upload_threads;
 	VkSemaphore image_upload_semaphore;			//Timeline semaphore whose value increments by one for each image upload batch
 	uint64_t image_upload_requests = 0;
 	uint64_t image_upload_batches_completed = 0;
@@ -99,7 +101,6 @@ struct VulkanGraphicsDevice {
 		uint32_t image_count,
 		const char** filenames,
 		VkFormat* image_formats
-
 	);
 	uint64_t tick_image_uploads(VkCommandBuffer render_cb, std::vector<VkSemaphore>& wait_semaphores, std::vector<uint64_t>& wait_semaphore_values);
 
@@ -117,6 +118,11 @@ struct VulkanGraphicsDevice {
 	~VulkanGraphicsDevice();
 
 private:
+	uint64_t load_images_impl(
+		uint32_t image_count,
+		const char** filenames,
+		VkFormat* image_formats
+	);
 
 	slotmap<VulkanBuffer> _buffers;
 
