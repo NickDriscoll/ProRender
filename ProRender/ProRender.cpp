@@ -300,7 +300,7 @@ int main(int argc, char* argv[]) {
 			{
 				uint64_t signal_values[] = {current_frame + 1, 0};
 				VkTimelineSemaphoreSubmitInfo ts_info = {};
-				ts_info.waitSemaphoreValueCount = wait_semaphore_values.size();
+				ts_info.waitSemaphoreValueCount = static_cast<uint32_t>(wait_semaphore_values.size());
 				ts_info.pWaitSemaphoreValues = wait_semaphore_values.data();
 				ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
 				ts_info.signalSemaphoreValueCount = 2;
@@ -310,7 +310,7 @@ int main(int argc, char* argv[]) {
 				VkSemaphore signal_semaphores[] = { graphics_timeline_semaphore, window.present_semaphore };
 				info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 				info.pNext = &ts_info;
-				info.waitSemaphoreCount = wait_semaphores.size();
+				info.waitSemaphoreCount = static_cast<uint32_t>(wait_semaphores.size());
 				info.pWaitSemaphores = wait_semaphores.data();
 				info.pWaitDstStageMask = wait_flags.data();
 				info.signalSemaphoreCount = 2;
@@ -336,20 +336,28 @@ int main(int argc, char* argv[]) {
 				info.pResults = VK_NULL_HANDLE;
 
 				VkResult r = vkQueuePresentKHR(q, &info);
-				if (r == VK_SUBOPTIMAL_KHR) {
-					printf("Swapchain suboptimal.\n");
-				} else if (r == VK_ERROR_OUT_OF_DATE_KHR) {
-					printf("Swapchain out of date.\n");
-					window.resize(vgd);
-				} else if (r != VK_SUCCESS) {
-					printf("Queue present failed.\n");
-					exit(-1);
+				switch (r) {
+					case VK_SUBOPTIMAL_KHR:
+						printf("Swapchain suboptimal.\n");
+						break;
+					case VK_ERROR_OUT_OF_DATE_KHR:
+						printf("Swapchain out of date.\n");
+						window.resize(vgd);
+						break;
+					case VK_SUCCESS:
+						break;
+					default:
+						printf("Queue present failed.\n");
+						exit(-1);
+						break;
 				}
 			}
 
 			//if (current_frame % 300 == 0)
 				//printf("Frame %i took %.2fms\n", current_frame, frame_timer.check());
 		}
+
+		//End-of-frame bookkeeping
 		current_frame++;
 	}
 

@@ -55,7 +55,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		inst_info.pApplicationInfo = &app_info;
 		inst_info.enabledLayerCount = 0;
 		inst_info.ppEnabledLayerNames = nullptr;
-		inst_info.enabledExtensionCount = extension_names.size();
+		inst_info.enabledExtensionCount = static_cast<uint32_t>(extension_names.size());
 		inst_info.ppEnabledExtensionNames = extension_names.data();
 
 		timer.print("Vulkan instance params");
@@ -222,11 +222,11 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		device_info.pNext = &device_features;
 		device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 		device_info.flags = 0;
-		device_info.queueCreateInfoCount = queue_infos.size();
+		device_info.queueCreateInfoCount = static_cast<uint32_t>(queue_infos.size());
 		device_info.pQueueCreateInfos = queue_infos.data();
 		device_info.enabledLayerCount = 0;
 		device_info.ppEnabledLayerNames = nullptr;
-		device_info.enabledExtensionCount = extension_names.size();
+		device_info.enabledExtensionCount = static_cast<uint32_t>(extension_names.size());
 		device_info.ppEnabledExtensionNames = extension_names.data();
 		device_info.pEnabledFeatures = nullptr;
 
@@ -306,7 +306,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		cb_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		cb_info.commandPool = transfer_command_pool;
 		cb_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		cb_info.commandBufferCount = storage.size();
+		cb_info.commandBufferCount = static_cast<uint32_t>(storage.size());
 
 		if (vkAllocateCommandBuffers(device, &cb_info, storage.data()) != VK_SUCCESS) {
 			printf("Creating main command buffers failed.\n");
@@ -342,7 +342,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		std::vector<uint8_t> cache_data;
 		if (std::filesystem::exists(PIPELINE_CACHE_FILENAME)) {
 			printf("Found pipeline cache file.\n");
-			uint32_t pipeline_size = std::filesystem::file_size(PIPELINE_CACHE_FILENAME);
+			uint32_t pipeline_size = static_cast<uint32_t>(std::filesystem::file_size(PIPELINE_CACHE_FILENAME));
 			cache_data.resize(pipeline_size);
 			FILE* f = fopen(PIPELINE_CACHE_FILENAME, "rb");
 			if (fread(cache_data.data(), 1, pipeline_size, f) == 0) {
@@ -421,7 +421,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 			VkDescriptorSetLayoutCreateInfo info = {};
 			info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 			info.pNext = &binding_flags_info;
-			info.bindingCount = bindings.size();
+			info.bindingCount = static_cast<uint32_t>(bindings.size());
 			info.pBindings = bindings.data();
 
 			if (vkCreateDescriptorSetLayout(device, &info, alloc_callbacks, &descriptor_set_layout) != VK_SUCCESS) {
@@ -1219,7 +1219,7 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 	}
 	
 	if (seen > 0)
-		vkUpdateDescriptorSets(device, desc_writes.size(), desc_writes.data(), 0, nullptr);
+		vkUpdateDescriptorSets(device, static_cast<uint32_t>(desc_writes.size()), desc_writes.data(), 0, nullptr);
 
 	return timeline_value;
 }
@@ -1267,7 +1267,7 @@ VkRenderPass* VulkanGraphicsDevice::get_render_pass(uint64_t key) {
 
 VkShaderModule VulkanGraphicsDevice::load_shader_module(const char* path) {
 	//Get filesize
-	uint32_t spv_size = std::filesystem::file_size(std::filesystem::path(path));
+	uint32_t spv_size = static_cast<uint32_t>(std::filesystem::file_size(std::filesystem::path(path)));
 
 	//Allocate receiving buffer
 	std::vector<uint32_t> spv_bytes;
