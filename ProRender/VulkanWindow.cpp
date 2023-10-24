@@ -213,11 +213,16 @@ VulkanWindow::~VulkanWindow() {
 }
 
 void VulkanWindow::resize(VulkanGraphicsDevice& vgd) {
+	
+	vkDeviceWaitIdle(vgd.device);
+	
 	//Destroy old swapchain resources
+	for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
+		vkDestroyFramebuffer(device, swapchain_framebuffers[i], alloc_callbacks);
+	}
 	for (uint32_t i = 0; i < swapchain_image_views.size(); i++) {
 		vkDestroyImageView(device, swapchain_image_views[i], alloc_callbacks);
 	}
-	//vkDestroySwapchainKHR(device, swapchain, alloc_callbacks);
 
     //Query for surface capabilities
 	VkSurfaceCapabilitiesKHR surface_capabilities = {};
@@ -253,6 +258,7 @@ void VulkanWindow::resize(VulkanGraphicsDevice& vgd) {
 		exit(-1);
 	}
 	swapchain = new_swapchain;
+	vkDestroySwapchainKHR(device, swapchain_info.oldSwapchain, alloc_callbacks);
 
 	uint32_t swapchain_image_count;
 	if (vkGetSwapchainImagesKHR(vgd.device, swapchain, &swapchain_image_count, nullptr) != VK_SUCCESS) {
