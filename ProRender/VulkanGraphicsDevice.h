@@ -14,6 +14,7 @@
 #include "stb_image.h"
 #include "timer.h"
 #include "VulkanGraphicsPipeline.h"
+
 #define FRAMES_IN_FLIGHT 2		//Number of simultaneous frames the GPU could be working on
 #define PIPELINE_CACHE_FILENAME ".shadercache"
 
@@ -29,17 +30,23 @@ struct VulkanBuffer {
 	VmaAllocation allocation;
 };
 
-struct VulkanPendingImage {
-	uint64_t image_upload_batch_id;
+struct VulkanImage {
+	uint32_t x;
+	uint32_t y;
+	uint32_t z;
+	uint32_t mip_levels;
 	VkImage image;
 	VkImageView image_view;
 	VmaAllocation image_allocation;
 };
 
+struct VulkanPendingImage {
+	uint64_t image_upload_batch_id;
+	VulkanImage vk_image;
+};
+
 struct VulkanAvailableImage {
-	VkImage image;
-	VkImageView image_view;
-	VmaAllocation image_allocation;
+	VulkanImage vk_image;
 };
 
 struct VulkanImageUploadBatch {

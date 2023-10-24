@@ -28,27 +28,6 @@ int main(int argc, char* argv[]) {
 	app_timer.print("Window creation");
 	app_timer.start();
 
-	//Create swapchain framebuffers
-	// std::vector<VkFramebuffer> swapchain_framebuffers;
-	// swapchain_framebuffers.resize(window.swapchain_images.size());
-	// {
-	// 	for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
-	// 		VkFramebufferCreateInfo info = {};
-	// 		info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-	// 		info.renderPass = *vgd.get_render_pass(render_pass_id);
-	// 		info.attachmentCount = 1;
-	// 		info.pAttachments = &window.swapchain_image_views[i];
-	// 		info.width = x_resolution;
-	// 		info.height = y_resolution;
-	// 		info.layers = 1;
-
-	// 		if (vkCreateFramebuffer(vgd.device, &info, vgd.alloc_callbacks, &swapchain_framebuffers[i]) != VK_SUCCESS) {
-	// 			printf("Creating swapchain framebuffer %i failed.\n", i);
-	// 			exit(-1);
-	// 		}
-	// 	}
-	// }
-
 	//Create graphics pipelines
 	uint64_t current_pipeline_handle = 0;
 	uint64_t pipeline_handles[] = {0, 0};
@@ -139,21 +118,17 @@ int main(int argc, char* argv[]) {
 			VK_FORMAT_R8G8B8A8_UNORM,
 			VK_FORMAT_R8G8B8A8_UNORM
 		};
-		image_batch_id = vgd.load_images(4, filenames, formats);
+		image_batch_id = vgd.load_images(4, std::move(filenames), std::move(formats));
 	}
 
 	init_timer.print("App init");
 	
 	//Main loop
-	uint64_t ticks = SDL_GetTicks64();
 	bool running = true;
 	uint64_t current_frame = 0;
 	while (running) {
 		Timer frame_timer;
 		frame_timer.start();
-
-		uint64_t tick_delta = SDL_GetTicks64() - ticks;
-		ticks = SDL_GetTicks64();
 
 		{
 			//Do input polling loop
@@ -278,7 +253,7 @@ int main(int argc, char* argv[]) {
 				vkCmdSetScissor(current_cb, 0, 1, &scissor);
 			}
 
-			float time = static_cast<float>(ticks) * 1.5f / 1000.0f;
+			float time = app_timer.check() * 1.5f / 1000.0f;
 
 			for (uint32_t i = 0; i < 4; i++) {
 				uint32_t x = i & 1;
@@ -352,9 +327,6 @@ int main(int argc, char* argv[]) {
 						break;
 				}
 			}
-
-			//if (current_frame % 300 == 0)
-				//printf("Frame %i took %.2fms\n", current_frame, frame_timer.check());
 		}
 
 		//End-of-frame bookkeeping

@@ -377,7 +377,9 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 				.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
 				.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
 				.anisotropyEnable = VK_TRUE,
-				.maxAnisotropy = 16.0
+				.maxAnisotropy = 16.0,
+				.minLod = 0.0,
+				.maxLod = VK_LOD_CLAMP_NONE,
 			};
 
 			if (vkCreateSampler(device, &info, alloc_callbacks, &sampler) != VK_SUCCESS) {
@@ -538,8 +540,8 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 
 		VulkanAvailableImage* im = _available_images.data() + i;
 
-		vkDestroyImageView(device, im->image_view, alloc_callbacks);
-		vmaDestroyImage(allocator, im->image, im->image_allocation);
+		vkDestroyImageView(device, im->vk_image.image_view, alloc_callbacks);
+		vmaDestroyImage(allocator, im->vk_image.image, im->vk_image.image_allocation);
 	}
 	
 	for (uint32_t i = 0; i < _pending_images.count(); i++) {
@@ -549,8 +551,8 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 
 		VulkanPendingImage* im = _pending_images.data() + i;
 
-		vkDestroyImageView(device, im->image_view, alloc_callbacks);
-		vmaDestroyImage(allocator, im->image, im->image_allocation);
+		vkDestroyImageView(device, im->vk_image.image_view, alloc_callbacks);
+		vmaDestroyImage(allocator, im->vk_image.image, im->vk_image.image_allocation);
 	}
 	
 	for (uint32_t i = 0; i < _immutable_samplers.size(); i++) {
@@ -825,14 +827,15 @@ uint64_t VulkanGraphicsDevice::load_images(
 	const char** filenames,
 	VkFormat* image_formats
 ) {
+	image_uploads_requested += 1;
 	image_upload_threads.push_back(std::thread(
 		&VulkanGraphicsDevice::load_images_impl,
 		this,
 		4,
-		filenames,
-		image_formats
+		std::move(filenames),
+		std::move(image_formats)
 	));
-	return 1;
+	return image_uploads_requested;
 }
 
 //TODO: Just what is even happening with the image format :( UNORM works for everything??!???
@@ -846,6 +849,7 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 		stbi_uc* data;
 		int x;
 		int y;
+		uint32_t mip_count;
 	};
 
 	VulkanImageUploadBatch current_batch = {};
@@ -862,6 +866,14 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 			printf("Loading image failed.\n");
 			exit(-1);
 		}
+
+		//Compute number of mips this image will have
+		raw_images[i].mip_count = 0;
+		int max_dimension = std::max(raw_images[i].x, raw_images[i].y);
+		while (max_dimension >>= 1) {
+			raw_images[i].mip_count += 1;
+		}
+		printf("%i mip count: %i\n", i, raw_images[i].mip_count);
 
 		total_staging_size += raw_images[i].x * raw_images[i].y * channels;
 	}
@@ -898,7 +910,7 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 
 	//Copy image data to staging buffer
 	{
-		auto mapped_head = static_cast<uint8_t*>(sb_alloc_info.pMappedData);
+		uint8_t* mapped_head = static_cast<uint8_t*>(sb_alloc_info.pMappedData);
 
 		for (uint32_t i = 0; i < image_count; i++) {
 			void* image_bytes = raw_images[i].data;
@@ -932,11 +944,11 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 				.height = static_cast<uint32_t>(raw_images[i].y),
 				.depth = 1
 			};
-			info.mipLevels = 1;
+			info.mipLevels = raw_images[i].mip_count;
 			info.arrayLayers = 1;
 			info.samples = VK_SAMPLE_COUNT_1_BIT;
 			info.tiling = VK_IMAGE_TILING_OPTIMAL;
-			info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+			info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 			info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 			info.queueFamilyIndexCount = 1;
 			info.pQueueFamilyIndices = &transfer_queue_family_idx;
@@ -958,7 +970,7 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 			VkImageSubresourceRange subresource_range = {};
 			subresource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			subresource_range.baseMipLevel = 0;
-			subresource_range.levelCount = 1;
+			subresource_range.levelCount = raw_images[i].mip_count;
 			subresource_range.baseArrayLayer = 0;
 			subresource_range.layerCount = 1;
 
@@ -1003,7 +1015,7 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 			barrier.subresourceRange = {
 				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 				.baseMipLevel = 0,
-				.levelCount = 1,
+				.levelCount = raw_images[i].mip_count,
 				.baseArrayLayer = 0,
 				.layerCount = 1
 			};
@@ -1044,33 +1056,63 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 			vkCmdCopyBufferToImage(current_batch.command_buffer, staging_buffer, images[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 		}
 
-		//Record barrier to transition into optimal shader sampling layout
-		//as well as queue ownership transfer to the graphics queue
+		//Queue ownership transfer
 		for (uint32_t i = 0; i < image_count; i++) {
-			VkImageMemoryBarrier2KHR barrier = {};
-			barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR;
-			barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
-			barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
-			barrier.dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
-			barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-			barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			
-			barrier.srcQueueFamilyIndex = transfer_queue_family_idx;
-			barrier.dstQueueFamilyIndex = graphics_queue_family_idx;
+			VkImageMemoryBarrier2KHR barriers[] = {
+				{
+					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+					//.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+					.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+					//.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+					.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+					//.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR,
+					.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+					//.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
+					.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
 
-			barrier.image = images[i];
-			barrier.subresourceRange = {
-				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-				.baseMipLevel = 0,
-				.levelCount = 1,
-				.baseArrayLayer = 0,
-				.layerCount = 1
+					.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+					.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+					.srcQueueFamilyIndex = transfer_queue_family_idx,
+					.dstQueueFamilyIndex = graphics_queue_family_idx,
+					.image = images[i],
+					.subresourceRange = {
+						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+						.baseMipLevel = 0,
+						.levelCount = 1,
+						.baseArrayLayer = 0,
+						.layerCount = 1
+					}
+				},
+				{
+					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+					//.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+					.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+					//.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+					.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+					//.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR,
+					.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+					//.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
+					.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+
+					.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+					.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+					.srcQueueFamilyIndex = transfer_queue_family_idx,
+					.dstQueueFamilyIndex = graphics_queue_family_idx,
+					.image = images[i],
+					.subresourceRange = {
+						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+						.baseMipLevel = 1,
+						.levelCount = raw_images[i].mip_count - 1,
+						.baseArrayLayer = 0,
+						.layerCount = 1
+					}
+				}
 			};
 
 			VkDependencyInfoKHR info = {};
 			info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-			info.imageMemoryBarrierCount = 1;
-			info.pImageMemoryBarriers = &barrier;
+			info.imageMemoryBarrierCount = 2;
+			info.pImageMemoryBarriers = barriers;
 
 			vkCmdPipelineBarrier2KHR(current_batch.command_buffer, &info);
 		}
@@ -1082,7 +1124,6 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 	VkQueue q;
 	vkGetDeviceQueue(device, transfer_queue_family_idx, 0, &q);
 	{
-		image_uploads_requested += 1;
 		uint64_t signal_value = image_uploads_requested;
 		VkTimelineSemaphoreSubmitInfo ts_info = {};
 		ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
@@ -1111,10 +1152,14 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 	//Insert into pending images table
 	for (uint32_t i = 0; i < image_count; i++) {
 		VulkanPendingImage pending_image = {};
-		pending_image.image = images[i];
-		pending_image.image_view = image_views[i];
-		pending_image.image_allocation = image_allocations[i];
+		pending_image.vk_image.image = images[i];
+		pending_image.vk_image.image_view = image_views[i];
+		pending_image.vk_image.image_allocation = image_allocations[i];
 		pending_image.image_upload_batch_id = current_batch.upload_id;
+		pending_image.vk_image.mip_levels = raw_images[i].mip_count;
+		pending_image.vk_image.x = raw_images[i].x;
+		pending_image.vk_image.y = raw_images[i].y;
+		pending_image.vk_image.z = 1;
 		_pending_images.insert(pending_image);
 	}
 
@@ -1138,7 +1183,7 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 		if (batch->upload_id > timeline_value) continue;
 
 		//TODO: I don't think we technically need to do a GPU-side semaphore wait,
-		//as we're only in this if statement because one or more image data transfers have completed
+		//as we're only at this point because one or more image data transfers have completed
 		//this is only here bc validation layers complain
 		wait_semaphores.push_back(image_upload_semaphore);
 		wait_semaphore_values.push_back(timeline_value);
@@ -1157,46 +1202,242 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 			if (pending_image->image_upload_batch_id == batch->upload_id) {
 				//Graphics queue acquire ownership of the image
 				{
-					VkImageMemoryBarrier2KHR barrier = {};
-					barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR;
-					barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
-					barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT_KHR;
-					barrier.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-					barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-					barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-					
-					barrier.srcQueueFamilyIndex = transfer_queue_family_idx;
-					barrier.dstQueueFamilyIndex = graphics_queue_family_idx;
+					VkImageMemoryBarrier2KHR barriers[] = {
+						{
+							.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+							//.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+							.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+							//.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+							.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+							//.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR,
+							.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+							//.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
+							.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
 
-					barrier.image = pending_image->image;
-					barrier.subresourceRange = {
-						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-						.baseMipLevel = 0,
-						.levelCount = 1,
-						.baseArrayLayer = 0,
-						.layerCount = 1
+							.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+							.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+							.srcQueueFamilyIndex = transfer_queue_family_idx,
+							.dstQueueFamilyIndex = graphics_queue_family_idx,
+							.image = pending_image->vk_image.image,
+							.subresourceRange = {
+								.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+								.baseMipLevel = 0,
+								.levelCount = 1,
+								.baseArrayLayer = 0,
+								.layerCount = 1
+							}
+						},
+						{
+							.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+							//.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+							.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+							//.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+							.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+							//.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR,
+							.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+							//.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
+							.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+
+							.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+							.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+							.srcQueueFamilyIndex = transfer_queue_family_idx,
+							.dstQueueFamilyIndex = graphics_queue_family_idx,
+							.image = pending_image->vk_image.image,
+							.subresourceRange = {
+								.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+								.baseMipLevel = 1,
+								.levelCount = pending_image->vk_image.mip_levels - 1,
+								.baseArrayLayer = 0,
+								.layerCount = 1
+							}
+						}
 					};
 
 					VkDependencyInfoKHR info = {};
 					info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-					info.imageMemoryBarrierCount = 1;
-					info.pImageMemoryBarriers = &barrier;
+					info.imageMemoryBarrierCount = 2;
+					info.pImageMemoryBarriers = barriers;
 
 					vkCmdPipelineBarrier2KHR(render_cb, &info);
+				}
+
+				//Generate mipmaps
+				if (pending_image->vk_image.mip_levels > 1) {
+					for (uint32_t k = 0; k < pending_image->vk_image.mip_levels - 1; k++) {
+						VkImageMemoryBarrier2KHR barrier = {
+							.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+							.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+							.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+							.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+							.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
+							.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+							.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+							.image = pending_image->vk_image.image,
+							.subresourceRange = {
+								.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+								.baseMipLevel = k,
+								.levelCount = 1,
+								.baseArrayLayer = 0,
+								.layerCount = 1,
+							}
+						};
+						VkDependencyInfoKHR info = {
+							.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+							.imageMemoryBarrierCount = 1,
+							.pImageMemoryBarriers = &barrier
+						};
+						vkCmdPipelineBarrier2KHR(render_cb, &info);
+
+						VkImageBlit region = {
+							.srcSubresource = {
+								.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+								.mipLevel = k,
+								.baseArrayLayer = 0,
+								.layerCount = 1,
+							},
+							.srcOffsets = {
+								{
+									.x = 0,
+									.y = 0,
+									.z = 0,
+								},
+								{
+									.x = static_cast<int32_t>(pending_image->vk_image.x >> k),
+									.y = static_cast<int32_t>(pending_image->vk_image.y >> k),
+									.z = 1,
+								}
+							},
+							.dstSubresource = {
+								.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+								.mipLevel = k + 1,
+								.baseArrayLayer = 0,
+								.layerCount = 1
+							},
+							.dstOffsets = {
+								{
+									.x = 0,
+									.y = 0,
+									.z = 0,
+								},
+								{
+									.x = static_cast<int32_t>(pending_image->vk_image.x >> (k + 1)),
+									.y = static_cast<int32_t>(pending_image->vk_image.y >> (k + 1)),
+									.z = 1,
+								}
+							},
+						};
+
+						vkCmdBlitImage(
+							render_cb,
+							pending_image->vk_image.image,
+							VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+							pending_image->vk_image.image,
+							VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+							1,
+							&region,
+							VK_FILTER_LINEAR
+						);
+
+						{
+							VkImageMemoryBarrier2KHR barriers[] = {
+								{
+									.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+									//.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+									.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+									//.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+									.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+									//.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR,
+									.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+									//.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
+									.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+									.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+									.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+									.image = pending_image->vk_image.image,
+									.subresourceRange = {
+										.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+										.baseMipLevel = k,
+										.levelCount = 1,
+										.baseArrayLayer = 0,
+										.layerCount = 1,
+									}
+								}
+							};
+							VkDependencyInfoKHR info = {
+								.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+								.imageMemoryBarrierCount = 1,
+								.pImageMemoryBarriers = barriers
+							};
+							vkCmdPipelineBarrier2KHR(render_cb, &info);
+						}
+					}
+
+					//Final barrier
+					{
+						VkImageMemoryBarrier2KHR barriers[] = {
+							{
+								.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+								//.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+								.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+								//.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+								.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+								//.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR,
+								.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+								//.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
+								.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+								.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+								.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+								.image = pending_image->vk_image.image,
+								.subresourceRange = {
+									.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+									.baseMipLevel = 0,
+									.levelCount = pending_image->vk_image.mip_levels - 1,
+									.baseArrayLayer = 0,
+									.layerCount = 1,
+								}
+							},
+							{
+								.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+								//.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+								.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+								//.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+								.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+								//.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR,
+								.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+								//.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
+								.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+								.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+								.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+								.image = pending_image->vk_image.image,
+								.subresourceRange = {
+									.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+									.baseMipLevel = pending_image->vk_image.mip_levels - 1,
+									.levelCount = 1,
+									.baseArrayLayer = 0,
+									.layerCount = 1,
+								}
+							}
+						};
+						VkDependencyInfoKHR info = {
+							.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+							.imageMemoryBarrierCount = 2,
+							.pImageMemoryBarriers = barriers
+						};
+						vkCmdPipelineBarrier2KHR(render_cb, &info);
+					}
 				}
 
 				//Descriptor update data
 				{
 					VulkanAvailableImage ava = {};
-					ava.image = pending_image->image;
-					ava.image_view = pending_image->image_view;
-					ava.image_allocation = pending_image->image_allocation;
+					ava.vk_image.image = pending_image->vk_image.image;
+					ava.vk_image.image_view = pending_image->vk_image.image_view;
+					ava.vk_image.image_allocation = pending_image->vk_image.image_allocation;
 					
 					uint64_t handle = _available_images.insert(ava);
 					_pending_images.remove(j);
 
 					VkDescriptorImageInfo info = {
-						.imageView = ava.image_view,
+						.imageView = ava.vk_image.image_view,
 						.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 					};
 					desc_infos.push_back(info);

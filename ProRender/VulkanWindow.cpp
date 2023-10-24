@@ -75,7 +75,7 @@ VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 	swapchain_info.queueFamilyIndexCount = 1;
 	swapchain_info.pQueueFamilyIndices = &vgd.graphics_queue_family_idx;
 	swapchain_info.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-	swapchain_info.compositeAlpha = VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR;
+	swapchain_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 	swapchain_info.presentMode = preferred_present_mode;
 	swapchain_info.clipped = VK_TRUE;
 
