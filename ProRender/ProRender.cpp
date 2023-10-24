@@ -13,6 +13,23 @@ int main(int argc, char* argv[]) {
 	app_timer.print("VGD Initialization");
 	app_timer.start();
 
+	uint64_t image_batch_id;
+	{
+		const char* filenames[] = {
+			"images/doogan.png",
+			"images/birds-allowed.png",
+			"images/stressed_miyamoto.png",
+			"images/normal.png"
+		};
+		VkFormat formats[] = {
+			VK_FORMAT_R8G8B8A8_UNORM,
+			VK_FORMAT_R8G8B8A8_UNORM,
+			VK_FORMAT_R8G8B8A8_UNORM,
+			VK_FORMAT_R8G8B8A8_UNORM
+		};
+		image_batch_id = vgd.load_images(4, std::move(filenames), std::move(formats));
+	}
+
 	//uint32_t x_resolution = 720;
 	//uint32_t y_resolution = 720;
 	uint32_t window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
@@ -103,23 +120,6 @@ int main(int argc, char* argv[]) {
 
 	//Create graphics pipeline timeline semaphore
 	VkSemaphore graphics_timeline_semaphore = vgd.create_timeline_semaphore(0);
-
-	uint64_t image_batch_id;
-	{
-		const char* filenames[] = {
-			"images/doogan.png",
-			"images/birds-allowed.png",
-			"images/stressed_miyamoto.png",
-			"images/normal.png"
-		};
-		VkFormat formats[] = {
-			VK_FORMAT_R8G8B8A8_UNORM,
-			VK_FORMAT_R8G8B8A8_UNORM,
-			VK_FORMAT_R8G8B8A8_UNORM,
-			VK_FORMAT_R8G8B8A8_UNORM
-		};
-		image_batch_id = vgd.load_images(4, std::move(filenames), std::move(formats));
-	}
 
 	init_timer.print("App init");
 	

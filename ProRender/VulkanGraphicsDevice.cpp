@@ -852,6 +852,7 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 		uint32_t mip_count;
 	};
 
+	Timer timer = Timer("load_images_impl");
 	VulkanImageUploadBatch current_batch = {};
 
 	//Load image data from disk
@@ -868,7 +869,7 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 		}
 
 		//Compute number of mips this image will have
-		raw_images[i].mip_count = 0;
+		raw_images[i].mip_count = 1;
 		int max_dimension = std::max(raw_images[i].x, raw_images[i].y);
 		while (max_dimension >>= 1) {
 			raw_images[i].mip_count += 1;
@@ -877,6 +878,7 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 
 		total_staging_size += raw_images[i].x * raw_images[i].y * channels;
 	}
+	timer.print("Loading and decompressing PNGs");
 
 	//Create staging buffer
 	VkBuffer staging_buffer;
@@ -1061,13 +1063,9 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 			VkImageMemoryBarrier2KHR barriers[] = {
 				{
 					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-					//.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-					.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-					//.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+					.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
 					.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-					//.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR,
-					.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-					//.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
+					.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
 					.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
 
 					.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1085,13 +1083,9 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 				},
 				{
 					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-					//.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-					.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-					//.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+					.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
 					.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-					//.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR,
-					.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-					//.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
+					.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
 					.dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
 
 					.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -1205,13 +1199,9 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 					VkImageMemoryBarrier2KHR barriers[] = {
 						{
 							.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-							//.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-							.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-							//.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+							.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
 							.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-							//.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR,
-							.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-							//.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
+							.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
 							.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
 
 							.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1229,13 +1219,9 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 						},
 						{
 							.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-							//.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-							.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-							//.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+							.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
 							.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-							//.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR,
-							.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-							//.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
+							.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
 							.dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
 
 							.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -1342,14 +1328,10 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 							VkImageMemoryBarrier2KHR barriers[] = {
 								{
 									.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-									//.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-									.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-									//.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
-									.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-									//.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR,
-									.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-									//.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
-									.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+									.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+									.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+									.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+									.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
 									.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 									.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 									.image = pending_image->vk_image.image,
@@ -1376,36 +1358,11 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 						VkImageMemoryBarrier2KHR barriers[] = {
 							{
 								.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-								//.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-								.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-								//.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
-								.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-								//.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR,
-								.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-								//.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
-								.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-								.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-								.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-								.image = pending_image->vk_image.image,
-								.subresourceRange = {
-									.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-									.baseMipLevel = 0,
-									.levelCount = pending_image->vk_image.mip_levels - 1,
-									.baseArrayLayer = 0,
-									.layerCount = 1,
-								}
-							},
-							{
-								.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-								//.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-								.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-								//.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
-								.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-								//.dstStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR,
-								.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-								//.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
-								.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-								.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+								.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+								.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+								.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+								.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
+								.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 								.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 								.image = pending_image->vk_image.image,
 								.subresourceRange = {
@@ -1419,7 +1376,7 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 						};
 						VkDependencyInfoKHR info = {
 							.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
-							.imageMemoryBarrierCount = 2,
+							.imageMemoryBarrierCount = 1,
 							.pImageMemoryBarriers = barriers
 						};
 						vkCmdPipelineBarrier2KHR(render_cb, &info);
@@ -1429,9 +1386,7 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 				//Descriptor update data
 				{
 					VulkanAvailableImage ava = {};
-					ava.vk_image.image = pending_image->vk_image.image;
-					ava.vk_image.image_view = pending_image->vk_image.image_view;
-					ava.vk_image.image_allocation = pending_image->vk_image.image_allocation;
+					ava.vk_image = pending_image->vk_image;
 					
 					uint64_t handle = _available_images.insert(ava);
 					_pending_images.remove(j);

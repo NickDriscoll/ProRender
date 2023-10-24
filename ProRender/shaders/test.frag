@@ -13,6 +13,7 @@ float4 main(VertexOutput input) : SV_Target0 {
         uvs.y += 0.1 * sin(pc.time + uvs.x * 4.0);
         float uv_scale = 20.0 * (sin(0.1 * pc.time));
         uvs = uvs * uv_scale - uv_scale / 2.0;
+        uvs += pc.time * float2(-1.0, 1.0);
     } else if (pc.image_idx == 3) {
         float t = -0.666 * pc.time;
         float2x2 tform = float2x2(
