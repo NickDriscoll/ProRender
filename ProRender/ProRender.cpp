@@ -12,22 +12,22 @@ int main(int argc, char* argv[]) {
 	VulkanGraphicsDevice vgd = VulkanGraphicsDevice();
 	app_timer.print("VGD Initialization");
 	app_timer.start();
-
+	
 	uint64_t image_batch_id;
 	{
-		const char* filenames[] = {
+		std::vector<const char*> filenames = {
 			"images/doogan.png",
 			"images/birds-allowed.png",
 			"images/stressed_miyamoto.png",
 			"images/normal.png"
 		};
-		VkFormat formats[] = {
+		std::vector<VkFormat> formats = {
 			VK_FORMAT_R8G8B8A8_UNORM,
 			VK_FORMAT_R8G8B8A8_UNORM,
 			VK_FORMAT_R8G8B8A8_UNORM,
 			VK_FORMAT_R8G8B8A8_UNORM
 		};
-		image_batch_id = vgd.load_images(4, std::move(filenames), std::move(formats));
+		image_batch_id = vgd.load_images(filenames.size(), std::move(filenames), std::move(formats));
 	}
 
 	//uint32_t x_resolution = 720;

@@ -106,8 +106,8 @@ struct VulkanGraphicsDevice {
 	);
 	uint64_t load_images(
 		uint32_t image_count,
-		const char** filenames,
-		VkFormat* image_formats
+		const std::vector<const char*> filenames,
+		const std::vector<VkFormat> image_formats
 	);
 	uint64_t tick_image_uploads(VkCommandBuffer render_cb, std::vector<VkSemaphore>& wait_semaphores, std::vector<uint64_t>& wait_semaphore_values);
 
@@ -127,8 +127,8 @@ struct VulkanGraphicsDevice {
 private:
 	uint64_t load_images_impl(
 		uint32_t image_count,
-		const char** filenames,
-		VkFormat* image_formats
+		const std::vector<const char*> filenames,
+		const std::vector<VkFormat> image_formats
 	);
 
 	slotmap<VulkanBuffer> _buffers;

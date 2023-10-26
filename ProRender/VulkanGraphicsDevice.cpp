@@ -824,8 +824,8 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 
 uint64_t VulkanGraphicsDevice::load_images(
 	uint32_t image_count,
-	const char** filenames,
-	VkFormat* image_formats
+		const std::vector<const char*> filenames,
+		const std::vector<VkFormat> image_formats
 ) {
 	image_uploads_requested += 1;
 	image_upload_threads.push_back(std::thread(
@@ -842,8 +842,8 @@ uint64_t VulkanGraphicsDevice::load_images(
 
 uint64_t VulkanGraphicsDevice::load_images_impl(
 	uint32_t image_count,
-	const char** filenames,
-	VkFormat* image_formats
+	const std::vector<const char*> filenames,
+	const std::vector<VkFormat> image_formats
 ) {
 	struct stbi_image {
 		stbi_uc* data;
