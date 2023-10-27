@@ -1174,7 +1174,7 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 	return current_batch.upload_id;
 }
 
-std::vector<uint32_t> VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std::vector<VkSemaphore>& wait_semaphores, std::vector<uint64_t>& wait_semaphore_values) {
+void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std::vector<VkSemaphore>& wait_semaphores, std::vector<uint64_t>& wait_semaphore_values) {
 	uint64_t batches_processed = check_timeline_semaphore(image_upload_semaphore);
 
 	//Descriptor update state
@@ -1183,7 +1183,6 @@ std::vector<uint32_t> VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer r
 	desc_infos.reserve(16);
 	desc_writes.reserve(16);
 
-	std::vector<uint32_t> descriptor_indices;
 	uint32_t seen = 0;
 	const uint32_t count = _image_upload_batches.count();
 	for (uint32_t i = 0; seen < count; i++) {
@@ -1409,7 +1408,6 @@ std::vector<uint32_t> VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer r
 					_pending_images.remove(j);
 
 					uint32_t descriptor_index = EXTRACT_IDX(handle);
-					descriptor_indices.push_back(descriptor_index);
 
 					VkDescriptorImageInfo info = {
 						.imageView = ava.vk_image.image_view,
@@ -1436,8 +1434,6 @@ std::vector<uint32_t> VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer r
 	
 	if (seen > 0)
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(desc_writes.size()), desc_writes.data(), 0, nullptr);
-
-	return descriptor_indices;
 }
 
 VkSemaphore VulkanGraphicsDevice::create_timeline_semaphore(uint64_t initial_value) {

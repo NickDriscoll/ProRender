@@ -204,7 +204,7 @@ int main(int argc, char* argv[]) {
 			vkBeginCommandBuffer(current_cb, &begin_info);
 
 			//Per-frame checking of pending images to see if they're ready
-			std::vector<uint32_t> image_indices = vgd.tick_image_uploads(current_cb, wait_semaphores, wait_semaphore_values);
+			vgd.tick_image_uploads(current_cb, wait_semaphores, wait_semaphore_values);
 
 			vkCmdBindPipeline(current_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(current_pipeline_handle)->pipeline);
 			vkCmdBindDescriptorSets(current_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.pipeline_layout, 0, 1, &vgd.descriptor_set, 0, nullptr);
