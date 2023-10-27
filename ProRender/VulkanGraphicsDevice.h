@@ -8,6 +8,7 @@
 #include <stack>
 #include <filesystem>
 #include <thread>
+#include <mutex>
 #include "volk.h"
 #include "vma.h"
 #include "slotmap.h"
@@ -136,7 +137,9 @@ private:
 
 	slotmap<VulkanAvailableImage> _available_images;
 	slotmap<VulkanPendingImage> _pending_images;
+	std::mutex _pending_image_mutex;
 	slotmap<VulkanImageUploadBatch> _image_upload_batches;
+	std::mutex _image_upload_mutex;
 
 	slotmap<VkRenderPass> _render_passes;
 	slotmap<VulkanGraphicsPipeline> _graphics_pipelines;

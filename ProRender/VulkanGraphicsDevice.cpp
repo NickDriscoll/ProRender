@@ -1150,7 +1150,9 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 		}
 		current_batch.upload_id = request_number;
 
+		_image_upload_mutex.lock();
 		_image_upload_batches.insert(current_batch);
+		_image_upload_mutex.unlock();
 	}
 	timer.print("Command buffer submission");
 	timer.start();
@@ -1166,7 +1168,10 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 		pending_image.vk_image.x = raw_images[i].x;
 		pending_image.vk_image.y = raw_images[i].y;
 		pending_image.vk_image.z = 1;
+
+		_pending_image_mutex.lock();
 		_pending_images.insert(pending_image);
+		_pending_image_mutex.unlock();
 	}
 	timer.print("Table management");
 	timer.start();
@@ -1182,6 +1187,14 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std::ve
 	std::vector<VkWriteDescriptorSet> desc_writes;
 	desc_infos.reserve(16);
 	desc_writes.reserve(16);
+
+	if (!_pending_image_mutex.try_lock())
+		return;
+
+	if (!_image_upload_mutex.try_lock()) {
+		_pending_image_mutex.unlock();
+		return;
+	}
 
 	uint32_t seen = 0;
 	const uint32_t count = _image_upload_batches.count();
@@ -1431,6 +1444,8 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std::ve
 		image_uploads_completed += 1;
 		_image_upload_batches.remove(i);
 	}
+	_pending_image_mutex.unlock();
+	_image_upload_mutex.unlock();
 	
 	if (seen > 0)
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(desc_writes.size()), desc_writes.data(), 0, nullptr);
