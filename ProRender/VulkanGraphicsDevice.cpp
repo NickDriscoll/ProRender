@@ -588,13 +588,17 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 }
 
 VkCommandBuffer VulkanGraphicsDevice::borrow_transfer_command_buffer() {
+	_transfer_cb_mutex.lock();
 	VkCommandBuffer cb = _transfer_command_buffers.top();
 	_transfer_command_buffers.pop();
+	_transfer_cb_mutex.unlock();
 	return cb;
 }
 
 void VulkanGraphicsDevice::return_transfer_command_buffer(VkCommandBuffer cb) {
+	_transfer_cb_mutex.lock();
 	_transfer_command_buffers.push(cb);
+	_transfer_cb_mutex.unlock();
 }
 
 void VulkanGraphicsDevice::create_graphics_pipelines(

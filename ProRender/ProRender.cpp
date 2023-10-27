@@ -274,7 +274,7 @@ int main(int argc, char* argv[]) {
 				uint32_t bytes[] = { std::bit_cast<uint32_t>(time), i, x, y };
 				vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, bytes);
 
-				if (vgd.image_uploads_completed >= i + 1) {
+				if (vgd.image_uploads_completed >= batch_ids[i]) {
 					vkCmdDraw(current_cb, 6, 1, 0, 0);
 				}
 			}

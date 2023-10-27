@@ -145,4 +145,5 @@ private:
 	slotmap<VulkanGraphicsPipeline> _graphics_pipelines;
 	std::vector<VkSampler> _immutable_samplers;
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _transfer_command_buffers;
+	std::mutex _transfer_cb_mutex;
 };
