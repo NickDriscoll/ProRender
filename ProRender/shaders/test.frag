@@ -10,10 +10,23 @@ float4 main(VertexOutput input) : SV_Target0 {
     float2 uvs = input.uvs;
 
     if (pc.image_idx == 1) {
+        float uv_scale = 3.0;
+        
+        uvs -= float2(0.5, 0.5);
+        float dist = distance(uvs, 0.0.xx);
+        uvs = uvs * uv_scale;
+        uvs += float2(0.5, 0.5);
+        //uvs += pc.time * float2(-1.0, 1.0);
+
+        float t = 0.111 * dist * 50.0 * sin(pc.time);
+        float2x2 tform = float2x2(
+            cos(t), -sin(t),
+            sin(t), cos(t)
+        );
+        uvs = mul(tform, uvs);
+
         uvs.y += 0.1 * sin(pc.time + uvs.x * 4.0);
-        float uv_scale = 20.0 * (sin(0.1 * pc.time));
-        uvs = uvs * uv_scale - uv_scale / 2.0;
-        uvs += pc.time * float2(-1.0, 1.0);
+
     } else if (pc.image_idx == 3) {
         float t = -0.666 * pc.time;
         float2x2 tform = float2x2(

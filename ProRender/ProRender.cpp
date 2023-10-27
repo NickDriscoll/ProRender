@@ -13,7 +13,8 @@ int main(int argc, char* argv[]) {
 	app_timer.print("VGD Initialization");
 	app_timer.start();
 	
-	uint64_t image_batch_id;
+	std::vector<uint64_t> batch_ids;
+	batch_ids.reserve(4);
 	{
 		std::vector<const char*> filenames = {
 			"images/doogan.png",
@@ -27,7 +28,12 @@ int main(int argc, char* argv[]) {
 			VK_FORMAT_R8G8B8A8_UNORM,
 			VK_FORMAT_R8G8B8A8_UNORM
 		};
-		image_batch_id = vgd.load_images(filenames.size(), std::move(filenames), std::move(formats));
+
+		for (uint32_t i = 0; i < 4; i++) {
+			std::vector<const char*> filenamess = { filenames[i] };
+			std::vector<VkFormat> formatss = { formats[i] } ;
+			batch_ids.push_back(vgd.load_images(1, std::move(filenamess), std::move(formatss)));
+		}
 	}
 
 	//uint32_t x_resolution = 720;
@@ -118,6 +124,13 @@ int main(int argc, char* argv[]) {
 	}
 	printf("Created graphics pipeline.\n");
 
+	hlslpp::float4x4 projection_matrix = hlslpp::float4x4(
+		0.0, 0.0, 0.0, 0.0,
+		0.0, 0.0, 0.0, 0.0,
+		0.0, 0.0, 0.0, 0.0,
+		0.0, 0.0, 0.0, 0.0
+	);
+
 	//Create graphics pipeline timeline semaphore
 	VkSemaphore graphics_timeline_semaphore = vgd.create_timeline_semaphore(0);
 
@@ -191,7 +204,7 @@ int main(int argc, char* argv[]) {
 			vkBeginCommandBuffer(current_cb, &begin_info);
 
 			//Per-frame checking of pending images to see if they're ready
-			uint64_t upload_semaphore_value = vgd.tick_image_uploads(current_cb, wait_semaphores, wait_semaphore_values);
+			std::vector<uint32_t> image_indices = vgd.tick_image_uploads(current_cb, wait_semaphores, wait_semaphore_values);
 
 			vkCmdBindPipeline(current_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(current_pipeline_handle)->pipeline);
 			vkCmdBindDescriptorSets(current_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.pipeline_layout, 0, 1, &vgd.descriptor_set, 0, nullptr);
@@ -261,7 +274,7 @@ int main(int argc, char* argv[]) {
 				uint32_t bytes[] = { std::bit_cast<uint32_t>(time), i, x, y };
 				vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, bytes);
 
-				if (upload_semaphore_value >= image_batch_id) {
+				if (vgd.image_uploads_completed >= i + 1) {
 					vkCmdDraw(current_cb, 6, 1, 0, 0);
 				}
 			}

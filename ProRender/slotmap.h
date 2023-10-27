@@ -34,12 +34,17 @@ void slotmap<T>::alloc(uint32_t size) {
     assert(_data.size() == 0);
     _data.resize(size);
     generation_bits.resize(size);
+    live_bits.resize(size);
     std::vector<uint32_t> free_inds;
     free_inds.resize(size);
     //TODO: There has to be a better way!
     for (uint32_t i = 0; i < size; i++) {
         free_inds[i] = size - i - 1;
     }
+    for (uint32_t i = 0; i < size; i++) {
+        live_bits[i] = 0;
+    }
+    
     free_indices = std::stack(free_inds);
 }
 

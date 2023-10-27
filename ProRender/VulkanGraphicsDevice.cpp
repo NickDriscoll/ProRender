@@ -831,7 +831,8 @@ uint64_t VulkanGraphicsDevice::load_images(
 	image_upload_threads.push_back(std::thread(
 		&VulkanGraphicsDevice::load_images_impl,
 		this,
-		4,
+		image_uploads_requested,
+		filenames.size(),
 		std::move(filenames),
 		std::move(image_formats)
 	));
@@ -841,6 +842,7 @@ uint64_t VulkanGraphicsDevice::load_images(
 //TODO: Just what is even happening with the image format :( UNORM works for everything??!???
 
 uint64_t VulkanGraphicsDevice::load_images_impl(
+	uint64_t request_number,
 	uint32_t image_count,
 	const std::vector<const char*> filenames,
 	const std::vector<VkFormat> image_formats
@@ -874,11 +876,11 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 		while (max_dimension >>= 1) {
 			raw_images[i].mip_count += 1;
 		}
-		printf("%i mip count: %i\n", i, raw_images[i].mip_count);
 
 		total_staging_size += raw_images[i].x * raw_images[i].y * channels;
 	}
 	timer.print("Loading and decompressing PNGs");
+	timer.start();
 
 	//Create staging buffer
 	VkBuffer staging_buffer;
@@ -909,6 +911,8 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 			.allocation = staging_buffer_allocation
 		});
 	}
+	timer.print("Creating staging buffer");
+	timer.start();
 
 	//Copy image data to staging buffer
 	{
@@ -926,6 +930,8 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 			mapped_head += num_bytes;
 		}
 	}
+	timer.print("Copying image data to staging buffer");
+	timer.start();
 	
 	//Create Vulkan images
 	std::vector<VkImage> images;
@@ -990,6 +996,8 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 			}
 		}
 	}
+	timer.print("Create image and image view objects");
+	timer.start();
 
 	//Record CopyBufferToImage commands along with relevant barriers
 	{
@@ -1113,12 +1121,14 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 
 		vkEndCommandBuffer(current_batch.command_buffer);
 	}
+	timer.print("Recording the command buffer");
+	timer.start();
 
 	//Submit upload command buffer
 	VkQueue q;
 	vkGetDeviceQueue(device, transfer_queue_family_idx, 0, &q);
 	{
-		uint64_t signal_value = image_uploads_requested;
+		uint64_t signal_value = request_number;
 		VkTimelineSemaphoreSubmitInfo ts_info = {};
 		ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
 		ts_info.signalSemaphoreValueCount = 1;
@@ -1138,10 +1148,12 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 			printf("Queue submit failed.\n");
 			exit(-1);
 		}
-		current_batch.upload_id = image_uploads_requested;
+		current_batch.upload_id = request_number;
 
 		_image_upload_batches.insert(current_batch);
 	}
+	timer.print("Command buffer submission");
+	timer.start();
 
 	//Insert into pending images table
 	for (uint32_t i = 0; i < image_count; i++) {
@@ -1156,12 +1168,14 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 		pending_image.vk_image.z = 1;
 		_pending_images.insert(pending_image);
 	}
+	timer.print("Table management");
+	timer.start();
 
 	return current_batch.upload_id;
 }
 
-uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std::vector<VkSemaphore>& wait_semaphores, std::vector<uint64_t>& wait_semaphore_values) {
-	uint64_t timeline_value = check_timeline_semaphore(image_upload_semaphore);
+std::vector<uint32_t> VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std::vector<VkSemaphore>& wait_semaphores, std::vector<uint64_t>& wait_semaphore_values) {
+	uint64_t batches_processed = check_timeline_semaphore(image_upload_semaphore);
 
 	//Descriptor update state
 	std::vector<VkDescriptorImageInfo> desc_infos;
@@ -1169,19 +1183,22 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 	desc_infos.reserve(16);
 	desc_writes.reserve(16);
 
+	std::vector<uint32_t> descriptor_indices;
 	uint32_t seen = 0;
-	for (uint32_t i = 0; seen < _image_upload_batches.count(); i++) {
+	const uint32_t count = _image_upload_batches.count();
+	for (uint32_t i = 0; seen < count; i++) {
 		if (!_image_upload_batches.is_live(i)) continue;
 		seen += 1;
 		VulkanImageUploadBatch* batch = _image_upload_batches.data() + i;
-		if (batch->upload_id > timeline_value) continue;
+		if (batch->upload_id > batches_processed) continue;
 
 		//TODO: I don't think we technically need to do a GPU-side semaphore wait,
-		//as we're only at this point because one or more image data transfers have completed
+		//as we're only at this point on the CPU because one or more image data transfers have completed
 		//this is only here bc validation layers complain
 		wait_semaphores.push_back(image_upload_semaphore);
-		wait_semaphore_values.push_back(timeline_value);
+		wait_semaphore_values.push_back(batches_processed);
 
+		//Make the transfer command buffer available again and destroy the staging buffer
 		return_transfer_command_buffer(batch->command_buffer);
 		vmaDestroyBuffer(allocator, _buffers.get(batch->staging_buffer_id)->buffer, _buffers.get(batch->staging_buffer_id)->allocation);
 
@@ -1194,7 +1211,7 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 			VulkanPendingImage* pending_image = _pending_images.data() + j;
 
 			if (pending_image->image_upload_batch_id == batch->upload_id) {
-				//Graphics queue acquire ownership of the image
+				//Record Graphics queue acquire ownership of the image
 				{
 					VkImageMemoryBarrier2KHR barriers[] = {
 						{
@@ -1247,7 +1264,7 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 					vkCmdPipelineBarrier2KHR(render_cb, &info);
 				}
 
-				//Generate mipmaps
+				//Record mipmapping commands
 				if (pending_image->vk_image.mip_levels > 1) {
 					for (uint32_t k = 0; k < pending_image->vk_image.mip_levels - 1; k++) {
 						VkImageMemoryBarrier2KHR barrier = {
@@ -1391,6 +1408,9 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 					uint64_t handle = _available_images.insert(ava);
 					_pending_images.remove(j);
 
+					uint32_t descriptor_index = EXTRACT_IDX(handle);
+					descriptor_indices.push_back(descriptor_index);
+
 					VkDescriptorImageInfo info = {
 						.imageView = ava.vk_image.image_view,
 						.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
@@ -1400,7 +1420,7 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 						.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 						.dstSet = descriptor_set,
 						.dstBinding = 0,
-						.dstArrayElement = EXTRACT_IDX(handle),
+						.dstArrayElement = descriptor_index,
 						.descriptorCount = 1,
 						.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
 						.pImageInfo = &desc_infos[desc_infos.size() - 1]
@@ -1417,7 +1437,7 @@ uint64_t VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std
 	if (seen > 0)
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(desc_writes.size()), desc_writes.data(), 0, nullptr);
 
-	return timeline_value;
+	return descriptor_indices;
 }
 
 VkSemaphore VulkanGraphicsDevice::create_timeline_semaphore(uint64_t initial_value) {

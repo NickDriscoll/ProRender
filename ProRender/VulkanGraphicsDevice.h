@@ -109,7 +109,7 @@ struct VulkanGraphicsDevice {
 		const std::vector<const char*> filenames,
 		const std::vector<VkFormat> image_formats
 	);
-	uint64_t tick_image_uploads(VkCommandBuffer render_cb, std::vector<VkSemaphore>& wait_semaphores, std::vector<uint64_t>& wait_semaphore_values);
+	std::vector<uint32_t> tick_image_uploads(VkCommandBuffer render_cb, std::vector<VkSemaphore>& wait_semaphores, std::vector<uint64_t>& wait_semaphore_values);
 
 	VkSemaphore create_timeline_semaphore(uint64_t initial_value);
 	uint64_t check_timeline_semaphore(VkSemaphore semaphore);
@@ -126,6 +126,7 @@ struct VulkanGraphicsDevice {
 
 private:
 	uint64_t load_images_impl(
+		uint64_t request_number,
 		uint32_t image_count,
 		const std::vector<const char*> filenames,
 		const std::vector<VkFormat> image_formats
