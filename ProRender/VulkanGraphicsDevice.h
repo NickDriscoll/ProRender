@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <vector>
 #include <stack>
+#include <deque>
+#include <queue>
 #include <filesystem>
 #include <thread>
 #include <mutex>
@@ -56,6 +58,13 @@ struct VulkanImageUploadBatch {
 	VkCommandBuffer command_buffer;
 };
 
+struct BatchParameters {
+	uint64_t batch;
+	uint32_t image_count;
+	const std::vector<const char*> filenames;
+	const std::vector<VkFormat> image_formats;
+};
+
 struct VulkanGraphicsDevice {
 	const VkAllocationCallbacks* alloc_callbacks;
 	VkInstance instance;
@@ -72,12 +81,7 @@ struct VulkanGraphicsDevice {
 	VkCommandPool graphics_command_pool;
 	VkCommandPool transfer_command_pool;
 	VkCommandBuffer command_buffers[FRAMES_IN_FLIGHT];
-	
-	//State related to image uploading system
-	std::vector<std::thread> image_upload_threads;
 	VkSemaphore image_upload_semaphore;			//Timeline semaphore whose value increments by one for each image upload batch
-	uint64_t image_uploads_requested = 0;
-	uint64_t image_uploads_completed = 0;
 
 	//These fields can be members of the graphics device struct because
 	//we are assuming bindless resource management
@@ -110,7 +114,8 @@ struct VulkanGraphicsDevice {
 		const std::vector<const char*> filenames,
 		const std::vector<VkFormat> image_formats
 	);
-	void tick_image_uploads(VkCommandBuffer render_cb, std::vector<VkSemaphore>& wait_semaphores, std::vector<uint64_t>& wait_semaphore_values);
+	void tick_image_uploads(VkCommandBuffer render_cb);
+	uint64_t get_completed_image_uploads();
 
 	VkSemaphore create_timeline_semaphore(uint64_t initial_value);
 	uint64_t check_timeline_semaphore(VkSemaphore semaphore);
@@ -126,24 +131,27 @@ struct VulkanGraphicsDevice {
 	~VulkanGraphicsDevice();
 
 private:
-	uint64_t load_images_impl(
-		uint64_t request_number,
-		uint32_t image_count,
-		const std::vector<const char*> filenames,
-		const std::vector<VkFormat> image_formats
-	);
+	void load_images_impl();
 
 	slotmap<VulkanBuffer> _buffers;
 
+	
+	//State related to image uploading system
+	bool _running = true;
+	uint64_t _image_uploads_requested = 0;
+	uint64_t _image_uploads_completed = 0;
+	std::queue<BatchParameters, std::deque<BatchParameters>> _image_batch_param_queue;
+	std::mutex _batch_param_mutex;
+	std::thread _image_upload_thread;
 	slotmap<VulkanAvailableImage> _available_images;
 	slotmap<VulkanPendingImage> _pending_images;
 	std::mutex _pending_image_mutex;
 	slotmap<VulkanImageUploadBatch> _image_upload_batches;
 	std::mutex _image_upload_mutex;
 
+
 	slotmap<VkRenderPass> _render_passes;
 	slotmap<VulkanGraphicsPipeline> _graphics_pipelines;
 	std::vector<VkSampler> _immutable_samplers;
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _transfer_command_buffers;
-	std::mutex _transfer_cb_mutex;
 };

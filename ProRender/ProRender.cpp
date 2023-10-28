@@ -29,7 +29,7 @@ int main(int argc, char* argv[]) {
 			VK_FORMAT_R8G8B8A8_UNORM
 		};
 
-		for (uint32_t i = 0; i < 4; i++) {
+		for (uint32_t i = 0; i < filenames.size(); i++) {
 			std::vector<const char*> filenamess = { filenames[i] };
 			std::vector<VkFormat> formatss = { formats[i] } ;
 			batch_ids.push_back(vgd.load_images(1, std::move(filenamess), std::move(formatss)));
@@ -204,7 +204,14 @@ int main(int argc, char* argv[]) {
 			vkBeginCommandBuffer(current_cb, &begin_info);
 
 			//Per-frame checking of pending images to see if they're ready
-			vgd.tick_image_uploads(current_cb, wait_semaphores, wait_semaphore_values);
+			vgd.tick_image_uploads(current_cb);
+			uint64_t upload_batches_completed = vgd.get_completed_image_uploads();
+
+			//TODO: I don't think we technically need to do a GPU-side semaphore wait,
+			//as we're only at this point on the CPU because one or more image data transfers have completed
+			//this is only here bc validation layers complain
+			wait_semaphores.push_back(vgd.image_upload_semaphore);
+			wait_semaphore_values.push_back(upload_batches_completed);
 
 			vkCmdBindPipeline(current_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(current_pipeline_handle)->pipeline);
 			vkCmdBindDescriptorSets(current_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.pipeline_layout, 0, 1, &vgd.descriptor_set, 0, nullptr);
@@ -274,7 +281,7 @@ int main(int argc, char* argv[]) {
 				uint32_t bytes[] = { std::bit_cast<uint32_t>(time), i, x, y };
 				vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, bytes);
 
-				if (vgd.image_uploads_completed >= batch_ids[i]) {
+				if (upload_batches_completed >= batch_ids[i]) {
 					vkCmdDraw(current_cb, 6, 1, 0, 0);
 				}
 			}

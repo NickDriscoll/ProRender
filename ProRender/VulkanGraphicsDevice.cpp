@@ -496,6 +496,12 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	}
 	timer.print("Descriptor pool/set creation");
 	timer.start();
+
+	//Start the dedicated image loading thread
+	_image_upload_thread = std::thread(
+		&VulkanGraphicsDevice::load_images_impl,
+		this
+	);
 }
 
 VulkanGraphicsDevice::~VulkanGraphicsDevice() {
@@ -567,10 +573,9 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 		vkDestroyRenderPass(device, _render_passes.data()[i], alloc_callbacks);
 	}
 
-	//Wait for all image upload threads
-	for (uint32_t i = 0; i < image_upload_threads.size(); i++) {
-		image_upload_threads[i].join();
-	}
+	//Wait for the image upload thread
+	_running = false;
+	_image_upload_thread.join();
 	
 	vkDestroySemaphore(device, image_upload_semaphore, alloc_callbacks);
 
@@ -588,17 +593,13 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 }
 
 VkCommandBuffer VulkanGraphicsDevice::borrow_transfer_command_buffer() {
-	_transfer_cb_mutex.lock();
 	VkCommandBuffer cb = _transfer_command_buffers.top();
 	_transfer_command_buffers.pop();
-	_transfer_cb_mutex.unlock();
 	return cb;
 }
 
 void VulkanGraphicsDevice::return_transfer_command_buffer(VkCommandBuffer cb) {
-	_transfer_cb_mutex.lock();
 	_transfer_command_buffers.push(cb);
-	_transfer_cb_mutex.unlock();
 }
 
 void VulkanGraphicsDevice::create_graphics_pipelines(
@@ -828,29 +829,25 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 
 uint64_t VulkanGraphicsDevice::load_images(
 	uint32_t image_count,
-		const std::vector<const char*> filenames,
-		const std::vector<VkFormat> image_formats
+	const std::vector<const char*> filenames,
+	const std::vector<VkFormat> image_formats
 ) {
-	image_uploads_requested += 1;
-	image_upload_threads.push_back(std::thread(
-		&VulkanGraphicsDevice::load_images_impl,
-		this,
-		image_uploads_requested,
-		filenames.size(),
-		std::move(filenames),
-		std::move(image_formats)
-	));
-	return image_uploads_requested;
+	_image_uploads_requested += 1;
+	_batch_param_mutex.lock();
+	_image_batch_param_queue.push({
+		.batch = _image_uploads_requested,
+		.image_count = image_count,
+		.filenames = filenames,
+		.image_formats = image_formats
+	});
+	_batch_param_mutex.unlock();
+
+	return _image_uploads_requested;
 }
 
 //TODO: Just what is even happening with the image format :( UNORM works for everything??!???
 
-uint64_t VulkanGraphicsDevice::load_images_impl(
-	uint64_t request_number,
-	uint32_t image_count,
-	const std::vector<const char*> filenames,
-	const std::vector<VkFormat> image_formats
-) {
+void VulkanGraphicsDevice::load_images_impl() {
 	struct stbi_image {
 		stbi_uc* data;
 		int x;
@@ -858,340 +855,325 @@ uint64_t VulkanGraphicsDevice::load_images_impl(
 		uint32_t mip_count;
 	};
 
-	Timer timer = Timer("load_images_impl");
-	VulkanImageUploadBatch current_batch = {};
+	while (_running) {
+		while (_image_batch_param_queue.size() > 0) {
+			BatchParameters params = _image_batch_param_queue.front();
 
-	//Load image data from disk
-	std::vector<stbi_image> raw_images;
-	raw_images.resize(image_count);
-	int channels = 4;
-	VkDeviceSize total_staging_size = 0;
-	for (uint32_t i = 0; i < image_count; i++) {
-		raw_images[i].data = stbi_load(filenames[i], &raw_images[i].x, &raw_images[i].y, nullptr, STBI_rgb_alpha);
-		
-		if (!raw_images[i].data) {
-			printf("Loading image failed.\n");
-			exit(-1);
-		}
+			VulkanImageUploadBatch current_batch = {};
 
-		//Compute number of mips this image will have
-		raw_images[i].mip_count = 1;
-		int max_dimension = std::max(raw_images[i].x, raw_images[i].y);
-		while (max_dimension >>= 1) {
-			raw_images[i].mip_count += 1;
-		}
-
-		total_staging_size += raw_images[i].x * raw_images[i].y * channels;
-	}
-	timer.print("Loading and decompressing PNGs");
-	timer.start();
-
-	//Create staging buffer
-	VkBuffer staging_buffer;
-	VmaAllocation staging_buffer_allocation;
-	VmaAllocationInfo sb_alloc_info;
-	{
-		VkBufferCreateInfo buffer_info = {};
-		buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		buffer_info.size = total_staging_size;
-		buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		buffer_info.queueFamilyIndexCount = 1;
-		buffer_info.pQueueFamilyIndices = &transfer_queue_family_idx;
-
-		VmaAllocationCreateInfo alloc_info = {};
-		alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-		alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
-		alloc_info.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-		alloc_info.priority = 1.0;
-
-		if (vmaCreateBuffer(allocator, &buffer_info, &alloc_info, &staging_buffer, &staging_buffer_allocation, &sb_alloc_info) != VK_SUCCESS) {
-			printf("Creating staging buffer failed.\n");
-			exit(-1);
-		}
-
-		current_batch.staging_buffer_id = _buffers.insert({
-			.buffer = staging_buffer,
-			.allocation = staging_buffer_allocation
-		});
-	}
-	timer.print("Creating staging buffer");
-	timer.start();
-
-	//Copy image data to staging buffer
-	{
-		uint8_t* mapped_head = static_cast<uint8_t*>(sb_alloc_info.pMappedData);
-
-		for (uint32_t i = 0; i < image_count; i++) {
-			void* image_bytes = raw_images[i].data;
-			int x = raw_images[i].x;
-			int y = raw_images[i].y;
-			auto num_bytes = static_cast<size_t>(x * y * channels);
-
-			memcpy(mapped_head, image_bytes, num_bytes);
-			free(image_bytes);
-
-			mapped_head += num_bytes;
-		}
-	}
-	timer.print("Copying image data to staging buffer");
-	timer.start();
-	
-	//Create Vulkan images
-	std::vector<VkImage> images;
-	std::vector<VkImageView> image_views;
-	std::vector<VmaAllocation> image_allocations;
-	images.resize(image_count);
-	image_views.resize(image_count);
-	image_allocations.resize(image_count);
-	for (uint32_t i = 0; i < image_count; i++) {
-		//Create image
-		{
-			VkImageCreateInfo info = {};
-			info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-			info.imageType = VK_IMAGE_TYPE_2D;
-			info.format = image_formats[i];
-			info.extent = {
-				.width = static_cast<uint32_t>(raw_images[i].x),
-				.height = static_cast<uint32_t>(raw_images[i].y),
-				.depth = 1
-			};
-			info.mipLevels = raw_images[i].mip_count;
-			info.arrayLayers = 1;
-			info.samples = VK_SAMPLE_COUNT_1_BIT;
-			info.tiling = VK_IMAGE_TILING_OPTIMAL;
-			info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-			info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-			info.queueFamilyIndexCount = 1;
-			info.pQueueFamilyIndices = &transfer_queue_family_idx;
-			info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-			VmaAllocationCreateInfo alloc_info = {};
-			alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
-			alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-			alloc_info.priority = 1.0;
-
-			if (vmaCreateImage(allocator, &info, &alloc_info, &images[i], &image_allocations[i], nullptr) != VK_SUCCESS) {
-				printf("Creating staging buffer failed.\n");
-				exit(-1);
-			}
-		}
-
-		//Create image view
-		{
-			VkImageSubresourceRange subresource_range = {};
-			subresource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			subresource_range.baseMipLevel = 0;
-			subresource_range.levelCount = raw_images[i].mip_count;
-			subresource_range.baseArrayLayer = 0;
-			subresource_range.layerCount = 1;
-
-			VkImageViewCreateInfo info = {};
-			info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			info.image = images[i];
-			info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			info.format = image_formats[i];
-			info.components = COMPONENT_MAPPING_DEFAULT;
-			info.subresourceRange = subresource_range;
-
-			if (vkCreateImageView(device, &info, alloc_callbacks, &image_views[i]) != VK_SUCCESS) {
-				printf("Creating image view failed.\n");
-				exit(-1);
-			}
-		}
-	}
-	timer.print("Create image and image view objects");
-	timer.start();
-
-	//Record CopyBufferToImage commands along with relevant barriers
-	{
-		current_batch.command_buffer = borrow_transfer_command_buffer();
-
-		//Begin command buffer
-		{
-			VkCommandBufferBeginInfo info = {};
-			info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-			info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-			vkBeginCommandBuffer(current_batch.command_buffer, &info);
-		}
-
-		//Record barrier to transition into optimal transfer dst layout
-		for (uint32_t i = 0; i < image_count; i++) {
-			VkImageMemoryBarrier2KHR barrier = {};
-			barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR;
-			barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
-			barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
-			barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-
-			barrier.image = images[i];
-			barrier.subresourceRange = {
-				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-				.baseMipLevel = 0,
-				.levelCount = raw_images[i].mip_count,
-				.baseArrayLayer = 0,
-				.layerCount = 1
-			};
-
-			VkDependencyInfoKHR info = {};
-			info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-			info.imageMemoryBarrierCount = 1;
-			info.pImageMemoryBarriers = &barrier;
-
-			vkCmdPipelineBarrier2KHR(current_batch.command_buffer, &info);
-		}
-
-		//Record buffer copy to image
-		VkDeviceSize copy_offset = 0;
-		for (uint32_t i = 0; i < image_count; i++) {
-			uint32_t x = static_cast<uint32_t>(raw_images[i].x);
-			uint32_t y = static_cast<uint32_t>(raw_images[i].y);
-			VkBufferImageCopy region = {
-				.bufferOffset = copy_offset,
-				.bufferRowLength = 0,
-				.bufferImageHeight = 0,
-				.imageSubresource = {
-					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-					.mipLevel = 0,
-					.baseArrayLayer = 0,
-					.layerCount = 1
-				},
-				.imageOffset = 0,
-				.imageExtent = {
-					.width = x,
-					.height = y,
-					.depth = 1
+			//Load image data from disk
+			std::vector<stbi_image> raw_images;
+			raw_images.resize(params.image_count);
+			int channels = 4;
+			VkDeviceSize total_staging_size = 0;
+			for (uint32_t i = 0; i < params.image_count; i++) {
+				raw_images[i].data = stbi_load(params.filenames[i], &raw_images[i].x, &raw_images[i].y, nullptr, STBI_rgb_alpha);
+				
+				if (!raw_images[i].data) {
+					printf("Loading image failed.\n");
+					exit(-1);
 				}
-			};
 
-			copy_offset += x * y * channels;
+				//Compute number of mips this image will have
+				raw_images[i].mip_count = 1;
+				int max_dimension = std::max(raw_images[i].x, raw_images[i].y);
+				while (max_dimension >>= 1) {
+					raw_images[i].mip_count += 1;
+				}
 
-			vkCmdCopyBufferToImage(current_batch.command_buffer, staging_buffer, images[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-		}
+				total_staging_size += raw_images[i].x * raw_images[i].y * channels;
+			}
 
-		//Queue ownership transfer
-		for (uint32_t i = 0; i < image_count; i++) {
-			VkImageMemoryBarrier2KHR barriers[] = {
+			//Create staging buffer
+			VkBuffer staging_buffer;
+			VmaAllocation staging_buffer_allocation;
+			VmaAllocationInfo sb_alloc_info;
+			{
+				VkBufferCreateInfo buffer_info = {};
+				buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+				buffer_info.size = total_staging_size;
+				buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+				buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+				buffer_info.queueFamilyIndexCount = 1;
+				buffer_info.pQueueFamilyIndices = &transfer_queue_family_idx;
+
+				VmaAllocationCreateInfo alloc_info = {};
+				alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+				alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
+				alloc_info.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+				alloc_info.priority = 1.0;
+
+				if (vmaCreateBuffer(allocator, &buffer_info, &alloc_info, &staging_buffer, &staging_buffer_allocation, &sb_alloc_info) != VK_SUCCESS) {
+					printf("Creating staging buffer failed.\n");
+					exit(-1);
+				}
+
+				current_batch.staging_buffer_id = _buffers.insert({
+					.buffer = staging_buffer,
+					.allocation = staging_buffer_allocation
+				});
+			}
+
+			//Copy image data to staging buffer
+			{
+				uint8_t* mapped_head = static_cast<uint8_t*>(sb_alloc_info.pMappedData);
+
+				for (uint32_t i = 0; i < params.image_count; i++) {
+					void* image_bytes = raw_images[i].data;
+					int x = raw_images[i].x;
+					int y = raw_images[i].y;
+					auto num_bytes = static_cast<size_t>(x * y * channels);
+
+					memcpy(mapped_head, image_bytes, num_bytes);
+					free(image_bytes);
+
+					mapped_head += num_bytes;
+				}
+			}
+			
+			//Create Vulkan images
+			std::vector<VkImage> images;
+			std::vector<VkImageView> image_views;
+			std::vector<VmaAllocation> image_allocations;
+			images.resize(params.image_count);
+			image_views.resize(params.image_count);
+			image_allocations.resize(params.image_count);
+			for (uint32_t i = 0; i < params.image_count; i++) {
+				//Create image
 				{
-					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-					.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-					.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-					.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-					.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
+					VkImageCreateInfo info = {};
+					info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+					info.imageType = VK_IMAGE_TYPE_2D;
+					info.format = params.image_formats[i];
+					info.extent = {
+						.width = static_cast<uint32_t>(raw_images[i].x),
+						.height = static_cast<uint32_t>(raw_images[i].y),
+						.depth = 1
+					};
+					info.mipLevels = raw_images[i].mip_count;
+					info.arrayLayers = 1;
+					info.samples = VK_SAMPLE_COUNT_1_BIT;
+					info.tiling = VK_IMAGE_TILING_OPTIMAL;
+					info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+					info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+					info.queueFamilyIndexCount = 1;
+					info.pQueueFamilyIndices = &transfer_queue_family_idx;
+					info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-					.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-					.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-					.srcQueueFamilyIndex = transfer_queue_family_idx,
-					.dstQueueFamilyIndex = graphics_queue_family_idx,
-					.image = images[i],
-					.subresourceRange = {
+					VmaAllocationCreateInfo alloc_info = {};
+					alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
+					alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+					alloc_info.priority = 1.0;
+
+					if (vmaCreateImage(allocator, &info, &alloc_info, &images[i], &image_allocations[i], nullptr) != VK_SUCCESS) {
+						printf("Creating staging buffer failed.\n");
+						exit(-1);
+					}
+				}
+
+				//Create image view
+				{
+					VkImageSubresourceRange subresource_range = {};
+					subresource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+					subresource_range.baseMipLevel = 0;
+					subresource_range.levelCount = raw_images[i].mip_count;
+					subresource_range.baseArrayLayer = 0;
+					subresource_range.layerCount = 1;
+
+					VkImageViewCreateInfo info = {};
+					info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+					info.image = images[i];
+					info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+					info.format = params.image_formats[i];
+					info.components = COMPONENT_MAPPING_DEFAULT;
+					info.subresourceRange = subresource_range;
+
+					if (vkCreateImageView(device, &info, alloc_callbacks, &image_views[i]) != VK_SUCCESS) {
+						printf("Creating image view failed.\n");
+						exit(-1);
+					}
+				}
+			}
+
+			//Record CopyBufferToImage commands along with relevant barriers
+			{
+				current_batch.command_buffer = borrow_transfer_command_buffer();
+
+				//Begin command buffer
+				{
+					VkCommandBufferBeginInfo info = {};
+					info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+					info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+					vkBeginCommandBuffer(current_batch.command_buffer, &info);
+				}
+
+				//Record barrier to transition into optimal transfer dst layout
+				for (uint32_t i = 0; i < params.image_count; i++) {
+					VkImageMemoryBarrier2KHR barrier = {};
+					barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR;
+					barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
+					barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
+					barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+					barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+
+					barrier.image = images[i];
+					barrier.subresourceRange = {
 						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 						.baseMipLevel = 0,
-						.levelCount = 1,
+						.levelCount = raw_images[i].mip_count,
 						.baseArrayLayer = 0,
 						.layerCount = 1
-					}
-				},
-				{
-					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-					.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-					.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-					.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-					.dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+					};
 
-					.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-					.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-					.srcQueueFamilyIndex = transfer_queue_family_idx,
-					.dstQueueFamilyIndex = graphics_queue_family_idx,
-					.image = images[i],
-					.subresourceRange = {
-						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-						.baseMipLevel = 1,
-						.levelCount = raw_images[i].mip_count - 1,
-						.baseArrayLayer = 0,
-						.layerCount = 1
-					}
+					VkDependencyInfoKHR info = {};
+					info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+					info.imageMemoryBarrierCount = 1;
+					info.pImageMemoryBarriers = &barrier;
+
+					vkCmdPipelineBarrier2KHR(current_batch.command_buffer, &info);
 				}
-			};
 
-			VkDependencyInfoKHR info = {};
-			info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-			info.imageMemoryBarrierCount = 2;
-			info.pImageMemoryBarriers = barriers;
+				//Record buffer copy to image
+				VkDeviceSize copy_offset = 0;
+				for (uint32_t i = 0; i < params.image_count; i++) {
+					uint32_t x = static_cast<uint32_t>(raw_images[i].x);
+					uint32_t y = static_cast<uint32_t>(raw_images[i].y);
+					VkBufferImageCopy region = {
+						.bufferOffset = copy_offset,
+						.bufferRowLength = 0,
+						.bufferImageHeight = 0,
+						.imageSubresource = {
+							.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+							.mipLevel = 0,
+							.baseArrayLayer = 0,
+							.layerCount = 1
+						},
+						.imageOffset = 0,
+						.imageExtent = {
+							.width = x,
+							.height = y,
+							.depth = 1
+						}
+					};
 
-			vkCmdPipelineBarrier2KHR(current_batch.command_buffer, &info);
+					copy_offset += x * y * channels;
+
+					vkCmdCopyBufferToImage(current_batch.command_buffer, staging_buffer, images[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+				}
+
+				//Queue ownership transfer
+				for (uint32_t i = 0; i < params.image_count; i++) {
+					VkImageMemoryBarrier2KHR barriers[] = {
+						{
+							.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+							.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+							.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+							.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+							.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+
+							.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+							.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+							.srcQueueFamilyIndex = transfer_queue_family_idx,
+							.dstQueueFamilyIndex = graphics_queue_family_idx,
+							.image = images[i],
+							.subresourceRange = {
+								.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+								.baseMipLevel = 0,
+								.levelCount = 1,
+								.baseArrayLayer = 0,
+								.layerCount = 1
+							}
+						},
+						{
+							.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+							.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+							.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+							.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+							.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+
+							.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+							.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+							.srcQueueFamilyIndex = transfer_queue_family_idx,
+							.dstQueueFamilyIndex = graphics_queue_family_idx,
+							.image = images[i],
+							.subresourceRange = {
+								.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+								.baseMipLevel = 1,
+								.levelCount = raw_images[i].mip_count - 1,
+								.baseArrayLayer = 0,
+								.layerCount = 1
+							}
+						}
+					};
+
+					VkDependencyInfoKHR info = {};
+					info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+					info.imageMemoryBarrierCount = 2;
+					info.pImageMemoryBarriers = barriers;
+
+					vkCmdPipelineBarrier2KHR(current_batch.command_buffer, &info);
+				}
+
+				vkEndCommandBuffer(current_batch.command_buffer);
+			}
+
+			//Submit upload command buffer
+			VkQueue q;
+			vkGetDeviceQueue(device, transfer_queue_family_idx, 0, &q);
+			{
+				uint64_t signal_value = params.batch;
+				VkTimelineSemaphoreSubmitInfo ts_info = {};
+				ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+				ts_info.signalSemaphoreValueCount = 1;
+				ts_info.pSignalSemaphoreValues = &signal_value;
+
+				VkPipelineStageFlags flags[] = { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0 };
+				VkSubmitInfo info = {};
+				info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+				info.pNext = &ts_info;
+				info.signalSemaphoreCount = 1;
+				info.pSignalSemaphores = &image_upload_semaphore;
+				info.commandBufferCount = 1;
+				info.pCommandBuffers = &current_batch.command_buffer;
+				info.pWaitDstStageMask = flags;
+
+				if (vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE) != VK_SUCCESS) {
+					printf("Queue submit failed.\n");
+					exit(-1);
+				}
+				current_batch.upload_id = signal_value;
+
+				_image_upload_mutex.lock();
+				_image_upload_batches.insert(current_batch);
+				_image_upload_mutex.unlock();
+			}
+
+			//Insert into pending images table
+			for (uint32_t i = 0; i < params.image_count; i++) {
+				VulkanPendingImage pending_image = {};
+				pending_image.vk_image.image = images[i];
+				pending_image.vk_image.image_view = image_views[i];
+				pending_image.vk_image.image_allocation = image_allocations[i];
+				pending_image.image_upload_batch_id = current_batch.upload_id;
+				pending_image.vk_image.mip_levels = raw_images[i].mip_count;
+				pending_image.vk_image.x = raw_images[i].x;
+				pending_image.vk_image.y = raw_images[i].y;
+				pending_image.vk_image.z = 1;
+
+				_pending_image_mutex.lock();
+				_pending_images.insert(pending_image);
+				_pending_image_mutex.unlock();
+			}
+
+			//Remove processed parameters
+			_image_batch_param_queue.pop();
 		}
-
-		vkEndCommandBuffer(current_batch.command_buffer);
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
-	timer.print("Recording the command buffer");
-	timer.start();
-
-	//Submit upload command buffer
-	VkQueue q;
-	vkGetDeviceQueue(device, transfer_queue_family_idx, 0, &q);
-	{
-		uint64_t signal_value = request_number;
-		VkTimelineSemaphoreSubmitInfo ts_info = {};
-		ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-		ts_info.signalSemaphoreValueCount = 1;
-		ts_info.pSignalSemaphoreValues = &signal_value;
-
-		VkPipelineStageFlags flags[] = { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
-		VkSubmitInfo info = {};
-		info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		info.pNext = &ts_info;
-		info.signalSemaphoreCount = 1;
-		info.pSignalSemaphores = &image_upload_semaphore;
-		info.commandBufferCount = 1;
-		info.pCommandBuffers = &current_batch.command_buffer;
-		info.pWaitDstStageMask = flags;
-
-		if (vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE) != VK_SUCCESS) {
-			printf("Queue submit failed.\n");
-			exit(-1);
-		}
-		current_batch.upload_id = request_number;
-
-		_image_upload_mutex.lock();
-		_image_upload_batches.insert(current_batch);
-		_image_upload_mutex.unlock();
-	}
-	timer.print("Command buffer submission");
-	timer.start();
-
-	//Insert into pending images table
-	for (uint32_t i = 0; i < image_count; i++) {
-		VulkanPendingImage pending_image = {};
-		pending_image.vk_image.image = images[i];
-		pending_image.vk_image.image_view = image_views[i];
-		pending_image.vk_image.image_allocation = image_allocations[i];
-		pending_image.image_upload_batch_id = current_batch.upload_id;
-		pending_image.vk_image.mip_levels = raw_images[i].mip_count;
-		pending_image.vk_image.x = raw_images[i].x;
-		pending_image.vk_image.y = raw_images[i].y;
-		pending_image.vk_image.z = 1;
-
-		_pending_image_mutex.lock();
-		_pending_images.insert(pending_image);
-		_pending_image_mutex.unlock();
-	}
-	timer.print("Table management");
-	timer.start();
-
-	return current_batch.upload_id;
 }
 
-void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std::vector<VkSemaphore>& wait_semaphores, std::vector<uint64_t>& wait_semaphore_values) {
-	uint64_t batches_processed = check_timeline_semaphore(image_upload_semaphore);
-
-	//Descriptor update state
-	std::vector<VkDescriptorImageInfo> desc_infos;
-	std::vector<VkWriteDescriptorSet> desc_writes;
-	desc_infos.reserve(16);
-	desc_writes.reserve(16);
-
+void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb) {
 	if (!_pending_image_mutex.try_lock())
 		return;
 
@@ -1200,19 +1182,21 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std::ve
 		return;
 	}
 
+	uint64_t gpu_batches_processed = check_timeline_semaphore(image_upload_semaphore);
+
+	//Descriptor update state
+	std::vector<VkDescriptorImageInfo> desc_infos;
+	std::vector<VkWriteDescriptorSet> desc_writes;
+	desc_infos.reserve(16);
+	desc_writes.reserve(16);
+
 	uint32_t seen = 0;
 	const uint32_t count = _image_upload_batches.count();
 	for (uint32_t i = 0; seen < count; i++) {
 		if (!_image_upload_batches.is_live(i)) continue;
 		seen += 1;
 		VulkanImageUploadBatch* batch = _image_upload_batches.data() + i;
-		if (batch->upload_id > batches_processed) continue;
-
-		//TODO: I don't think we technically need to do a GPU-side semaphore wait,
-		//as we're only at this point on the CPU because one or more image data transfers have completed
-		//this is only here bc validation layers complain
-		wait_semaphores.push_back(image_upload_semaphore);
-		wait_semaphore_values.push_back(batches_processed);
+		if (batch->upload_id > gpu_batches_processed) continue;
 
 		//Make the transfer command buffer available again and destroy the staging buffer
 		return_transfer_command_buffer(batch->command_buffer);
@@ -1232,13 +1216,13 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std::ve
 					VkImageMemoryBarrier2KHR barriers[] = {
 						{
 							.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-							.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-							.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-							.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-							.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
+							.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+							.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+							.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+							.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
 
 							.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-							.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+							.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 							.srcQueueFamilyIndex = transfer_queue_family_idx,
 							.dstQueueFamilyIndex = graphics_queue_family_idx,
 							.image = pending_image->vk_image.image,
@@ -1252,10 +1236,10 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std::ve
 						},
 						{
 							.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-							.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-							.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-							.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-							.dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+							.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+							.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+							.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+							.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
 
 							.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 							.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1283,30 +1267,6 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std::ve
 				//Record mipmapping commands
 				if (pending_image->vk_image.mip_levels > 1) {
 					for (uint32_t k = 0; k < pending_image->vk_image.mip_levels - 1; k++) {
-						VkImageMemoryBarrier2KHR barrier = {
-							.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-							.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-							.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
-							.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-							.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
-							.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-							.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-							.image = pending_image->vk_image.image,
-							.subresourceRange = {
-								.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-								.baseMipLevel = k,
-								.levelCount = 1,
-								.baseArrayLayer = 0,
-								.layerCount = 1,
-							}
-						};
-						VkDependencyInfoKHR info = {
-							.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
-							.imageMemoryBarrierCount = 1,
-							.pImageMemoryBarriers = &barrier
-						};
-						vkCmdPipelineBarrier2KHR(render_cb, &info);
-
 						VkImageBlit region = {
 							.srcSubresource = {
 								.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -1375,11 +1335,28 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std::ve
 										.baseArrayLayer = 0,
 										.layerCount = 1,
 									}
+								},
+								{
+									.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+									.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+									.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+									.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+									.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
+									.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+									.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+									.image = pending_image->vk_image.image,
+									.subresourceRange = {
+										.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+										.baseMipLevel = k + 1,
+										.levelCount = 1,
+										.baseArrayLayer = 0,
+										.layerCount = 1,
+									}
 								}
 							};
 							VkDependencyInfoKHR info = {
 								.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
-								.imageMemoryBarrierCount = 1,
+								.imageMemoryBarrierCount = 2,
 								.pImageMemoryBarriers = barriers
 							};
 							vkCmdPipelineBarrier2KHR(render_cb, &info);
@@ -1395,7 +1372,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std::ve
 								.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
 								.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
 								.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
-								.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+								.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 								.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 								.image = pending_image->vk_image.image,
 								.subresourceRange = {
@@ -1445,7 +1422,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std::ve
 			}
 		}
 		
-		image_uploads_completed += 1;
+		_image_uploads_completed += 1;
 		_image_upload_batches.remove(i);
 	}
 	_pending_image_mutex.unlock();
@@ -1453,6 +1430,10 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, std::ve
 	
 	if (seen > 0)
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(desc_writes.size()), desc_writes.data(), 0, nullptr);
+}
+
+uint64_t VulkanGraphicsDevice::get_completed_image_uploads() {
+	return _image_uploads_completed;
 }
 
 VkSemaphore VulkanGraphicsDevice::create_timeline_semaphore(uint64_t initial_value) {
