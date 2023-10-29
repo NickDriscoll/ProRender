@@ -6,7 +6,7 @@ Texture2D sampled_images[];
 [[vk::binding(1, 0)]]
 SamplerState samplers[];
 
-float4 main(VertexOutput input) : SV_Target0 {
+float4 main(VertexOutput input, float4 screen_position : SV_POSITION) : SV_Target0 {
     float2 uvs = input.uvs;
 
     if (pc.image_idx == 1) {
@@ -28,7 +28,8 @@ float4 main(VertexOutput input) : SV_Target0 {
 
     } else if (pc.image_idx == 2) {
         uvs -= float2(0.5, 0.5);
-        float dist = 2.0 * distance(uvs, 0.0.xx);
+        uvs *= 2.0;
+        float dist = distance(uvs, 0.0.xx) + 0.3;
         float t = 5.0 * sin(0.2 * pc.time) * dist;
         float2x2 tform = float2x2(
             cos(t), -sin(t),
@@ -47,13 +48,8 @@ float4 main(VertexOutput input) : SV_Target0 {
         uvs += float2(0.5, 0.5);
         uvs.y += 0.1 * sin(pc.time + uvs.x * 4.0);
     } else {
-        float2x2 tform = float2x2(
-            1.0, 0.1 * sin(pc.time),
-            0.0, 1.0
-        );
-        uvs.y -= 1.0;
-        uvs = mul(tform, uvs);
-        uvs.y += 1.0;
+        uint t = (uint)screen_position.y & 1;
+        uvs.x +=  0.5 * sin(pc.time) * t;
     }
 
     float4 image_color = sampled_images[pc.image_idx].Sample(samplers[0], uvs);

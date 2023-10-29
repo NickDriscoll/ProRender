@@ -13,27 +13,31 @@ int main(int argc, char* argv[]) {
 	app_timer.print("VGD Initialization");
 	app_timer.start();
 	
+	std::vector<uint32_t> image_indices;
 	std::vector<uint64_t> batch_ids;
+	uint64_t max_id_taken_care_of = 0;
 	batch_ids.reserve(4);
 	{
 		std::vector<const char*> filenames = {
 			"images/doogan.png",
-			"images/birds-allowed.png",
-			"images/stressed_miyamoto.png",
-			"images/normal.png"
+			"images/birds-allowed.png"
+		};
+		std::vector<const char*> filenames2 = {
+			"images/normal.png",
+			"images/stressed_miyamoto.png"
 		};
 		std::vector<VkFormat> formats = {
 			VK_FORMAT_R8G8B8A8_UNORM,
-			VK_FORMAT_R8G8B8A8_UNORM,
+			VK_FORMAT_R8G8B8A8_UNORM
+		};
+		std::vector<VkFormat> formats2 = {
 			VK_FORMAT_R8G8B8A8_UNORM,
 			VK_FORMAT_R8G8B8A8_UNORM
 		};
 
-		for (uint32_t i = 0; i < filenames.size(); i++) {
-			std::vector<const char*> filenamess = { filenames[i] };
-			std::vector<VkFormat> formatss = { formats[i] } ;
-			batch_ids.push_back(vgd.load_images(1, std::move(filenamess), std::move(formatss)));
-		}
+		uint32_t count = filenames.size();
+		batch_ids.push_back(vgd.load_images(count, std::move(filenames), std::move(formats)));
+		batch_ids.push_back(vgd.load_images(count, std::move(filenames2), std::move(formats2)));
 	}
 
 	//uint32_t x_resolution = 720;
@@ -143,8 +147,8 @@ int main(int argc, char* argv[]) {
 		Timer frame_timer;
 		frame_timer.start();
 
+		//Do input polling loop
 		{
-			//Do input polling loop
 			SDL_Event event;
 			while (SDL_PollEvent(&event)) {
 				switch (event.type) {
@@ -177,9 +181,6 @@ int main(int argc, char* argv[]) {
 			uint32_t acquired_image_idx;
 			vkAcquireNextImageKHR(vgd.device, window.swapchain, U64_MAX, window.acquire_semaphore, VK_NULL_HANDLE, &acquired_image_idx);
 
-			std::vector<VkSemaphore> wait_semaphores = {window.acquire_semaphore};
-			std::vector<uint64_t> wait_semaphore_values = {0};
-			std::vector<VkPipelineStageFlags> wait_flags = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
 			VkCommandBuffer current_cb = vgd.command_buffers[current_frame % FRAMES_IN_FLIGHT];
 			
 			//Wait for command buffer to finish execution before trying to record to it
@@ -207,11 +208,24 @@ int main(int argc, char* argv[]) {
 			vgd.tick_image_uploads(current_cb);
 			uint64_t upload_batches_completed = vgd.get_completed_image_uploads();
 
-			//TODO: I don't think we technically need to do a GPU-side semaphore wait,
-			//as we're only at this point on the CPU because one or more image data transfers have completed
-			//this is only here bc validation layers complain
-			wait_semaphores.push_back(vgd.image_upload_semaphore);
-			wait_semaphore_values.push_back(upload_batches_completed);
+			{
+				for (uint32_t i = 0; i < batch_ids.size(); i++) {
+					if (max_id_taken_care_of < batch_ids[i] && batch_ids[i] <= upload_batches_completed) {
+						uint32_t seen = 0;
+						for (uint32_t j = 0; seen < vgd.available_images.count(); j++) {
+							if (!vgd.available_images.is_live(j)) continue;
+							seen += 1;
+
+							VulkanAvailableImage* image = vgd.available_images.data() + j;
+							if (batch_ids[i] == image->batch_id) {
+								printf("Found image from batch %i at index %i\n", i, j);
+								image_indices.push_back(j);
+								max_id_taken_care_of = batch_ids[i];
+							}
+						}
+					}
+				}
+			}
 
 			vkCmdBindPipeline(current_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(current_pipeline_handle)->pipeline);
 			vkCmdBindDescriptorSets(current_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.pipeline_layout, 0, 1, &vgd.descriptor_set, 0, nullptr);
@@ -230,9 +244,9 @@ int main(int argc, char* argv[]) {
 				};
 
 				VkClearValue clear_color;
-				clear_color.color.float32[0] = 0.0;
+				clear_color.color.float32[0] = 0.1;
 				clear_color.color.float32[1] = 0.0;
-				clear_color.color.float32[2] = 1.0;
+				clear_color.color.float32[2] = 0.9;
 				clear_color.color.float32[3] = 1.0;
 				clear_color.depthStencil.depth = 0.0;
 				clear_color.depthStencil.stencil = 0;
@@ -275,15 +289,13 @@ int main(int argc, char* argv[]) {
 
 			float time = app_timer.check() * 1.5f / 1000.0f;
 
-			for (uint32_t i = 0; i < 4; i++) {
+			for (uint32_t i = 0; i < image_indices.size(); i++) {
 				uint32_t x = i & 1;
 				uint32_t y = i > 1;
-				uint32_t bytes[] = { std::bit_cast<uint32_t>(time), i, x, y };
+				uint32_t bytes[] = { std::bit_cast<uint32_t>(time), image_indices[i], x, y };
 				vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, bytes);
 
-				if (upload_batches_completed >= batch_ids[i]) {
-					vkCmdDraw(current_cb, 6, 1, 0, 0);
-				}
+				vkCmdDraw(current_cb, 6, 1, 0, 0);
 			}
 
 			vkCmdEndRenderPass(current_cb);
@@ -293,21 +305,25 @@ int main(int argc, char* argv[]) {
 			VkQueue q;
 			vkGetDeviceQueue(vgd.device, vgd.graphics_queue_family_idx, 0, &q);
 			{
+				uint64_t wait_values[] = {0, upload_batches_completed};
 				uint64_t signal_values[] = {current_frame + 1, 0};
 				VkTimelineSemaphoreSubmitInfo ts_info = {};
-				ts_info.waitSemaphoreValueCount = static_cast<uint32_t>(wait_semaphore_values.size());
-				ts_info.pWaitSemaphoreValues = wait_semaphore_values.data();
+				ts_info.waitSemaphoreValueCount = 2;
+				ts_info.pWaitSemaphoreValues = wait_values;
 				ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
 				ts_info.signalSemaphoreValueCount = 2;
 				ts_info.pSignalSemaphoreValues = signal_values;
 
+				VkPipelineStageFlags wait_flags[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
+
 				VkSubmitInfo info = {};
 				VkSemaphore signal_semaphores[] = { graphics_timeline_semaphore, window.present_semaphore };
+				VkSemaphore wait_semaphores[] = {window.acquire_semaphore, vgd.image_upload_semaphore};
 				info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 				info.pNext = &ts_info;
-				info.waitSemaphoreCount = static_cast<uint32_t>(wait_semaphores.size());
-				info.pWaitSemaphores = wait_semaphores.data();
-				info.pWaitDstStageMask = wait_flags.data();
+				info.waitSemaphoreCount = 2;
+				info.pWaitSemaphores = wait_semaphores;
+				info.pWaitDstStageMask = wait_flags;
 				info.signalSemaphoreCount = 2;
 				info.pSignalSemaphores = signal_semaphores;
 				info.commandBufferCount = 1;

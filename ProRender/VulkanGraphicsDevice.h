@@ -44,22 +44,23 @@ struct VulkanImage {
 };
 
 struct VulkanPendingImage {
-	uint64_t image_upload_batch_id;
+	uint64_t batch_id;
 	VulkanImage vk_image;
 };
 
 struct VulkanAvailableImage {
+	uint64_t batch_id;
 	VulkanImage vk_image;
 };
 
 struct VulkanImageUploadBatch {
-	uint64_t upload_id;
+	uint64_t id;
 	uint64_t staging_buffer_id;
 	VkCommandBuffer command_buffer;
 };
 
 struct BatchParameters {
-	uint64_t batch;
+	uint64_t id;
 	uint32_t image_count;
 	const std::vector<const char*> filenames;
 	const std::vector<VkFormat> image_formats;
@@ -82,6 +83,8 @@ struct VulkanGraphicsDevice {
 	VkCommandPool transfer_command_pool;
 	VkCommandBuffer command_buffers[FRAMES_IN_FLIGHT];
 	VkSemaphore image_upload_semaphore;			//Timeline semaphore whose value increments by one for each image upload batch
+	
+	slotmap<VulkanAvailableImage> available_images;
 
 	//These fields can be members of the graphics device struct because
 	//we are assuming bindless resource management
@@ -143,7 +146,6 @@ private:
 	std::queue<BatchParameters, std::deque<BatchParameters>> _image_batch_param_queue;
 	std::mutex _batch_param_mutex;
 	std::thread _image_upload_thread;
-	slotmap<VulkanAvailableImage> _available_images;
 	slotmap<VulkanPendingImage> _pending_images;
 	std::mutex _pending_image_mutex;
 	slotmap<VulkanImageUploadBatch> _image_upload_batches;
@@ -153,5 +155,6 @@ private:
 	slotmap<VkRenderPass> _render_passes;
 	slotmap<VulkanGraphicsPipeline> _graphics_pipelines;
 	std::vector<VkSampler> _immutable_samplers;
+	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _graphics_command_buffers;
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _transfer_command_buffers;
 };

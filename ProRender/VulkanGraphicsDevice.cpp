@@ -7,7 +7,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	vma_alloc_callbacks = nullptr;
 
 	_buffers.alloc(256);
-	_available_images.alloc(1024 * 1024);
+	available_images.alloc(1024 * 1024);
 	_pending_images.alloc(1024 * 1024);
 	_image_upload_batches.alloc(1024);
 	_render_passes.alloc(32);
@@ -304,6 +304,24 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 
 		VkCommandBufferAllocateInfo cb_info = {};
 		cb_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		cb_info.commandPool = graphics_command_pool;
+		cb_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		cb_info.commandBufferCount = static_cast<uint32_t>(storage.size());
+
+		if (vkAllocateCommandBuffers(device, &cb_info, storage.data()) != VK_SUCCESS) {
+			printf("Creating main command buffers failed.\n");
+			exit(-1);
+		}
+
+		_graphics_command_buffers = std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>>(storage);
+	}
+
+	{
+		std::vector<VkCommandBuffer> storage;
+		storage.resize(128);
+
+		VkCommandBufferAllocateInfo cb_info = {};
+		cb_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		cb_info.commandPool = transfer_command_pool;
 		cb_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		cb_info.commandBufferCount = static_cast<uint32_t>(storage.size());
@@ -539,12 +557,12 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 		vmaDestroyBuffer(allocator, buffer->buffer, buffer->allocation);
 	}
 	
-	for (uint32_t i = 0; i < _available_images.count(); i++) {
+	for (uint32_t i = 0; i < available_images.count(); i++) {
 		static uint32_t seen = 0;
-		if (!_available_images.is_live(i)) continue;
+		if (!available_images.is_live(i)) continue;
 		seen += 1;
 
-		VulkanAvailableImage* im = _available_images.data() + i;
+		VulkanAvailableImage* im = available_images.data() + i;
 
 		vkDestroyImageView(device, im->vk_image.image_view, alloc_callbacks);
 		vmaDestroyImage(allocator, im->vk_image.image, im->vk_image.image_allocation);
@@ -835,10 +853,10 @@ uint64_t VulkanGraphicsDevice::load_images(
 	_image_uploads_requested += 1;
 	_batch_param_mutex.lock();
 	_image_batch_param_queue.push({
-		.batch = _image_uploads_requested,
+		.id = _image_uploads_requested,
 		.image_count = image_count,
-		.filenames = filenames,
-		.image_formats = image_formats
+		.filenames = std::move(filenames),
+		.image_formats = std::move(image_formats)
 	});
 	_batch_param_mutex.unlock();
 
@@ -848,8 +866,8 @@ uint64_t VulkanGraphicsDevice::load_images(
 //TODO: Just what is even happening with the image format :( UNORM works for everything??!???
 
 void VulkanGraphicsDevice::load_images_impl() {
-	struct stbi_image {
-		stbi_uc* data;
+	struct raw_image {
+		uint8_t* data;
 		int x;
 		int y;
 		uint32_t mip_count;
@@ -862,7 +880,7 @@ void VulkanGraphicsDevice::load_images_impl() {
 			VulkanImageUploadBatch current_batch = {};
 
 			//Load image data from disk
-			std::vector<stbi_image> raw_images;
+			std::vector<raw_image> raw_images;
 			raw_images.resize(params.image_count);
 			int channels = 4;
 			VkDeviceSize total_staging_size = 0;
@@ -1122,7 +1140,7 @@ void VulkanGraphicsDevice::load_images_impl() {
 			VkQueue q;
 			vkGetDeviceQueue(device, transfer_queue_family_idx, 0, &q);
 			{
-				uint64_t signal_value = params.batch;
+				uint64_t signal_value = params.id;
 				VkTimelineSemaphoreSubmitInfo ts_info = {};
 				ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
 				ts_info.signalSemaphoreValueCount = 1;
@@ -1142,7 +1160,7 @@ void VulkanGraphicsDevice::load_images_impl() {
 					printf("Queue submit failed.\n");
 					exit(-1);
 				}
-				current_batch.upload_id = signal_value;
+				current_batch.id = signal_value;
 
 				_image_upload_mutex.lock();
 				_image_upload_batches.insert(current_batch);
@@ -1155,7 +1173,7 @@ void VulkanGraphicsDevice::load_images_impl() {
 				pending_image.vk_image.image = images[i];
 				pending_image.vk_image.image_view = image_views[i];
 				pending_image.vk_image.image_allocation = image_allocations[i];
-				pending_image.image_upload_batch_id = current_batch.upload_id;
+				pending_image.batch_id = current_batch.id;
 				pending_image.vk_image.mip_levels = raw_images[i].mip_count;
 				pending_image.vk_image.x = raw_images[i].x;
 				pending_image.vk_image.y = raw_images[i].y;
@@ -1196,7 +1214,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb) {
 		if (!_image_upload_batches.is_live(i)) continue;
 		seen += 1;
 		VulkanImageUploadBatch* batch = _image_upload_batches.data() + i;
-		if (batch->upload_id > gpu_batches_processed) continue;
+		if (batch->id > gpu_batches_processed) continue;
 
 		//Make the transfer command buffer available again and destroy the staging buffer
 		return_transfer_command_buffer(batch->command_buffer);
@@ -1210,7 +1228,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb) {
 
 			VulkanPendingImage* pending_image = _pending_images.data() + j;
 
-			if (pending_image->image_upload_batch_id == batch->upload_id) {
+			if (pending_image->batch_id == batch->id) {
 				//Record Graphics queue acquire ownership of the image
 				{
 					VkImageMemoryBarrier2KHR barriers[] = {
@@ -1396,9 +1414,10 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb) {
 				//Descriptor update data
 				{
 					VulkanAvailableImage ava = {};
+					ava.batch_id = batch->id;
 					ava.vk_image = pending_image->vk_image;
 					
-					uint64_t handle = _available_images.insert(ava);
+					uint64_t handle = available_images.insert(ava);
 					_pending_images.remove(j);
 
 					uint32_t descriptor_index = EXTRACT_IDX(handle);

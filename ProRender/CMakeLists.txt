@@ -10,7 +10,14 @@ add_executable (
 	"ProRender.cpp"
 	"VulkanGraphicsDevice.cpp"
 	"VulkanWindow.cpp"
+	"Renderer.cpp"
 	"header_libs.cpp"
+
+	"${CMAKE_SOURCE_DIR}/imgui/imgui_demo.cpp"
+	"${CMAKE_SOURCE_DIR}/imgui/imgui_draw.cpp"
+	"${CMAKE_SOURCE_DIR}/imgui/imgui_tables.cpp"
+	"${CMAKE_SOURCE_DIR}/imgui/imgui_widgets.cpp"
+	"${CMAKE_SOURCE_DIR}/imgui/imgui.cpp"
 )
 
 #Include SDL2
@@ -23,6 +30,9 @@ target_link_libraries(ProRender PUBLIC ${Vulkan_LIBRARIES})
 
 #Include hlslpp
 target_include_directories(ProRender PUBLIC "${HLSLPP_INCLUDE_DIRS}")
+
+#Include Dear ImGUI
+target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/imgui")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)

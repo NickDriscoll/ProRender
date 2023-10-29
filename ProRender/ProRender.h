@@ -31,12 +31,9 @@
 #include "volk.h"
 #include "vma.h"
 #include "stb_image.h"
+#include <imgui.h>
 
 constexpr uint64_t U64_MAX = 0xFFFFFFFFFFFFFFFF;
-
-struct Renderer {
-	
-};
 
 struct ConfigFile {
 
