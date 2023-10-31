@@ -517,7 +517,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 
 	//Start the dedicated image loading thread
 	_image_upload_thread = std::thread(
-		&VulkanGraphicsDevice::load_images_impl,
+		&VulkanGraphicsDevice::load_image_files_impl,
 		this
 	);
 }
@@ -845,8 +845,13 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 	}
 }
 
-uint64_t VulkanGraphicsDevice::load_images(
-	uint32_t image_count,
+uint64_t VulkanGraphicsDevice::load_raw_images(
+
+) {
+
+}
+
+uint64_t VulkanGraphicsDevice::load_image_files(
 	const std::vector<const char*> filenames,
 	const std::vector<VkFormat> image_formats
 ) {
@@ -854,7 +859,6 @@ uint64_t VulkanGraphicsDevice::load_images(
 	_batch_param_mutex.lock();
 	_image_batch_param_queue.push({
 		.id = _image_uploads_requested,
-		.image_count = image_count,
 		.filenames = std::move(filenames),
 		.image_formats = std::move(image_formats)
 	});
@@ -865,7 +869,7 @@ uint64_t VulkanGraphicsDevice::load_images(
 
 //TODO: Just what is even happening with the image format :( UNORM works for everything??!???
 
-void VulkanGraphicsDevice::load_images_impl() {
+void VulkanGraphicsDevice::load_image_files_impl() {
 	struct raw_image {
 		uint8_t* data;
 		int x;
@@ -875,16 +879,17 @@ void VulkanGraphicsDevice::load_images_impl() {
 
 	while (_running) {
 		while (_image_batch_param_queue.size() > 0) {
-			BatchParameters params = _image_batch_param_queue.front();
+			FileImageBatchParameters params = _image_batch_param_queue.front();
+			uint32_t image_count = params.filenames.size();
 
 			VulkanImageUploadBatch current_batch = {};
 
 			//Load image data from disk
 			std::vector<raw_image> raw_images;
-			raw_images.resize(params.image_count);
+			raw_images.resize(image_count);
 			int channels = 4;
 			VkDeviceSize total_staging_size = 0;
-			for (uint32_t i = 0; i < params.image_count; i++) {
+			for (uint32_t i = 0; i < image_count; i++) {
 				raw_images[i].data = stbi_load(params.filenames[i], &raw_images[i].x, &raw_images[i].y, nullptr, STBI_rgb_alpha);
 				
 				if (!raw_images[i].data) {
@@ -936,7 +941,7 @@ void VulkanGraphicsDevice::load_images_impl() {
 			{
 				uint8_t* mapped_head = static_cast<uint8_t*>(sb_alloc_info.pMappedData);
 
-				for (uint32_t i = 0; i < params.image_count; i++) {
+				for (uint32_t i = 0; i < image_count; i++) {
 					void* image_bytes = raw_images[i].data;
 					int x = raw_images[i].x;
 					int y = raw_images[i].y;
@@ -953,10 +958,10 @@ void VulkanGraphicsDevice::load_images_impl() {
 			std::vector<VkImage> images;
 			std::vector<VkImageView> image_views;
 			std::vector<VmaAllocation> image_allocations;
-			images.resize(params.image_count);
-			image_views.resize(params.image_count);
-			image_allocations.resize(params.image_count);
-			for (uint32_t i = 0; i < params.image_count; i++) {
+			images.resize(image_count);
+			image_views.resize(image_count);
+			image_allocations.resize(image_count);
+			for (uint32_t i = 0; i < image_count; i++) {
 				//Create image
 				{
 					VkImageCreateInfo info = {};
@@ -1027,7 +1032,7 @@ void VulkanGraphicsDevice::load_images_impl() {
 				}
 
 				//Record barrier to transition into optimal transfer dst layout
-				for (uint32_t i = 0; i < params.image_count; i++) {
+				for (uint32_t i = 0; i < image_count; i++) {
 					VkImageMemoryBarrier2KHR barrier = {};
 					barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR;
 					barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
@@ -1054,7 +1059,7 @@ void VulkanGraphicsDevice::load_images_impl() {
 
 				//Record buffer copy to image
 				VkDeviceSize copy_offset = 0;
-				for (uint32_t i = 0; i < params.image_count; i++) {
+				for (uint32_t i = 0; i < image_count; i++) {
 					uint32_t x = static_cast<uint32_t>(raw_images[i].x);
 					uint32_t y = static_cast<uint32_t>(raw_images[i].y);
 					VkBufferImageCopy region = {
@@ -1081,7 +1086,7 @@ void VulkanGraphicsDevice::load_images_impl() {
 				}
 
 				//Queue ownership transfer
-				for (uint32_t i = 0; i < params.image_count; i++) {
+				for (uint32_t i = 0; i < image_count; i++) {
 					VkImageMemoryBarrier2KHR barriers[] = {
 						{
 							.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
@@ -1168,7 +1173,7 @@ void VulkanGraphicsDevice::load_images_impl() {
 			}
 
 			//Insert into pending images table
-			for (uint32_t i = 0; i < params.image_count; i++) {
+			for (uint32_t i = 0; i < image_count; i++) {
 				VulkanPendingImage pending_image = {};
 				pending_image.vk_image.image = images[i];
 				pending_image.vk_image.image_view = image_views[i];

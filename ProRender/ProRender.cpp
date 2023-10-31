@@ -35,9 +35,16 @@ int main(int argc, char* argv[]) {
 			VK_FORMAT_R8G8B8A8_UNORM
 		};
 
-		uint32_t count = filenames.size();
-		batch_ids.push_back(vgd.load_images(count, std::move(filenames), std::move(formats)));
-		batch_ids.push_back(vgd.load_images(count, std::move(filenames2), std::move(formats2)));
+		batch_ids.push_back(vgd.load_image_files(std::move(filenames), std::move(formats)));
+		batch_ids.push_back(vgd.load_image_files(std::move(filenames2), std::move(formats2)));
+	}
+
+	//Initialize Dear ImGui
+	{
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+    	ImGuiIO& io = ImGui::GetIO();
+
 	}
 
 	//uint32_t x_resolution = 720;
@@ -379,6 +386,7 @@ int main(int argc, char* argv[]) {
 	vkDestroyPipeline(vgd.device, vgd.get_graphics_pipeline(normal_pipeline_handle)->pipeline, vgd.alloc_callbacks);
 	vkDestroyPipeline(vgd.device, vgd.get_graphics_pipeline(wire_pipeline_handle)->pipeline, vgd.alloc_callbacks);
 	
+    ImGui::DestroyContext();
 	SDL_Quit();
 
 	return 0;

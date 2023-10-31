@@ -43,6 +43,12 @@ struct VulkanImage {
 	VmaAllocation image_allocation;
 };
 
+struct RawImage {
+	uint32_t width;
+	uint32_t height;
+	uint8_t* data;
+};
+
 struct VulkanPendingImage {
 	uint64_t batch_id;
 	VulkanImage vk_image;
@@ -59,9 +65,13 @@ struct VulkanImageUploadBatch {
 	VkCommandBuffer command_buffer;
 };
 
-struct BatchParameters {
+struct RawImageBatchParameters {
+	const std::vector<RawImage> raw_images;
+	const std::vector<VkFormat> image_formats;
+};
+
+struct FileImageBatchParameters {
 	uint64_t id;
-	uint32_t image_count;
 	const std::vector<const char*> filenames;
 	const std::vector<VkFormat> image_formats;
 };
@@ -112,8 +122,12 @@ struct VulkanGraphicsDevice {
 		uint64_t* out_pipelines_handles,
 		uint32_t pipeline_count
 	);
-	uint64_t load_images(
-		uint32_t image_count,
+
+	uint64_t load_raw_images(
+		const std::vector<RawImage> raw_images,
+		const std::vector<VkFormat> image_formats
+	);
+	uint64_t load_image_files(
 		const std::vector<const char*> filenames,
 		const std::vector<VkFormat> image_formats
 	);
@@ -134,7 +148,7 @@ struct VulkanGraphicsDevice {
 	~VulkanGraphicsDevice();
 
 private:
-	void load_images_impl();
+	void load_image_files_impl();
 
 	slotmap<VulkanBuffer> _buffers;
 
@@ -143,7 +157,7 @@ private:
 	bool _running = true;
 	uint64_t _image_uploads_requested = 0;
 	uint64_t _image_uploads_completed = 0;
-	std::queue<BatchParameters, std::deque<BatchParameters>> _image_batch_param_queue;
+	std::queue<FileImageBatchParameters, std::deque<FileImageBatchParameters>> _image_batch_param_queue;
 	std::mutex _batch_param_mutex;
 	std::thread _image_upload_thread;
 	slotmap<VulkanPendingImage> _pending_images;
