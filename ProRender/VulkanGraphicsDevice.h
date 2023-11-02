@@ -66,12 +66,13 @@ struct VulkanImageUploadBatch {
 };
 
 struct RawImageBatchParameters {
+	const uint64_t id;
 	const std::vector<RawImage> raw_images;
 	const std::vector<VkFormat> image_formats;
 };
 
 struct FileImageBatchParameters {
-	uint64_t id;
+	const uint64_t id;
 	const std::vector<const char*> filenames;
 	const std::vector<VkFormat> image_formats;
 };
@@ -148,7 +149,8 @@ struct VulkanGraphicsDevice {
 	~VulkanGraphicsDevice();
 
 private:
-	void load_image_files_impl();
+	void load_images_impl();
+	void record_image_upload_batch(uint64_t id, const std::vector<RawImage>& raw_images, const std::vector<VkFormat>& image_formats);
 
 	slotmap<VulkanBuffer> _buffers;
 
@@ -157,8 +159,10 @@ private:
 	bool _running = true;
 	uint64_t _image_uploads_requested = 0;
 	uint64_t _image_uploads_completed = 0;
-	std::queue<FileImageBatchParameters, std::deque<FileImageBatchParameters>> _image_batch_param_queue;
-	std::mutex _batch_param_mutex;
+	std::queue<RawImageBatchParameters, std::deque<RawImageBatchParameters>> _raw_image_batch_queue;
+	std::mutex _raw_image_mutex;
+	std::queue<FileImageBatchParameters, std::deque<FileImageBatchParameters>> _image_file_batch_queue;
+	std::mutex _file_batch_mutex;
 	std::thread _image_upload_thread;
 	slotmap<VulkanPendingImage> _pending_images;
 	std::mutex _pending_image_mutex;

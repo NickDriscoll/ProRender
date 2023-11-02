@@ -8,8 +8,9 @@ SamplerState samplers[];
 
 float4 main(VertexOutput input, float4 screen_position : SV_POSITION) : SV_Target0 {
     float2 uvs = input.uvs;
+    uint idx = pc.x_coord | (pc.y_coord << 1);
 
-    if (pc.image_idx == 1) {
+    if (idx == 1) {
         float uv_scale = 1.0;
         
         uvs -= float2(0.5, 0.5);
@@ -26,7 +27,7 @@ float4 main(VertexOutput input, float4 screen_position : SV_POSITION) : SV_Targe
 
         uvs.y += 0.1 * sin(pc.time + uvs.x * 4.0);
 
-    } else if (pc.image_idx == 2) {
+    } else if (idx == 2) {
         uvs -= float2(0.5, 0.5);
         uvs *= 2.0;
         float dist = distance(uvs, 0.0.xx) + 0.3;
@@ -37,7 +38,7 @@ float4 main(VertexOutput input, float4 screen_position : SV_POSITION) : SV_Targe
         );
         uvs = mul(tform, uvs);
         uvs += float2(0.5, 0.5);
-    } else if (pc.image_idx == 3) {
+    } else if (idx == 3) {
         float t = 0.333 * pc.time;
         float2x2 tform = float2x2(
             cos(t), -sin(t),

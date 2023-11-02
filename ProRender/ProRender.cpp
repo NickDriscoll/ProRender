@@ -12,6 +12,57 @@ int main(int argc, char* argv[]) {
 	VulkanGraphicsDevice vgd = VulkanGraphicsDevice();
 	app_timer.print("VGD Initialization");
 	app_timer.start();
+
+	//Initialize Dear ImGui
+	{
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+    	ImGuiIO& io = ImGui::GetIO();
+		io.DisplaySize = ImVec2(720, 720);
+
+		//Build and upload font atlas
+		uint8_t* tex_pixels = nullptr;
+		int tex_w, tex_h;
+		io.Fonts->GetTexDataAsRGBA32(&tex_pixels, &tex_w, &tex_h);
+		RawImage im = {
+			.width = (uint32_t)tex_w,
+			.height = (uint32_t)tex_h,
+			.data = tex_pixels
+		};
+
+		std::vector<RawImage> images = std::vector<RawImage>{
+			im
+		};
+		std::vector<VkFormat> formats = std::vector<VkFormat>{
+			VK_FORMAT_R8G8B8A8_UNORM
+		};
+		uint64_t batch_id = vgd.load_raw_images(images, formats);
+
+		VkSemaphoreWaitInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+		info.semaphoreCount = 1;
+		info.pSemaphores = &vgd.image_upload_semaphore;
+		info.pValues = &batch_id;
+		if (vkWaitSemaphores(vgd.device, &info, U64_MAX) != VK_SUCCESS) {
+			printf("Waiting for graphics timeline semaphore failed.\n");
+			exit(-1);
+		}
+		
+		uint32_t tex_index = 0;
+		uint32_t seen = 0;
+		for (uint32_t j = 0; seen < vgd.available_images.count(); j++) {
+			if (!vgd.available_images.is_live(j)) continue;
+			seen += 1;
+
+			VulkanAvailableImage* image = vgd.available_images.data() + j;
+			if (batch_id == image->batch_id) {
+				tex_index = j;
+				break;
+			}
+		}
+
+		io.Fonts->SetTexID((void*)tex_index);
+	}
 	
 	std::vector<uint32_t> image_indices;
 	std::vector<uint64_t> batch_ids;
@@ -39,16 +90,6 @@ int main(int argc, char* argv[]) {
 		batch_ids.push_back(vgd.load_image_files(std::move(filenames2), std::move(formats2)));
 	}
 
-	//Initialize Dear ImGui
-	{
-		IMGUI_CHECKVERSION();
-		ImGui::CreateContext();
-    	ImGuiIO& io = ImGui::GetIO();
-
-	}
-
-	//uint32_t x_resolution = 720;
-	//uint32_t y_resolution = 720;
 	uint32_t window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
 	SDL_Window* sdl_window = SDL_CreateWindow("losing my mind", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 720, 720, window_flags);
 	
@@ -150,6 +191,7 @@ int main(int argc, char* argv[]) {
 	//Main loop
 	bool running = true;
 	uint64_t current_frame = 0;
+	double last_frame_took = 0.0;
 	while (running) {
 		Timer frame_timer;
 		frame_timer.start();
@@ -166,6 +208,8 @@ int main(int argc, char* argv[]) {
 					switch (event.window.event) {
 						case SDL_WINDOWEVENT_SIZE_CHANGED:
 							window.resize(vgd);
+    						ImGuiIO& io = ImGui::GetIO();
+							io.DisplaySize = ImVec2(event.window.data1, event.window.data2);
 							break;
 					}
 					break;
@@ -180,6 +224,16 @@ int main(int argc, char* argv[]) {
 					break;
 				}
 			}
+		}
+
+		//Dear ImGUI update part
+		{
+    		ImGuiIO& io = ImGui::GetIO();
+			io.DeltaTime = last_frame_took;
+
+			ImGui::NewFrame();
+        	ImGui::ShowDemoWindow(nullptr);
+        	ImGui::Render();
 		}
 
 		//Draw
@@ -299,10 +353,23 @@ int main(int argc, char* argv[]) {
 			for (uint32_t i = 0; i < image_indices.size(); i++) {
 				uint32_t x = i & 1;
 				uint32_t y = i > 1;
-				uint32_t bytes[] = { std::bit_cast<uint32_t>(time), image_indices[i], x, y };
+
+				uint32_t idx;
+				if (i == 0) {
+					idx = 0;
+				} else {
+					idx = image_indices[i];
+				}
+
+				uint32_t bytes[] = { std::bit_cast<uint32_t>(time), idx, x, y };
 				vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, bytes);
 
 				vkCmdDraw(current_cb, 6, 1, 0, 0);
+			}
+
+			//Record ImGUI draw commands
+			{
+				ImDrawData* draw_data;
 			}
 
 			vkCmdEndRenderPass(current_cb);
@@ -374,6 +441,7 @@ int main(int argc, char* argv[]) {
 
 		//End-of-frame bookkeeping
 		current_frame++;
+		last_frame_took = frame_timer.check();
 	}
 
 	//Wait until all GPU queues have drained before cleaning up resources
