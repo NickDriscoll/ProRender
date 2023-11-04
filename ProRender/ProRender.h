@@ -32,6 +32,7 @@
 #include "vma.h"
 #include "stb_image.h"
 #include <imgui.h>
+#include "Renderer.h"
 
 constexpr uint64_t U64_MAX = 0xFFFFFFFFFFFFFFFF;
 

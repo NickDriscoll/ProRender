@@ -6,7 +6,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	alloc_callbacks = nullptr;			//TODO: Custom allocator(s)
 	vma_alloc_callbacks = nullptr;
 
-	_buffers.alloc(256);
+	_buffers.alloc(1024 * 1024);
 	available_images.alloc(1024 * 1024);
 	_pending_images.alloc(1024 * 1024);
 	_image_upload_batches.alloc(1024);
@@ -71,6 +71,8 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 
 	//Load all Vulkan instance functions
 	volkLoadInstanceOnly(instance);
+	timer.print("volkLoadInstanceOnly()");
+	timer.start();
 
 	//Vulkan physical device selection
 	VkPhysicalDeviceTimelineSemaphoreFeatures semaphore_features = {};
@@ -845,7 +847,36 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 	}
 }
 
-void VulkanGraphicsDevice::record_image_upload_batch(uint64_t id, const std::vector<RawImage>& raw_images, const std::vector<VkFormat>& image_formats) {
+uint64_t VulkanGraphicsDevice::create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VmaAllocationCreateInfo& allocation_info) {
+	VkBufferCreateInfo buffer_info = {};
+	buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	buffer_info.size = size;
+	buffer_info.usage = usage_flags;
+	buffer_info.sharingMode = VK_SHARING_MODE_CONCURRENT;			//TODO: Trying out making all buffers concurrent to see what happens
+
+	uint32_t queue_indices[] = {0, 0, 0};
+	uint32_t queue_count = 1;
+	if (compute_queue_family_idx != graphics_queue_family_idx) {
+		queue_indices[1] = compute_queue_family_idx;
+		queue_count += 1;
+	}
+	if (transfer_queue_family_idx != compute_queue_family_idx) {
+		queue_indices[2] = transfer_queue_family_idx;
+		queue_count += 1;
+	}
+	buffer_info.queueFamilyIndexCount = queue_count;
+	buffer_info.pQueueFamilyIndices = queue_indices;
+
+	VulkanBuffer buffer;
+	if (vmaCreateBuffer(allocator, &buffer_info, &allocation_info, &buffer.buffer, &buffer.allocation, &buffer.alloc_info) != VK_SUCCESS) {
+		printf("Creating staging buffer failed.\n");
+		exit(-1);
+	}
+
+	return _buffers.insert(buffer);
+}
+
+void VulkanGraphicsDevice::submit_image_upload_batch(uint64_t id, const std::vector<RawImage>& raw_images, const std::vector<VkFormat>& image_formats) {
 	VulkanImageUploadBatch current_batch = {};
 
 	uint32_t image_count = raw_images.size();
@@ -866,38 +897,19 @@ void VulkanGraphicsDevice::record_image_upload_batch(uint64_t id, const std::vec
 	}
 
 	//Create staging buffer
-	VkBuffer staging_buffer;
-	VmaAllocation staging_buffer_allocation;
-	VmaAllocationInfo sb_alloc_info;
 	{
-		VkBufferCreateInfo buffer_info = {};
-		buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		buffer_info.size = total_staging_size;
-		buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		buffer_info.queueFamilyIndexCount = 1;
-		buffer_info.pQueueFamilyIndices = &transfer_queue_family_idx;
-
 		VmaAllocationCreateInfo alloc_info = {};
 		alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 		alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
 		alloc_info.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 		alloc_info.priority = 1.0;
-
-		if (vmaCreateBuffer(allocator, &buffer_info, &alloc_info, &staging_buffer, &staging_buffer_allocation, &sb_alloc_info) != VK_SUCCESS) {
-			printf("Creating staging buffer failed.\n");
-			exit(-1);
-		}
-
-		current_batch.staging_buffer_id = _buffers.insert({
-			.buffer = staging_buffer,
-			.allocation = staging_buffer_allocation
-		});
+		current_batch.staging_buffer_id = create_buffer(total_staging_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, alloc_info);
 	}
+	VulkanBuffer* staging_buffer = _buffers.get(current_batch.staging_buffer_id);
 
 	//Copy image data to staging buffer
 	{
-		uint8_t* mapped_head = static_cast<uint8_t*>(sb_alloc_info.pMappedData);
+		uint8_t* mapped_head = static_cast<uint8_t*>(staging_buffer->alloc_info.pMappedData);
 
 		for (uint32_t i = 0; i < image_count; i++) {
 			void* image_bytes = raw_images[i].data;
@@ -906,7 +918,6 @@ void VulkanGraphicsDevice::record_image_upload_batch(uint64_t id, const std::vec
 			size_t num_bytes = static_cast<size_t>(x * y * channels);
 
 			memcpy(mapped_head, image_bytes, num_bytes);
-			free(image_bytes);
 
 			mapped_head += num_bytes;
 		}
@@ -1040,7 +1051,7 @@ void VulkanGraphicsDevice::record_image_upload_batch(uint64_t id, const std::vec
 
 			copy_offset += x * y * channels;
 
-			vkCmdCopyBufferToImage(current_batch.command_buffer, staging_buffer, images[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+			vkCmdCopyBufferToImage(current_batch.command_buffer, staging_buffer->buffer, images[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 		}
 
 		//Queue ownership transfer
@@ -1158,8 +1169,8 @@ uint64_t VulkanGraphicsDevice::load_raw_images(
 	_raw_image_mutex.lock();
 	_raw_image_batch_queue.push({
 		.id = _image_uploads_requested,
-		.raw_images = raw_images,
-		.image_formats = image_formats
+		.raw_images = std::move(raw_images),
+		.image_formats = std::move(image_formats)
 	});
 	_raw_image_mutex.unlock();
 
@@ -1190,7 +1201,7 @@ void VulkanGraphicsDevice::load_images_impl() {
 			RawImageBatchParameters& params = _raw_image_batch_queue.front();
 			uint32_t image_count = params.raw_images.size();
 
-			this->record_image_upload_batch(params.id, params.raw_images, params.image_formats);
+			this->submit_image_upload_batch(params.id, params.raw_images, params.image_formats);
 
 			//Remove processed parameters
 			_raw_image_mutex.lock();
@@ -1200,7 +1211,7 @@ void VulkanGraphicsDevice::load_images_impl() {
 
 		//Loading images from files
 		while (_image_file_batch_queue.size() > 0) {
-			FileImageBatchParameters params = _image_file_batch_queue.front();
+			FileImageBatchParameters& params = _image_file_batch_queue.front();
 			uint32_t image_count = params.filenames.size();
 
 			//Load image data from disk
@@ -1218,13 +1229,19 @@ void VulkanGraphicsDevice::load_images_impl() {
 				}
 			}
 
-			this->record_image_upload_batch(params.id, raw_images, params.image_formats);
+			this->submit_image_upload_batch(params.id, raw_images, params.image_formats);
+
+			//Free loaded image memory
+			for (uint32_t i = 0; i < raw_images.size(); i++) {
+				free(raw_images[i].data);
+			}
 
 			//Remove processed parameters
 			_file_batch_mutex.lock();
 			_image_file_batch_queue.pop();
 			_file_batch_mutex.unlock();
 		}
+
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 }

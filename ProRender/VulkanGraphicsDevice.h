@@ -31,6 +31,7 @@ constexpr VkComponentMapping COMPONENT_MAPPING_DEFAULT = {
 struct VulkanBuffer {
 	VkBuffer buffer;
 	VmaAllocation allocation;
+	VmaAllocationInfo alloc_info;
 };
 
 struct VulkanImage {
@@ -124,6 +125,8 @@ struct VulkanGraphicsDevice {
 		uint32_t pipeline_count
 	);
 
+	uint64_t create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VmaAllocationCreateInfo& allocation_info);
+
 	uint64_t load_raw_images(
 		const std::vector<RawImage> raw_images,
 		const std::vector<VkFormat> image_formats
@@ -150,7 +153,7 @@ struct VulkanGraphicsDevice {
 
 private:
 	void load_images_impl();
-	void record_image_upload_batch(uint64_t id, const std::vector<RawImage>& raw_images, const std::vector<VkFormat>& image_formats);
+	void submit_image_upload_batch(uint64_t id, const std::vector<RawImage>& raw_images, const std::vector<VkFormat>& image_formats);
 
 	slotmap<VulkanBuffer> _buffers;
 

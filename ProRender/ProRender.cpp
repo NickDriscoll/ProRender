@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
 			printf("Waiting for graphics timeline semaphore failed.\n");
 			exit(-1);
 		}
-		
+	
 		uint32_t tex_index = 0;
 		uint32_t seen = 0;
 		for (uint32_t j = 0; seen < vgd.available_images.count(); j++) {
@@ -63,6 +63,8 @@ int main(int argc, char* argv[]) {
 
 		io.Fonts->SetTexID((void*)tex_index);
 	}
+	app_timer.print("Dear ImGUI Initialization");
+	app_timer.start();
 	
 	std::vector<uint32_t> image_indices;
 	std::vector<uint64_t> batch_ids;
@@ -186,6 +188,12 @@ int main(int argc, char* argv[]) {
 	//Create graphics pipeline timeline semaphore
 	VkSemaphore graphics_timeline_semaphore = vgd.create_timeline_semaphore(0);
 
+	//Initialize the renderer
+	Renderer renderer;
+	{
+		
+	}
+
 	init_timer.print("App init");
 	
 	//Main loop
@@ -233,7 +241,6 @@ int main(int argc, char* argv[]) {
 
 			ImGui::NewFrame();
         	ImGui::ShowDemoWindow(nullptr);
-        	ImGui::Render();
 		}
 
 		//Draw
@@ -369,7 +376,14 @@ int main(int argc, char* argv[]) {
 
 			//Record ImGUI draw commands
 			{
-				ImDrawData* draw_data;
+				ImGui::Render();
+
+				ImDrawData* draw_data = ImGui::GetDrawData();
+				for (uint32_t i = 0; i < draw_data->CmdListsCount; i++) {
+					ImDrawList* draw_list = draw_data->CmdLists[i];
+
+				
+				}
 			}
 
 			vkCmdEndRenderPass(current_cb);
@@ -459,4 +473,3 @@ int main(int argc, char* argv[]) {
 
 	return 0;
 }
-

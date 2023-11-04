@@ -49,8 +49,9 @@ float4 main(VertexOutput input, float4 screen_position : SV_POSITION) : SV_Targe
         uvs += float2(0.5, 0.5);
         uvs.y += 0.1 * sin(pc.time + uvs.x * 4.0);
     } else {
-        uint t = (uint)screen_position.y & 1;
-        uvs.x +=  0.5 * sin(pc.time) * t;
+        uvs -= float2(0.5, 0.5);
+        uvs.y *= sin(pc.time);
+        uvs += float2(0.5, 0.5);
     }
 
     float4 image_color = sampled_images[pc.image_idx].Sample(samplers[0], uvs);

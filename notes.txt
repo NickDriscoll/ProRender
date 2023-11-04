@@ -10,3 +10,6 @@ Super short guide to smooth swapchain resizing
 6. If the items in 4 and 5 are implemented, the resize function will not need to call vkDeviceWaitIdle()
 You put the swapchain resize in your "os callback to tell me that the window size has changed"
 -CharlesG - LunarG
+
+C++ for VSCode is shit:
+    Rename symbol is slow and doesn't fully work sometimes
