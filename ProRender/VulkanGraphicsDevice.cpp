@@ -876,6 +876,11 @@ uint64_t VulkanGraphicsDevice::create_buffer(VkDeviceSize size, VkBufferUsageFla
 	return _buffers.insert(buffer);
 }
 
+void VulkanGraphicsDevice::destroy_buffer(uint64_t key) {
+	VulkanBuffer* b = _buffers.get(key);
+	vmaDestroyBuffer(allocator, b->buffer, b->allocation);
+}
+
 void VulkanGraphicsDevice::submit_image_upload_batch(uint64_t id, const std::vector<RawImage>& raw_images, const std::vector<VkFormat>& image_formats) {
 	VulkanImageUploadBatch current_batch = {};
 

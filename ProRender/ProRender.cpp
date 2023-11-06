@@ -189,10 +189,7 @@ int main(int argc, char* argv[]) {
 	VkSemaphore graphics_timeline_semaphore = vgd.create_timeline_semaphore(0);
 
 	//Initialize the renderer
-	Renderer renderer;
-	{
-		
-	}
+	Renderer renderer(&vgd);
 
 	init_timer.print("App init");
 	
@@ -381,7 +378,7 @@ int main(int argc, char* argv[]) {
 				ImDrawData* draw_data = ImGui::GetDrawData();
 				for (uint32_t i = 0; i < draw_data->CmdListsCount; i++) {
 					ImDrawList* draw_list = draw_data->CmdLists[i];
-
+					
 				
 				}
 			}
