@@ -126,6 +126,7 @@ struct VulkanGraphicsDevice {
 	);
 
 	uint64_t create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VmaAllocationCreateInfo& allocation_info);
+	VulkanBuffer* get_buffer(uint64_t key);
 	void destroy_buffer(uint64_t key);
 
 	uint64_t load_raw_images(

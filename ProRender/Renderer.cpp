@@ -5,7 +5,7 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
     //Allocate memory for ImGUI vertex data
     //TODO: probabaly shouldn't be in renderer init
     {
-        VkDeviceSize buffer_size = 512 * 1024;
+        VkDeviceSize buffer_size = 64 * 1024;
 
         VmaAllocationCreateInfo alloc_info = {};
         alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;

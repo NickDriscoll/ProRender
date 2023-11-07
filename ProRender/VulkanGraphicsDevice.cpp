@@ -876,6 +876,10 @@ uint64_t VulkanGraphicsDevice::create_buffer(VkDeviceSize size, VkBufferUsageFla
 	return _buffers.insert(buffer);
 }
 
+VulkanBuffer* VulkanGraphicsDevice::get_buffer(uint64_t key) {
+	return _buffers.get(key);
+}
+
 void VulkanGraphicsDevice::destroy_buffer(uint64_t key) {
 	VulkanBuffer* b = _buffers.get(key);
 	vmaDestroyBuffer(allocator, b->buffer, b->allocation);

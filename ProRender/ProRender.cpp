@@ -178,6 +178,62 @@ int main(int argc, char* argv[]) {
 	}
 	printf("Created graphics pipeline.\n");
 
+	//Create Dear ImGUI pipeline
+	{
+		VulkanInputAssemblyState ia_states[] = {
+			{}
+		};
+
+		VulkanTesselationState tess_states[] = {
+			{}
+		};
+
+		VulkanViewportState vs_states[] = {
+			{}
+		};
+
+		VulkanRasterizationState rast_states[] = {
+			{
+				.cullMode = VK_CULL_MODE_NONE
+			}
+		};
+
+		VulkanMultisampleState ms_states[] = {
+			{}
+		};
+
+		VulkanDepthStencilState ds_states[] = {
+			{}
+		};
+		
+		//Blend func description
+		VkColorComponentFlags component_flags = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+		VulkanColorBlendAttachmentState blend_attachment_state = {};
+		VulkanColorBlendState blend_states[] = {
+			{
+				.attachmentCount = 1,
+				.pAttachments = &blend_attachment_state
+			}
+		};
+
+		// const char* shaders[] = { "shaders/imgui.vert.spv", "shaders/imgui.frag.spv" };
+
+		// vgd.create_graphics_pipelines(
+		// 	window.swapchain_renderpass,
+		// 	shaders,
+		// 	ia_states,
+		// 	tess_states,
+		// 	vs_states,
+		// 	rast_states,
+		// 	ms_states,
+		// 	ds_states,
+		// 	blend_states,
+		// 	pipeline_handles,
+		// 	1
+		// );
+	}
+
 	hlslpp::float4x4 projection_matrix = hlslpp::float4x4(
 		0.0, 0.0, 0.0, 0.0,
 		0.0, 0.0, 0.0, 0.0,
@@ -246,7 +302,7 @@ int main(int argc, char* argv[]) {
 			uint32_t acquired_image_idx;
 			vkAcquireNextImageKHR(vgd.device, window.swapchain, U64_MAX, window.acquire_semaphore, VK_NULL_HANDLE, &acquired_image_idx);
 
-			VkCommandBuffer current_cb = vgd.command_buffers[current_frame % FRAMES_IN_FLIGHT];
+			VkCommandBuffer frame_cb = vgd.command_buffers[current_frame % FRAMES_IN_FLIGHT];
 			
 			//Wait for command buffer to finish execution before trying to record to it
 			if (current_frame >= FRAMES_IN_FLIGHT) {
@@ -267,10 +323,10 @@ int main(int argc, char* argv[]) {
 				.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 				.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
 			};
-			vkBeginCommandBuffer(current_cb, &begin_info);
+			vkBeginCommandBuffer(frame_cb, &begin_info);
 
 			//Per-frame checking of pending images to see if they're ready
-			vgd.tick_image_uploads(current_cb);
+			vgd.tick_image_uploads(frame_cb);
 			uint64_t upload_batches_completed = vgd.get_completed_image_uploads();
 
 			{
@@ -292,8 +348,8 @@ int main(int argc, char* argv[]) {
 				}
 			}
 
-			vkCmdBindPipeline(current_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(current_pipeline_handle)->pipeline);
-			vkCmdBindDescriptorSets(current_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.pipeline_layout, 0, 1, &vgd.descriptor_set, 0, nullptr);
+			vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(current_pipeline_handle)->pipeline);
+			vkCmdBindDescriptorSets(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.pipeline_layout, 0, 1, &vgd.descriptor_set, 0, nullptr);
 
 			//Begin render pass
 			{
@@ -324,7 +380,7 @@ int main(int argc, char* argv[]) {
 				info.clearValueCount = 1;
 				info.pClearValues = &clear_color;
 
-				vkCmdBeginRenderPass(current_cb, &info, VK_SUBPASS_CONTENTS_INLINE);
+				vkCmdBeginRenderPass(frame_cb, &info, VK_SUBPASS_CONTENTS_INLINE);
 			}
 
 			//Set viewport and scissor
@@ -337,7 +393,7 @@ int main(int argc, char* argv[]) {
 					.minDepth = 0.0,
 					.maxDepth = 1.0
 				};
-				vkCmdSetViewport(current_cb, 0, 1, &viewport);
+				vkCmdSetViewport(frame_cb, 0, 1, &viewport);
 
 				VkRect2D scissor = {
 					.offset = {
@@ -349,7 +405,7 @@ int main(int argc, char* argv[]) {
 						.height = window.y_resolution
 					}
 				};
-				vkCmdSetScissor(current_cb, 0, 1, &scissor);
+				vkCmdSetScissor(frame_cb, 0, 1, &scissor);
 			}
 
 			float time = app_timer.check() * 1.5f / 1000.0f;
@@ -366,25 +422,90 @@ int main(int argc, char* argv[]) {
 				}
 
 				uint32_t bytes[] = { std::bit_cast<uint32_t>(time), idx, x, y };
-				vkCmdPushConstants(current_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, bytes);
+				vkCmdPushConstants(frame_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, bytes);
 
-				vkCmdDraw(current_cb, 6, 1, 0, 0);
+				vkCmdDraw(frame_cb, 6, 1, 0, 0);
 			}
 
-			//Record ImGUI draw commands
+			//Upload ImGUI vertex data and record ImGUI draw commands
 			{
-				ImGui::Render();
+				uint32_t frame_slot = current_frame % FRAMES_IN_FLIGHT;
+				uint32_t last_frame_slot = frame_slot == 0 ? FRAMES_IN_FLIGHT - 1 : frame_slot - 1;
+				ImguiFrame& current_frame = renderer.imgui_frames[frame_slot];
+				ImguiFrame& last_frame = renderer.imgui_frames[last_frame_slot];
 
+				ImGui::Render();
 				ImDrawData* draw_data = ImGui::GetDrawData();
+
+				uint32_t im_vertex_size = draw_data->TotalVtxCount * sizeof(ImDrawVert);
+
+				//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2
+				uint32_t vertex_local_offset = 0;
+				if (last_frame.vertex_start <= im_vertex_size) {
+					vertex_local_offset = last_frame.vertex_start + last_frame.vertex_size;
+				}
+
+				VulkanBuffer* im_vert_buffer = vgd.get_buffer(renderer.imgui_vertex_buffer);
+				uint8_t* vertex_ptr = vertex_local_offset + reinterpret_cast<uint8_t*>(im_vert_buffer->alloc_info.pMappedData);
+				
+				uint32_t im_index_size = draw_data->TotalIdxCount * sizeof(ImDrawIdx);
+
+				//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2
+				uint32_t index_local_offset = 0;
+				if (last_frame.vertex_start <= im_index_size) {
+					index_local_offset = last_frame.index_start + last_frame.index_size;
+				}
+
+				VulkanBuffer* im_idx_buffer = vgd.get_buffer(renderer.imgui_index_buffer);
+				uint8_t* index_ptr = index_local_offset + reinterpret_cast<uint8_t*>(im_idx_buffer->alloc_info.pMappedData);
+
+				//Bind index buffer
+				vkCmdBindIndexBuffer(frame_cb, im_idx_buffer->buffer, index_local_offset, VK_INDEX_TYPE_UINT16);
+
 				for (uint32_t i = 0; i < draw_data->CmdListsCount; i++) {
 					ImDrawList* draw_list = draw_data->CmdLists[i];
 					
-				
+					//Copy vertex data
+					memcpy(vertex_ptr, draw_list->VtxBuffer.Data, draw_list->VtxBuffer.Size);
+					vertex_ptr += draw_list->VtxBuffer.Size * sizeof(ImDrawVert);
+
+					//Copy index data
+					memcpy(index_ptr, draw_list->IdxBuffer.Data, draw_list->IdxBuffer.Size);
+					index_ptr += draw_list->IdxBuffer.Size * sizeof(ImDrawIdx);
+
+					//Record draw commands
+					for (uint32_t j = 0; j < draw_list->CmdBuffer.Size; j++ ){
+						ImDrawCmd& draw_command = draw_list->CmdBuffer[j];
+
+						// VkViewport viewport = {
+						// 	.x = 0,
+						// 	.y = 0,
+						// 	.width = (float)draw_command.,
+						// 	.height = (float)window.y_resolution,
+						// 	.minDepth = 0.0,
+						// 	.maxDepth = 1.0
+						// };
+						// vkCmdSetViewport(frame_cb, 0, 1, &viewport);
+
+						VkRect2D scissor = {
+							.offset = {
+								.x = (int32_t)draw_command.ClipRect.x,
+								.y = (int32_t)draw_command.ClipRect.y
+							},
+							.extent = {
+								.width = (uint32_t)draw_command.ClipRect.z - (uint32_t)draw_command.ClipRect.x,
+								.height = (uint32_t)draw_command.ClipRect.w - (uint32_t)draw_command.ClipRect.y
+							}
+						};
+						vkCmdSetScissor(frame_cb, 0, 1, &scissor);
+
+						vkCmdDrawIndexed(frame_cb, draw_command.ElemCount, 1, draw_command.IdxOffset, draw_command.VtxOffset, 0);
+					}
 				}
 			}
 
-			vkCmdEndRenderPass(current_cb);
-			vkEndCommandBuffer(current_cb);
+			vkCmdEndRenderPass(frame_cb);
+			vkEndCommandBuffer(frame_cb);
 
 			//Submit rendering command buffer
 			VkQueue q;
@@ -412,7 +533,7 @@ int main(int argc, char* argv[]) {
 				info.signalSemaphoreCount = 2;
 				info.pSignalSemaphores = signal_semaphores;
 				info.commandBufferCount = 1;
-				info.pCommandBuffers = &current_cb;
+				info.pCommandBuffers = &frame_cb;
 
 				if (vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE) != VK_SUCCESS) {
 					printf("Queue submit failed.\n");
