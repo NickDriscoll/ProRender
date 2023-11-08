@@ -4,10 +4,6 @@ struct VertexOutput {
     float2 uvs : UVS;
 };
 
-[[vk::push_constant]]
-struct PushConstants {
-    float time;
-    uint image_idx;
-    uint x_coord;
-    uint y_coord;
-} pc;
+struct FrameUniforms {
+    float4x4 clip_from_screen;
+};

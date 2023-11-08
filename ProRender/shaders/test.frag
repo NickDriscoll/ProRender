@@ -1,4 +1,5 @@
 #include "structs.hlsl"
+#include "test_pushconstants.hlsl"
 
 [[vk::binding(0, 0)]]
 Texture2D sampled_images[];

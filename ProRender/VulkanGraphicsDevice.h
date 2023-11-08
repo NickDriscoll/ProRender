@@ -161,7 +161,7 @@ private:
 
 	
 	//State related to image uploading system
-	bool _running = true;
+	bool _image_upload_running = true;
 	uint64_t _image_uploads_requested = 0;
 	uint64_t _image_uploads_completed = 0;
 	std::queue<RawImageBatchParameters, std::deque<RawImageBatchParameters>> _raw_image_batch_queue;

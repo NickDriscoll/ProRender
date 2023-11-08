@@ -412,6 +412,8 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		//Descriptor set layout
 		{
 			std::vector<VkDescriptorSetLayoutBinding> bindings;
+			std::vector<VkDescriptorBindingFlags> bindings_flags;
+			VkDescriptorBindingFlags binding_flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
 
 			VkDescriptorSetLayoutBinding sampled_image_binding = {
 				.binding = 0,
@@ -420,6 +422,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 				.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
 			};
 			bindings.push_back(sampled_image_binding);
+			bindings_flags.push_back(binding_flags);
 
 			VkDescriptorSetLayoutBinding sampler_binding = {
 				.binding = 1,
@@ -429,19 +432,35 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 				.pImmutableSamplers = _immutable_samplers.data()
 			};
 			bindings.push_back(sampler_binding);
+			bindings_flags.push_back(binding_flags);
 
-			std::vector<VkDescriptorBindingFlags> binding_flags;
-			binding_flags.reserve(bindings.size());
-			binding_flags.push_back(VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT);
-			binding_flags.push_back(0);
+			VkDescriptorSetLayoutBinding frame_uniform_binding = {
+				.binding = 2,
+				.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+				.descriptorCount = 1,
+				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+			};
+			bindings.push_back(frame_uniform_binding);
+			bindings_flags.push_back(binding_flags);
+
+			VkDescriptorSetLayoutBinding imgui_vertex_binding = {
+				.binding = 3,
+				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				.descriptorCount = 1,
+				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+			};
+			bindings.push_back(imgui_vertex_binding);
+			bindings_flags.push_back(binding_flags);
+
 			VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info = {
 				.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-				.bindingCount = static_cast<uint32_t>(binding_flags.size()),
-				.pBindingFlags = binding_flags.data()
+				.bindingCount = static_cast<uint32_t>(bindings_flags.size()),
+				.pBindingFlags = bindings_flags.data()
 			};
 
 			VkDescriptorSetLayoutCreateInfo info = {};
 			info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+			info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
 			info.pNext = &binding_flags_info;
 			info.bindingCount = static_cast<uint32_t>(bindings.size());
 			info.pBindings = bindings.data();
@@ -489,6 +508,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 
 			VkDescriptorPoolCreateInfo info = {
 				.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+				.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
 				.maxSets = 1,
 				.poolSizeCount = 2,
 				.pPoolSizes = sizes
@@ -593,8 +613,16 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 		vkDestroyRenderPass(device, _render_passes.data()[i], alloc_callbacks);
 	}
 
+	uint32_t gp_seen = 0;
+	for (uint32_t i = 0; gp_seen < _graphics_pipelines.count(); i++) {
+		if (!_graphics_pipelines.is_live(i)) continue;
+		gp_seen += 1;
+
+		vkDestroyPipeline(device, _graphics_pipelines.data()[i].pipeline, alloc_callbacks);
+	}
+
 	//Wait for the image upload thread
-	_running = false;
+	_image_upload_running = false;
 	_image_upload_thread.join();
 	
 	vkDestroySemaphore(device, image_upload_semaphore, alloc_callbacks);
@@ -1204,7 +1232,7 @@ uint64_t VulkanGraphicsDevice::load_image_files(
 
 //Main function for image loading thread
 void VulkanGraphicsDevice::load_images_impl() {
-	while (_running) {
+	while (_image_upload_running) {
 		//Loading images from memory
 		while (_raw_image_batch_queue.size() > 0) {
 			RawImageBatchParameters& params = _raw_image_batch_queue.front();

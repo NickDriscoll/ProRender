@@ -179,6 +179,7 @@ int main(int argc, char* argv[]) {
 	printf("Created graphics pipeline.\n");
 
 	//Create Dear ImGUI pipeline
+	uint64_t imgui_pipeline;
 	{
 		VulkanInputAssemblyState ia_states[] = {
 			{}
@@ -217,21 +218,21 @@ int main(int argc, char* argv[]) {
 			}
 		};
 
-		// const char* shaders[] = { "shaders/imgui.vert.spv", "shaders/imgui.frag.spv" };
+		const char* shaders[] = { "shaders/imgui.vert.spv", "shaders/imgui.frag.spv" };
 
-		// vgd.create_graphics_pipelines(
-		// 	window.swapchain_renderpass,
-		// 	shaders,
-		// 	ia_states,
-		// 	tess_states,
-		// 	vs_states,
-		// 	rast_states,
-		// 	ms_states,
-		// 	ds_states,
-		// 	blend_states,
-		// 	pipeline_handles,
-		// 	1
-		// );
+		vgd.create_graphics_pipelines(
+			window.swapchain_renderpass,
+			shaders,
+			ia_states,
+			tess_states,
+			vs_states,
+			rast_states,
+			ms_states,
+			ds_states,
+			blend_states,
+			&imgui_pipeline,
+			1
+		);
 	}
 
 	hlslpp::float4x4 projection_matrix = hlslpp::float4x4(
@@ -348,8 +349,8 @@ int main(int argc, char* argv[]) {
 				}
 			}
 
-			vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(current_pipeline_handle)->pipeline);
 			vkCmdBindDescriptorSets(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.pipeline_layout, 0, 1, &vgd.descriptor_set, 0, nullptr);
+			vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(current_pipeline_handle)->pipeline);
 
 			//Begin render pass
 			{
@@ -428,81 +429,82 @@ int main(int argc, char* argv[]) {
 			}
 
 			//Upload ImGUI vertex data and record ImGUI draw commands
-			{
-				uint32_t frame_slot = current_frame % FRAMES_IN_FLIGHT;
-				uint32_t last_frame_slot = frame_slot == 0 ? FRAMES_IN_FLIGHT - 1 : frame_slot - 1;
-				ImguiFrame& current_frame = renderer.imgui_frames[frame_slot];
-				ImguiFrame& last_frame = renderer.imgui_frames[last_frame_slot];
+			// {
+			// 	uint32_t frame_slot = current_frame % FRAMES_IN_FLIGHT;
+			// 	uint32_t last_frame_slot = frame_slot == 0 ? FRAMES_IN_FLIGHT - 1 : frame_slot - 1;
+			// 	ImguiFrame& current_frame = renderer.imgui_frames[frame_slot];
+			// 	ImguiFrame& last_frame = renderer.imgui_frames[last_frame_slot];
 
-				ImGui::Render();
-				ImDrawData* draw_data = ImGui::GetDrawData();
+			 	ImGui::Render();
+			// 	ImDrawData* draw_data = ImGui::GetDrawData();
 
-				uint32_t im_vertex_size = draw_data->TotalVtxCount * sizeof(ImDrawVert);
+			// 	uint32_t im_vertex_size = draw_data->TotalVtxCount * sizeof(ImDrawVert);
 
-				//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2
-				uint32_t vertex_local_offset = 0;
-				if (last_frame.vertex_start <= im_vertex_size) {
-					vertex_local_offset = last_frame.vertex_start + last_frame.vertex_size;
-				}
+			// 	//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2
+			// 	uint32_t vertex_local_offset = 0;
+			// 	if (last_frame.vertex_start <= im_vertex_size) {
+			// 		vertex_local_offset = last_frame.vertex_start + last_frame.vertex_size;
+			// 	}
 
-				VulkanBuffer* im_vert_buffer = vgd.get_buffer(renderer.imgui_vertex_buffer);
-				uint8_t* vertex_ptr = vertex_local_offset + reinterpret_cast<uint8_t*>(im_vert_buffer->alloc_info.pMappedData);
+			// 	VulkanBuffer* im_vert_buffer = vgd.get_buffer(renderer.imgui_vertex_buffer);
+			// 	uint8_t* vertex_ptr = vertex_local_offset + reinterpret_cast<uint8_t*>(im_vert_buffer->alloc_info.pMappedData);
 				
-				uint32_t im_index_size = draw_data->TotalIdxCount * sizeof(ImDrawIdx);
+			// 	uint32_t im_index_size = draw_data->TotalIdxCount * sizeof(ImDrawIdx);
 
-				//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2
-				uint32_t index_local_offset = 0;
-				if (last_frame.vertex_start <= im_index_size) {
-					index_local_offset = last_frame.index_start + last_frame.index_size;
-				}
+			// 	//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2
+			// 	uint32_t index_local_offset = 0;
+			// 	if (last_frame.vertex_start <= im_index_size) {
+			// 		index_local_offset = last_frame.index_start + last_frame.index_size;
+			// 	}
 
-				VulkanBuffer* im_idx_buffer = vgd.get_buffer(renderer.imgui_index_buffer);
-				uint8_t* index_ptr = index_local_offset + reinterpret_cast<uint8_t*>(im_idx_buffer->alloc_info.pMappedData);
+			// 	VulkanBuffer* im_idx_buffer = vgd.get_buffer(renderer.imgui_index_buffer);
+			// 	uint8_t* index_ptr = index_local_offset + reinterpret_cast<uint8_t*>(im_idx_buffer->alloc_info.pMappedData);
 
-				//Bind index buffer
-				vkCmdBindIndexBuffer(frame_cb, im_idx_buffer->buffer, index_local_offset, VK_INDEX_TYPE_UINT16);
+			// 	//Bind index buffer
+			// 	vkCmdBindIndexBuffer(frame_cb, im_idx_buffer->buffer, index_local_offset, VK_INDEX_TYPE_UINT16);
+			// 	vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(imgui_pipeline)->pipeline);
 
-				for (uint32_t i = 0; i < draw_data->CmdListsCount; i++) {
-					ImDrawList* draw_list = draw_data->CmdLists[i];
+			// 	for (uint32_t i = 0; i < draw_data->CmdListsCount; i++) {
+			// 		ImDrawList* draw_list = draw_data->CmdLists[i];
 					
-					//Copy vertex data
-					memcpy(vertex_ptr, draw_list->VtxBuffer.Data, draw_list->VtxBuffer.Size);
-					vertex_ptr += draw_list->VtxBuffer.Size * sizeof(ImDrawVert);
+			// 		//Copy vertex data
+			// 		memcpy(vertex_ptr, draw_list->VtxBuffer.Data, draw_list->VtxBuffer.Size);
+			// 		vertex_ptr += draw_list->VtxBuffer.Size * sizeof(ImDrawVert);
 
-					//Copy index data
-					memcpy(index_ptr, draw_list->IdxBuffer.Data, draw_list->IdxBuffer.Size);
-					index_ptr += draw_list->IdxBuffer.Size * sizeof(ImDrawIdx);
+			// 		//Copy index data
+			// 		memcpy(index_ptr, draw_list->IdxBuffer.Data, draw_list->IdxBuffer.Size);
+			// 		index_ptr += draw_list->IdxBuffer.Size * sizeof(ImDrawIdx);
 
-					//Record draw commands
-					for (uint32_t j = 0; j < draw_list->CmdBuffer.Size; j++ ){
-						ImDrawCmd& draw_command = draw_list->CmdBuffer[j];
+			// 		//Record draw commands
+			// 		for (uint32_t j = 0; j < draw_list->CmdBuffer.Size; j++ ){
+			// 			ImDrawCmd& draw_command = draw_list->CmdBuffer[j];
 
-						// VkViewport viewport = {
-						// 	.x = 0,
-						// 	.y = 0,
-						// 	.width = (float)draw_command.,
-						// 	.height = (float)window.y_resolution,
-						// 	.minDepth = 0.0,
-						// 	.maxDepth = 1.0
-						// };
-						// vkCmdSetViewport(frame_cb, 0, 1, &viewport);
+			// 			// VkViewport viewport = {
+			// 			// 	.x = 0,
+			// 			// 	.y = 0,
+			// 			// 	.width = (float)draw_command.,
+			// 			// 	.height = (float)window.y_resolution,
+			// 			// 	.minDepth = 0.0,
+			// 			// 	.maxDepth = 1.0
+			// 			// };
+			// 			// vkCmdSetViewport(frame_cb, 0, 1, &viewport);
 
-						VkRect2D scissor = {
-							.offset = {
-								.x = (int32_t)draw_command.ClipRect.x,
-								.y = (int32_t)draw_command.ClipRect.y
-							},
-							.extent = {
-								.width = (uint32_t)draw_command.ClipRect.z - (uint32_t)draw_command.ClipRect.x,
-								.height = (uint32_t)draw_command.ClipRect.w - (uint32_t)draw_command.ClipRect.y
-							}
-						};
-						vkCmdSetScissor(frame_cb, 0, 1, &scissor);
+			// 			VkRect2D scissor = {
+			// 				.offset = {
+			// 					.x = (int32_t)draw_command.ClipRect.x,
+			// 					.y = (int32_t)draw_command.ClipRect.y
+			// 				},
+			// 				.extent = {
+			// 					.width = (uint32_t)draw_command.ClipRect.z - (uint32_t)draw_command.ClipRect.x,
+			// 					.height = (uint32_t)draw_command.ClipRect.w - (uint32_t)draw_command.ClipRect.y
+			// 				}
+			// 			};
+			// 			vkCmdSetScissor(frame_cb, 0, 1, &scissor);
 
-						vkCmdDrawIndexed(frame_cb, draw_command.ElemCount, 1, draw_command.IdxOffset, draw_command.VtxOffset, 0);
-					}
-				}
-			}
+			// 			vkCmdDrawIndexed(frame_cb, draw_command.ElemCount, 1, draw_command.IdxOffset, draw_command.VtxOffset, 0);
+			// 		}
+			// 	}
+			// }
 
 			vkCmdEndRenderPass(frame_cb);
 			vkEndCommandBuffer(frame_cb);
@@ -582,9 +584,6 @@ int main(int argc, char* argv[]) {
 	//Cleanup resources
 
 	vkDestroySemaphore(vgd.device, graphics_timeline_semaphore, vgd.alloc_callbacks);
-
-	vkDestroyPipeline(vgd.device, vgd.get_graphics_pipeline(normal_pipeline_handle)->pipeline, vgd.alloc_callbacks);
-	vkDestroyPipeline(vgd.device, vgd.get_graphics_pipeline(wire_pipeline_handle)->pipeline, vgd.alloc_callbacks);
 	
     ImGui::DestroyContext();
 	SDL_Quit();
