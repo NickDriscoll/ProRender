@@ -103,6 +103,8 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 				device_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
 				vkGetPhysicalDeviceProperties2(device, &device_properties);
 
+				physical_limits = device_properties.properties.limits;
+
 				uint32_t queue_count = 0;
 				vkGetPhysicalDeviceQueueFamilyProperties2(device, &queue_count, nullptr);
 
@@ -172,6 +174,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 					printf("No support for sync2 on this device.\n");
 					exit(-1);
 				}
+
 				break;
 			};
 		}

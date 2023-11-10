@@ -17,11 +17,12 @@ struct Renderer {
 
 	//Buffer of per-frame uniform data
 	FrameUniforms frame_uniforms;
+	uint64_t frame_uniforms_buffer;
 
 	//TODO: Imgui data probably shouldn't be directly in init
 	uint64_t imgui_vertex_buffer;
 	uint64_t imgui_index_buffer;
-	ImguiFrame imgui_frames[FRAMES_IN_FLIGHT + 1];
+	ImguiFrame imgui_frames[FRAMES_IN_FLIGHT + 1] = {};
 
 	Renderer(VulkanGraphicsDevice* vgd);
 	~Renderer();

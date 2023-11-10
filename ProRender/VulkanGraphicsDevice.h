@@ -83,6 +83,7 @@ struct VulkanGraphicsDevice {
 	VkInstance instance;
 	VkPhysicalDevice physical_device;
 	VkPhysicalDeviceFeatures2 device_features;
+	VkPhysicalDeviceLimits physical_limits;
 	VkDevice device;
 	VkPipelineCache pipeline_cache;
 

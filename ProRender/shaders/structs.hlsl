@@ -1,3 +1,5 @@
+static const float PI = acos(-1);
+
 struct VertexOutput {
     float4 position : SV_Position;
     float3 color : COLOR;

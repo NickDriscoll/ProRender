@@ -8,11 +8,13 @@ Texture2D sampled_images[];
 SamplerState samplers[];
 
 [[vk::binding(2, 0)]]
-StructuredBuffer<FrameUniforms> frame_uniforms;
+ConstantBuffer<FrameUniforms> frame_uniforms;
 
 float4 main(ImguiVertexOutput input) : SV_Target0 {
 
     float4 atlas_sample = sampled_images[0].Sample(samplers[0], input.uv);
+    if (atlas_sample.a < 0.00001)
+        discard;
     
-    return atlas_sample;
+    return atlas_sample * input.color;
 }

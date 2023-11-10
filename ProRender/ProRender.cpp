@@ -249,6 +249,8 @@ int main(int argc, char* argv[]) {
 	Renderer renderer(&vgd);
 
 	init_timer.print("App init");
+				
+	printf("ImDrawVert size: %i bytes\n", sizeof(ImDrawVert));
 	
 	//Main loop
 	bool running = true;
@@ -415,12 +417,7 @@ int main(int argc, char* argv[]) {
 				uint32_t x = i & 1;
 				uint32_t y = i > 1;
 
-				uint32_t idx;
-				if (i == 0) {
-					idx = 0;
-				} else {
-					idx = image_indices[i];
-				}
+				uint32_t idx = image_indices[i];
 
 				uint32_t bytes[] = { std::bit_cast<uint32_t>(time), idx, x, y };
 				vkCmdPushConstants(frame_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, bytes);
@@ -429,82 +426,95 @@ int main(int argc, char* argv[]) {
 			}
 
 			//Upload ImGUI vertex data and record ImGUI draw commands
-			// {
-			// 	uint32_t frame_slot = current_frame % FRAMES_IN_FLIGHT;
-			// 	uint32_t last_frame_slot = frame_slot == 0 ? FRAMES_IN_FLIGHT - 1 : frame_slot - 1;
-			// 	ImguiFrame& current_frame = renderer.imgui_frames[frame_slot];
-			// 	ImguiFrame& last_frame = renderer.imgui_frames[last_frame_slot];
+			{
+				uint32_t frame_slot = current_frame % FRAMES_IN_FLIGHT;
+				uint32_t last_frame_slot = frame_slot == 0 ? FRAMES_IN_FLIGHT - 1 : frame_slot - 1;
+				ImguiFrame& current_frame = renderer.imgui_frames[frame_slot];
+				ImguiFrame& last_frame = renderer.imgui_frames[last_frame_slot];
 
-			 	ImGui::Render();
-			// 	ImDrawData* draw_data = ImGui::GetDrawData();
+				ImGui::Render();
+				ImDrawData* draw_data = ImGui::GetDrawData();
 
-			// 	uint32_t im_vertex_size = draw_data->TotalVtxCount * sizeof(ImDrawVert);
+				//const uint32_t dead_bytes_per_vertex = sizeof(ImDrawVert) - (sizeof(ImDrawVert) % vgd.physical_limits.minStorageBufferOffsetAlignment);
+				const uint32_t dead_bytes_per_vertex = 12;
+				uint32_t im_vertex_size = draw_data->TotalVtxCount * (sizeof(ImDrawVert) + dead_bytes_per_vertex);
 
-			// 	//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2
-			// 	uint32_t vertex_local_offset = 0;
-			// 	if (last_frame.vertex_start <= im_vertex_size) {
-			// 		vertex_local_offset = last_frame.vertex_start + last_frame.vertex_size;
-			// 	}
+				//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2
+				uint32_t vertex_local_offset = 0;
+				if (last_frame.vertex_start < im_vertex_size) {
+					vertex_local_offset = last_frame.vertex_start + last_frame.vertex_size;
+				}
+				current_frame.vertex_start = vertex_local_offset;
+				current_frame.vertex_size = im_vertex_size;
 
-			// 	VulkanBuffer* im_vert_buffer = vgd.get_buffer(renderer.imgui_vertex_buffer);
-			// 	uint8_t* vertex_ptr = vertex_local_offset + reinterpret_cast<uint8_t*>(im_vert_buffer->alloc_info.pMappedData);
-				
-			// 	uint32_t im_index_size = draw_data->TotalIdxCount * sizeof(ImDrawIdx);
+				VulkanBuffer* im_vert_buffer = vgd.get_buffer(renderer.imgui_vertex_buffer);
+				uint8_t* vertex_ptr = vertex_local_offset + reinterpret_cast<uint8_t*>(im_vert_buffer->alloc_info.pMappedData);
+			
+				uint32_t im_index_size = draw_data->TotalIdxCount * sizeof(ImDrawIdx);
 
-			// 	//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2
-			// 	uint32_t index_local_offset = 0;
-			// 	if (last_frame.vertex_start <= im_index_size) {
-			// 		index_local_offset = last_frame.index_start + last_frame.index_size;
-			// 	}
+				//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2
+				uint32_t index_local_offset = 0;
+				if (last_frame.index_start < im_index_size) {
+					index_local_offset = last_frame.index_start + last_frame.index_size;
+				}
+				current_frame.index_start = index_local_offset;
+				current_frame.index_size = im_index_size;
 
-			// 	VulkanBuffer* im_idx_buffer = vgd.get_buffer(renderer.imgui_index_buffer);
-			// 	uint8_t* index_ptr = index_local_offset + reinterpret_cast<uint8_t*>(im_idx_buffer->alloc_info.pMappedData);
+				VulkanBuffer* im_idx_buffer = vgd.get_buffer(renderer.imgui_index_buffer);
+				uint8_t* index_ptr = index_local_offset + reinterpret_cast<uint8_t*>(im_idx_buffer->alloc_info.pMappedData);
 
-			// 	//Bind index buffer
-			// 	vkCmdBindIndexBuffer(frame_cb, im_idx_buffer->buffer, index_local_offset, VK_INDEX_TYPE_UINT16);
-			// 	vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(imgui_pipeline)->pipeline);
+				//Bind index buffer
+				vkCmdBindIndexBuffer(frame_cb, im_idx_buffer->buffer, index_local_offset, VK_INDEX_TYPE_UINT16);
+				vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(imgui_pipeline)->pipeline);
 
-			// 	for (uint32_t i = 0; i < draw_data->CmdListsCount; i++) {
-			// 		ImDrawList* draw_list = draw_data->CmdLists[i];
-					
-			// 		//Copy vertex data
-			// 		memcpy(vertex_ptr, draw_list->VtxBuffer.Data, draw_list->VtxBuffer.Size);
-			// 		vertex_ptr += draw_list->VtxBuffer.Size * sizeof(ImDrawVert);
+				//Create intermediate vertex buffer
+				std::vector<uint8_t> vertex_buffer;
+				vertex_buffer.resize(im_vertex_size);
+				uint8_t* inter_vert_ptr = vertex_buffer.data();
 
-			// 		//Copy index data
-			// 		memcpy(index_ptr, draw_list->IdxBuffer.Data, draw_list->IdxBuffer.Size);
-			// 		index_ptr += draw_list->IdxBuffer.Size * sizeof(ImDrawIdx);
+				for (uint32_t i = 0; i < draw_data->CmdListsCount; i++) {
+					ImDrawList* draw_list = draw_data->CmdLists[i];
 
-			// 		//Record draw commands
-			// 		for (uint32_t j = 0; j < draw_list->CmdBuffer.Size; j++ ){
-			// 			ImDrawCmd& draw_command = draw_list->CmdBuffer[j];
+					//Copy vertex data into intermediate buffer
+					uint32_t inter_offset = 0;
+					uint32_t imgui_vert_offset = 0;
+					for (uint32_t j = 0; j < draw_list->VtxBuffer.Size; j++) {
+						uint8_t* read = reinterpret_cast<uint8_t*>(draw_list->VtxBuffer.Data) + imgui_vert_offset;
+						uint8_t* write = inter_vert_ptr + inter_offset;
+						memcpy(write, read, sizeof(ImDrawVert));
+						imgui_vert_offset += sizeof(ImDrawVert);
+						inter_offset += sizeof(ImDrawVert) + dead_bytes_per_vertex;
+					}
+					inter_vert_ptr += draw_list->VtxBuffer.Size * (sizeof(ImDrawVert) + dead_bytes_per_vertex);
 
-			// 			// VkViewport viewport = {
-			// 			// 	.x = 0,
-			// 			// 	.y = 0,
-			// 			// 	.width = (float)draw_command.,
-			// 			// 	.height = (float)window.y_resolution,
-			// 			// 	.minDepth = 0.0,
-			// 			// 	.maxDepth = 1.0
-			// 			// };
-			// 			// vkCmdSetViewport(frame_cb, 0, 1, &viewport);
+					//Copy index data
+					size_t copy_size = draw_list->IdxBuffer.Size * sizeof(ImDrawIdx);
+					memcpy(index_ptr, draw_list->IdxBuffer.Data, copy_size);
+					index_ptr += copy_size;
 
-			// 			VkRect2D scissor = {
-			// 				.offset = {
-			// 					.x = (int32_t)draw_command.ClipRect.x,
-			// 					.y = (int32_t)draw_command.ClipRect.y
-			// 				},
-			// 				.extent = {
-			// 					.width = (uint32_t)draw_command.ClipRect.z - (uint32_t)draw_command.ClipRect.x,
-			// 					.height = (uint32_t)draw_command.ClipRect.w - (uint32_t)draw_command.ClipRect.y
-			// 				}
-			// 			};
-			// 			vkCmdSetScissor(frame_cb, 0, 1, &scissor);
+					//Record draw commands
+					for (uint32_t j = 0; j < draw_list->CmdBuffer.Size; j++){
+						ImDrawCmd& draw_command = draw_list->CmdBuffer[j];
 
-			// 			vkCmdDrawIndexed(frame_cb, draw_command.ElemCount, 1, draw_command.IdxOffset, draw_command.VtxOffset, 0);
-			// 		}
-			// 	}
-			// }
+						VkRect2D scissor = {
+							.offset = {
+								.x = (int32_t)draw_command.ClipRect.x,
+								.y = (int32_t)draw_command.ClipRect.y
+							},
+							.extent = {
+								.width = (uint32_t)draw_command.ClipRect.z - (uint32_t)draw_command.ClipRect.x,
+								.height = (uint32_t)draw_command.ClipRect.w - (uint32_t)draw_command.ClipRect.y
+							}
+						};
+						//vkCmdSetScissor(frame_cb, 0, 1, &scissor);
+
+						vkCmdDrawIndexed(frame_cb, draw_command.ElemCount, 1, draw_command.IdxOffset, draw_command.VtxOffset, 0);
+					}
+				}
+
+				//Finally copy the intermediate vertex buffer to the real one on the GPU
+				memcpy(vertex_ptr, vertex_buffer.data(), vertex_buffer.size());
+			}
 
 			vkCmdEndRenderPass(frame_cb);
 			vkEndCommandBuffer(frame_cb);

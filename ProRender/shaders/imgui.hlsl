@@ -1,7 +1,10 @@
 struct ImguiVertex {
     float2 position : POSITION;
     float2 uv : UVS;
-    float4 color : COLOR;
+    uint color : COLOR;
+    uint _pad0;
+    uint _pad1;
+    uint _pad2;
 };
 
 struct ImguiVertexOutput {
