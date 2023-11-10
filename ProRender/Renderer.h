@@ -25,6 +25,7 @@ struct Renderer {
 	ImguiFrame imgui_frames[FRAMES_IN_FLIGHT + 1] = {};
 
 	Renderer(VulkanGraphicsDevice* vgd);
+	Renderer(VulkanGraphicsDevice* vgd, uint32_t width, uint32_t height);
 	~Renderer();
 
 private:

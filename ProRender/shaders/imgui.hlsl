@@ -10,5 +10,5 @@ struct ImguiVertex {
 struct ImguiVertexOutput {
     float4 position : SV_POSITION;
     float2 uv : UVS;
-    float4 color : COLOR;
+    uint color : COLOR;
 };

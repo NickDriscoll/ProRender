@@ -235,18 +235,17 @@ int main(int argc, char* argv[]) {
 		);
 	}
 
-	hlslpp::float4x4 projection_matrix = hlslpp::float4x4(
-		0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0
-	);
-
 	//Create graphics pipeline timeline semaphore
 	VkSemaphore graphics_timeline_semaphore = vgd.create_timeline_semaphore(0);
 
 	//Initialize the renderer
 	Renderer renderer(&vgd);
+    renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
+        2.0 / window.x_resolution, 0.0, 0.0, -1.0,
+        0.0, 2.0 / window.y_resolution, 0.0, -1.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
 
 	init_timer.print("App init");
 				
@@ -262,6 +261,7 @@ int main(int argc, char* argv[]) {
 
 		//Do input polling loop
 		{
+    		ImGuiIO& io = ImGui::GetIO();
 			SDL_Event event;
 			while (SDL_PollEvent(&event)) {
 				switch (event.type) {
@@ -272,8 +272,13 @@ int main(int argc, char* argv[]) {
 					switch (event.window.event) {
 						case SDL_WINDOWEVENT_SIZE_CHANGED:
 							window.resize(vgd);
-    						ImGuiIO& io = ImGui::GetIO();
-							io.DisplaySize = ImVec2(event.window.data1, event.window.data2);
+							io.DisplaySize = ImVec2(window.x_resolution, window.y_resolution);
+							renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
+								2.0 / window.x_resolution, 0.0, 0.0, -1.0,
+								0.0, 2.0 / window.y_resolution, 0.0, -1.0,
+								0.0, 0.0, 1.0, 0.0,
+								0.0, 0.0, 0.0, 1.0
+							);
 							break;
 					}
 					break;
@@ -286,6 +291,15 @@ int main(int argc, char* argv[]) {
 						}
 					}
 					break;
+				case SDL_MOUSEMOTION:
+					io.AddMousePosEvent(event.motion.x, event.motion.y);
+					break;
+				case SDL_MOUSEBUTTONDOWN:
+					io.AddMouseButtonEvent(event.button.which, true);
+					break;
+				case SDL_MOUSEBUTTONUP:
+					io.AddMouseButtonEvent(event.button.which, false);
+					break;
 				}
 			}
 		}
@@ -297,6 +311,12 @@ int main(int argc, char* argv[]) {
 
 			ImGui::NewFrame();
         	ImGui::ShowDemoWindow(nullptr);
+		}
+
+		//Update per-frame uniforms
+		{
+			VulkanBuffer* uniform_buffer = vgd.get_buffer(renderer.frame_uniforms_buffer);
+			memcpy(uniform_buffer->alloc_info.pMappedData, &renderer.frame_uniforms, sizeof(FrameUniforms));
 		}
 
 		//Draw
