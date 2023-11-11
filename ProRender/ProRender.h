@@ -36,6 +36,7 @@
 
 constexpr uint64_t U64_MAX = 0xFFFFFFFFFFFFFFFF;
 
-struct ConfigFile {
-
+struct Configuration {
+	uint32_t window_width;
+	uint32_t window_height;
 };

@@ -4,6 +4,11 @@ int main(int argc, char* argv[]) {
 	Timer init_timer = Timer("Init");
 	Timer app_timer = Timer("Main function");
 
+	Configuration my_config = {
+		.window_width = 1200,
+		.window_height = 900	
+	};
+
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);	//Initialize SDL
 	app_timer.print("SDL Initialization");
 	app_timer.start();
@@ -18,7 +23,7 @@ int main(int argc, char* argv[]) {
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
     	ImGuiIO& io = ImGui::GetIO();
-		io.DisplaySize = ImVec2(720, 720);
+		io.DisplaySize = ImVec2(my_config.window_width, my_config.window_height);
 
 		//Build and upload font atlas
 		uint8_t* tex_pixels = nullptr;
@@ -93,7 +98,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	uint32_t window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
-	SDL_Window* sdl_window = SDL_CreateWindow("losing my mind", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 720, 720, window_flags);
+	SDL_Window* sdl_window = SDL_CreateWindow("losing my mind", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, my_config.window_width, my_config.window_height, window_flags);
 	
 	//Init the vulkan window
 	VkSurfaceKHR window_surface;
@@ -300,6 +305,9 @@ int main(int argc, char* argv[]) {
 				case SDL_MOUSEBUTTONUP:
 					io.AddMouseButtonEvent(event.button.which, false);
 					break;
+				case SDL_MOUSEWHEEL:
+					io.AddMouseWheelEvent(event.wheel.preciseX, event.wheel.preciseY);
+					break;
 				}
 			}
 		}
@@ -455,9 +463,8 @@ int main(int argc, char* argv[]) {
 				ImGui::Render();
 				ImDrawData* draw_data = ImGui::GetDrawData();
 
-				//const uint32_t dead_bytes_per_vertex = sizeof(ImDrawVert) - (sizeof(ImDrawVert) % vgd.physical_limits.minStorageBufferOffsetAlignment);
-				const uint32_t dead_bytes_per_vertex = 12;
-				uint32_t im_vertex_size = draw_data->TotalVtxCount * (sizeof(ImDrawVert) + dead_bytes_per_vertex);
+				const uint32_t per_vertex_padding = vgd.physical_limits.minStorageBufferOffsetAlignment - (sizeof(ImDrawVert) % vgd.physical_limits.minStorageBufferOffsetAlignment);
+				uint32_t im_vertex_size = draw_data->TotalVtxCount * (sizeof(ImDrawVert) + per_vertex_padding);
 
 				//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2
 				uint32_t vertex_local_offset = 0;
@@ -483,7 +490,7 @@ int main(int argc, char* argv[]) {
 				VulkanBuffer* im_idx_buffer = vgd.get_buffer(renderer.imgui_index_buffer);
 				uint8_t* index_ptr = index_local_offset + reinterpret_cast<uint8_t*>(im_idx_buffer->alloc_info.pMappedData);
 
-				//Bind index buffer
+				//Record once-per-frame binding of index buffer and graphics pipeline
 				vkCmdBindIndexBuffer(frame_cb, im_idx_buffer->buffer, index_local_offset, VK_INDEX_TYPE_UINT16);
 				vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(imgui_pipeline)->pipeline);
 
@@ -496,16 +503,16 @@ int main(int argc, char* argv[]) {
 					ImDrawList* draw_list = draw_data->CmdLists[i];
 
 					//Copy vertex data into intermediate buffer
-					uint32_t inter_offset = 0;
 					uint32_t imgui_vert_offset = 0;
+					uint32_t inter_offset = 0;
 					for (uint32_t j = 0; j < draw_list->VtxBuffer.Size; j++) {
 						uint8_t* read = reinterpret_cast<uint8_t*>(draw_list->VtxBuffer.Data) + imgui_vert_offset;
 						uint8_t* write = inter_vert_ptr + inter_offset;
 						memcpy(write, read, sizeof(ImDrawVert));
 						imgui_vert_offset += sizeof(ImDrawVert);
-						inter_offset += sizeof(ImDrawVert) + dead_bytes_per_vertex;
+						inter_offset += sizeof(ImDrawVert) + per_vertex_padding;
 					}
-					inter_vert_ptr += draw_list->VtxBuffer.Size * (sizeof(ImDrawVert) + dead_bytes_per_vertex);
+					inter_vert_ptr += draw_list->VtxBuffer.Size * (sizeof(ImDrawVert) + per_vertex_padding);
 
 					//Copy index data
 					size_t copy_size = draw_list->IdxBuffer.Size * sizeof(ImDrawIdx);
@@ -526,9 +533,9 @@ int main(int argc, char* argv[]) {
 								.height = (uint32_t)draw_command.ClipRect.w - (uint32_t)draw_command.ClipRect.y
 							}
 						};
-						//vkCmdSetScissor(frame_cb, 0, 1, &scissor);
+						vkCmdSetScissor(frame_cb, 0, 1, &scissor);
 
-						vkCmdDrawIndexed(frame_cb, draw_command.ElemCount, 1, draw_command.IdxOffset, draw_command.VtxOffset, 0);
+						vkCmdDrawIndexed(frame_cb, draw_command.ElemCount, 1, draw_command.IdxOffset, draw_command.VtxOffset + (vertex_local_offset / (sizeof(ImDrawVert) + per_vertex_padding)), 0);
 					}
 				}
 
