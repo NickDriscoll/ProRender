@@ -77,9 +77,9 @@ uint64_t slotmap<T>::insert(T thing) {
     uint32_t generation = generation_bits[free_idx];
     uint32_t live_idx = free_idx / 64;
     if (live_bits.size() <= live_idx) {
-        live_bits.push_back(1 << (free_idx % 64));
+        live_bits.push_back((uint64_t)1 << ((uint64_t)free_idx % 64));
     } else {
-        live_bits[live_idx] |= 1 << (free_idx % 64);
+        live_bits[live_idx] |= (uint64_t)1 << ((uint64_t)free_idx % 64);
     }
     _count += 1;
     return (static_cast<uint64_t>(generation) << 32) | static_cast<uint64_t>(free_idx);

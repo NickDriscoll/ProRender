@@ -919,7 +919,7 @@ void VulkanGraphicsDevice::destroy_buffer(uint64_t key) {
 void VulkanGraphicsDevice::submit_image_upload_batch(uint64_t id, const std::vector<RawImage>& raw_images, const std::vector<VkFormat>& image_formats) {
 	VulkanImageUploadBatch current_batch = {};
 
-	uint32_t image_count = raw_images.size();
+	uint32_t image_count = (uint32_t)raw_images.size();
 	std::vector<uint32_t> mip_counts;
 	mip_counts.reserve(image_count);
 	VkDeviceSize total_staging_size = 0;
@@ -1239,7 +1239,7 @@ void VulkanGraphicsDevice::load_images_impl() {
 		//Loading images from memory
 		while (_raw_image_batch_queue.size() > 0) {
 			RawImageBatchParameters& params = _raw_image_batch_queue.front();
-			uint32_t image_count = params.raw_images.size();
+			uint32_t image_count = (uint32_t)params.raw_images.size();
 
 			this->submit_image_upload_batch(params.id, params.raw_images, params.image_formats);
 
@@ -1252,7 +1252,7 @@ void VulkanGraphicsDevice::load_images_impl() {
 		//Loading images from files
 		while (_image_file_batch_queue.size() > 0) {
 			FileImageBatchParameters& params = _image_file_batch_queue.front();
-			uint32_t image_count = params.filenames.size();
+			uint32_t image_count = (uint32_t)params.filenames.size();
 
 			//Load image data from disk
 			std::vector<RawImage> raw_images;
