@@ -23,7 +23,7 @@ int main(int argc, char* argv[]) {
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
     	ImGuiIO& io = ImGui::GetIO();
-		io.DisplaySize = ImVec2(my_config.window_width, my_config.window_height);
+		io.DisplaySize = ImVec2((float)my_config.window_width, (float)my_config.window_height);
 
 		//Build and upload font atlas
 		uint8_t* tex_pixels = nullptr;
@@ -53,10 +53,10 @@ int main(int argc, char* argv[]) {
 			exit(-1);
 		}
 	
-		uint32_t tex_index = 0;
+		uint64_t tex_index = 0;
 		uint32_t seen = 0;
-		for (uint32_t j = 0; seen < vgd.available_images.count(); j++) {
-			if (!vgd.available_images.is_live(j)) continue;
+		for (uint64_t j = 0; seen < vgd.available_images.count(); j++) {
+			if (!vgd.available_images.is_live((uint32_t)j)) continue;
 			seen += 1;
 
 			VulkanAvailableImage* image = vgd.available_images.data() + j;
@@ -66,7 +66,7 @@ int main(int argc, char* argv[]) {
 			}
 		}
 
-		io.Fonts->SetTexID((void*)tex_index);
+		io.Fonts->SetTexID(std::bit_cast<void*>(tex_index));
 	}
 	app_timer.print("Dear ImGUI Initialization");
 	app_timer.start();
@@ -246,15 +246,13 @@ int main(int argc, char* argv[]) {
 	//Initialize the renderer
 	Renderer renderer(&vgd);
     renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
-        2.0 / window.x_resolution, 0.0, 0.0, -1.0,
-        0.0, 2.0 / window.y_resolution, 0.0, -1.0,
-        0.0, 0.0, 1.0, 0.0,
-        0.0, 0.0, 0.0, 1.0
+        2.0f / (float)window.x_resolution, 0.0f, 0.0f, -1.0f,
+        0.0f, 2.0f / (float)window.y_resolution, 0.0f, -1.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
     );
 
 	init_timer.print("App init");
-				
-	printf("ImDrawVert size: %i bytes\n", sizeof(ImDrawVert));
 	
 	//Main loop
 	bool running = true;
@@ -275,16 +273,16 @@ int main(int argc, char* argv[]) {
 					break;
 				case SDL_WINDOWEVENT:
 					switch (event.window.event) {
-						case SDL_WINDOWEVENT_SIZE_CHANGED:
-							window.resize(vgd);
-							io.DisplaySize = ImVec2(window.x_resolution, window.y_resolution);
-							renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
-								2.0 / window.x_resolution, 0.0, 0.0, -1.0,
-								0.0, 2.0 / window.y_resolution, 0.0, -1.0,
-								0.0, 0.0, 1.0, 0.0,
-								0.0, 0.0, 0.0, 1.0
-							);
-							break;
+					case SDL_WINDOWEVENT_SIZE_CHANGED:
+						window.resize(vgd);
+						io.DisplaySize = ImVec2((float)window.x_resolution, (float)window.y_resolution);
+						renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
+							2.0f / (float)window.x_resolution, 0.0f, 0.0f, -1.0f,
+							0.0f, 2.0f / (float)window.y_resolution, 0.0f, -1.0f,
+							0.0f, 0.0f, 1.0f, 0.0f,
+							0.0f, 0.0f, 0.0f, 1.0f
+						);
+						break;
 					}
 					break;
 				case SDL_KEYDOWN:
@@ -297,7 +295,7 @@ int main(int argc, char* argv[]) {
 					}
 					break;
 				case SDL_MOUSEMOTION:
-					io.AddMousePosEvent(event.motion.x, event.motion.y);
+					io.AddMousePosEvent((float)event.motion.x, (float)event.motion.y);
 					break;
 				case SDL_MOUSEBUTTONDOWN:
 					io.AddMouseButtonEvent(event.button.which, true);
@@ -315,7 +313,7 @@ int main(int argc, char* argv[]) {
 		//Dear ImGUI update part
 		{
     		ImGuiIO& io = ImGui::GetIO();
-			io.DeltaTime = last_frame_took;
+			io.DeltaTime = (float)last_frame_took;
 
 			ImGui::NewFrame();
         	ImGui::ShowDemoWindow(nullptr);
@@ -396,11 +394,11 @@ int main(int argc, char* argv[]) {
 				};
 
 				VkClearValue clear_color;
-				clear_color.color.float32[0] = 0.1;
-				clear_color.color.float32[1] = 0.0;
-				clear_color.color.float32[2] = 0.9;
-				clear_color.color.float32[3] = 1.0;
-				clear_color.depthStencil.depth = 0.0;
+				clear_color.color.float32[0] = 0.1f;
+				clear_color.color.float32[1] = 0.0f;
+				clear_color.color.float32[2] = 0.9f;
+				clear_color.color.float32[3] = 1.0f;
+				clear_color.depthStencil.depth = 0.0f;
 				clear_color.depthStencil.stencil = 0;
 
 				VkRenderPassBeginInfo info = {};
@@ -439,7 +437,7 @@ int main(int argc, char* argv[]) {
 				vkCmdSetScissor(frame_cb, 0, 1, &scissor);
 			}
 
-			float time = app_timer.check() * 1.5f / 1000.0f;
+			float time = (float)app_timer.check() * 1.5f / 1000.0f;
 
 			for (uint32_t i = 0; i < image_indices.size(); i++) {
 				uint32_t x = i & 1;
@@ -463,7 +461,7 @@ int main(int argc, char* argv[]) {
 				ImGui::Render();
 				ImDrawData* draw_data = ImGui::GetDrawData();
 
-				const uint32_t per_vertex_padding = vgd.physical_limits.minStorageBufferOffsetAlignment - (sizeof(ImDrawVert) % vgd.physical_limits.minStorageBufferOffsetAlignment);
+				const uint32_t per_vertex_padding = (uint32_t)(vgd.physical_limits.minStorageBufferOffsetAlignment - (sizeof(ImDrawVert) % vgd.physical_limits.minStorageBufferOffsetAlignment));
 				uint32_t im_vertex_size = draw_data->TotalVtxCount * (sizeof(ImDrawVert) + per_vertex_padding);
 
 				//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2
@@ -499,14 +497,15 @@ int main(int argc, char* argv[]) {
 				vertex_buffer.resize(im_vertex_size);
 				uint8_t* inter_vert_ptr = vertex_buffer.data();
 
-				for (uint32_t i = 0; i < draw_data->CmdListsCount; i++) {
+				uint32_t idx_offset = 0;
+				for (int32_t i = 0; i < draw_data->CmdListsCount; i++) {
 					ImDrawList* draw_list = draw_data->CmdLists[i];
 
 					//Copy vertex data into intermediate buffer
 					uint32_t imgui_vert_offset = 0;
 					uint32_t inter_offset = 0;
-					for (uint32_t j = 0; j < draw_list->VtxBuffer.Size; j++) {
-						uint8_t* read = reinterpret_cast<uint8_t*>(draw_list->VtxBuffer.Data) + imgui_vert_offset;
+					for (int32_t j = 0; j < draw_list->VtxBuffer.Size; j++) {
+						uint8_t* read = std::bit_cast<uint8_t*>(draw_list->VtxBuffer.Data) + imgui_vert_offset;
 						uint8_t* write = inter_vert_ptr + inter_offset;
 						memcpy(write, read, sizeof(ImDrawVert));
 						imgui_vert_offset += sizeof(ImDrawVert);
@@ -520,7 +519,7 @@ int main(int argc, char* argv[]) {
 					index_ptr += copy_size;
 
 					//Record draw commands
-					for (uint32_t j = 0; j < draw_list->CmdBuffer.Size; j++){
+					for (int32_t j = 0; j < draw_list->CmdBuffer.Size; j++){
 						ImDrawCmd& draw_command = draw_list->CmdBuffer[j];
 
 						VkRect2D scissor = {
@@ -535,8 +534,11 @@ int main(int argc, char* argv[]) {
 						};
 						vkCmdSetScissor(frame_cb, 0, 1, &scissor);
 
-						vkCmdDrawIndexed(frame_cb, draw_command.ElemCount, 1, draw_command.IdxOffset, draw_command.VtxOffset + (vertex_local_offset / (sizeof(ImDrawVert) + per_vertex_padding)), 0);
+						vkCmdDrawIndexed(frame_cb, draw_command.ElemCount, 1, draw_command.IdxOffset + idx_offset, draw_command.VtxOffset + (vertex_local_offset / (sizeof(ImDrawVert) + per_vertex_padding)), 0);
 					}
+
+
+					idx_offset += draw_list->IdxBuffer.Size;
 				}
 
 				//Finally copy the intermediate vertex buffer to the real one on the GPU

@@ -74,16 +74,6 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
     this->vgd = vgd;
 }
 
-Renderer::Renderer(VulkanGraphicsDevice* vgd, uint32_t width, uint32_t height) {
-    *this = Renderer::Renderer(vgd);
-    frame_uniforms.clip_from_screen = hlslpp::float4x4(
-        2.0 / width, 0.0, 0.0, 0.0,
-        0.0, 2.0 / height, 0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
-        0.0, 0.0, 0.0, 1.0
-    );
-}
-
 Renderer::~Renderer() {
     vgd->destroy_buffer(imgui_vertex_buffer);
     vgd->destroy_buffer(imgui_index_buffer);
