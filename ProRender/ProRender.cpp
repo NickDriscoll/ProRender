@@ -506,8 +506,8 @@ int main(int argc, char* argv[]) {
 					//Copy vertex data into respective buffers
 					for (int32_t j = 0; j < draw_list->VtxBuffer.Size; j++) {
 						ImDrawVert* vert = draw_list->VtxBuffer.Data + j;
-						uint32_t vector_offset = j * 2 * sizeof(float);
-						uint32_t int_offset = j * sizeof(uint32_t);
+						uint32_t vector_offset = (j + vtx_offset) * 2 * sizeof(float);
+						uint32_t int_offset = (j + vtx_offset) * sizeof(uint32_t);
 						memcpy(imgui_positions.data() + vector_offset, &vert->pos, 2 * sizeof(float));
 						memcpy(imgui_uvs.data() + vector_offset, &vert->uv, 2 * sizeof(float));
 						memcpy(imgui_colors.data() + int_offset, &vert->col, sizeof(uint32_t));
