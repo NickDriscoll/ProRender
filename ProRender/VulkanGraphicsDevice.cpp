@@ -303,6 +303,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	timer.print("Transfer command pool creation");
 	timer.start();
 
+	//Allocate graphics command buffers
 	{
 		std::vector<VkCommandBuffer> storage;
 		storage.resize(128);
@@ -321,6 +322,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		_graphics_command_buffers = std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>>(storage);
 	}
 
+	//Allocate transfer command buffers
 	{
 		std::vector<VkCommandBuffer> storage;
 		storage.resize(128);
@@ -446,13 +448,40 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 			bindings.push_back(frame_uniform_binding);
 			bindings_flags.push_back(binding_flags);
 
-			VkDescriptorSetLayoutBinding imgui_vertex_binding = {
+			// VkDescriptorSetLayoutBinding imgui_vertex_binding = {
+			// 	.binding = 3,
+			// 	.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			// 	.descriptorCount = 1,
+			// 	.stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+			// };
+			// bindings.push_back(imgui_vertex_binding);
+			// bindings_flags.push_back(binding_flags);
+
+			VkDescriptorSetLayoutBinding imgui_pos_binding = {
 				.binding = 3,
 				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
 				.descriptorCount = 1,
 				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT
 			};
-			bindings.push_back(imgui_vertex_binding);
+			bindings.push_back(imgui_pos_binding);
+			bindings_flags.push_back(binding_flags);
+
+			VkDescriptorSetLayoutBinding imgui_uv_binding = {
+				.binding = 4,
+				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				.descriptorCount = 1,
+				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+			};
+			bindings.push_back(imgui_uv_binding);
+			bindings_flags.push_back(binding_flags);
+
+			VkDescriptorSetLayoutBinding imgui_color_binding = {
+				.binding = 5,
+				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				.descriptorCount = 1,
+				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+			};
+			bindings.push_back(imgui_color_binding);
 			bindings_flags.push_back(binding_flags);
 
 			VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info = {

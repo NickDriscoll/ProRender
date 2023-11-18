@@ -5,15 +5,27 @@
 ConstantBuffer<FrameUniforms> frame_uniforms;
 
 [[vk::binding(3, 0)]]
-StructuredBuffer<ImguiVertex> imgui_vertices;
+StructuredBuffer<ImguiPositionBlock> imgui_positions;
+
+[[vk::binding(4, 0)]]
+StructuredBuffer<ImguiUvBlock> imgui_uvs;
+
+[[vk::binding(5, 0)]]
+StructuredBuffer<ImguiColorBlock> imgui_colors;
 
 ImguiVertexOutput main(uint idx : SV_VertexID) {
-    ImguiVertex vi = imgui_vertices[idx];
+    float2 pos = imgui_positions[idx / 8].positions[idx % 8];
+    //float2 pos = imgui_positions[idx];
+
+    float2 uv = imgui_uvs[idx / 8].uvs[idx % 8];
+    uint color = imgui_colors[idx / 16].colors[idx % 16];
 
     ImguiVertexOutput vo;
-    vo.position = mul(float4(vi.position, 0.0, 1.0), frame_uniforms.clip_from_screen);
-    vo.uv = vi.uv;
-    vo.color = vi.color;
+    vo.position = mul(float4(pos, 0.0, 1.0), frame_uniforms.clip_from_screen);
+    //vo.uv = vi.uv;
+    vo.uv = uv;
+    //vo.color = vi.color;
+    vo.color = color;
 
     return vo;
 }

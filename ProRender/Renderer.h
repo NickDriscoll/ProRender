@@ -20,7 +20,10 @@ struct Renderer {
 	uint64_t frame_uniforms_buffer;
 
 	//TODO: Imgui data probably shouldn't be directly in init
-	uint64_t imgui_vertex_buffer;
+	//uint64_t imgui_vertex_buffer;
+	uint64_t imgui_position_buffer;
+	uint64_t imgui_uv_buffer;
+	uint64_t imgui_color_buffer;
 	uint64_t imgui_index_buffer;
 	ImguiFrame imgui_frames[FRAMES_IN_FLIGHT + 1] = {};
 

@@ -7,6 +7,18 @@ struct ImguiVertex {
     uint _pad2;
 };
 
+struct ImguiPositionBlock {
+    float2 positions[8];
+};
+
+struct ImguiUvBlock {
+    float2 uvs[8];
+};
+
+struct ImguiColorBlock {
+    uint colors[16];
+};
+
 struct ImguiVertexOutput {
     float4 position : SV_POSITION;
     float2 uv : UVS;

@@ -93,8 +93,8 @@ int main(int argc, char* argv[]) {
 			VK_FORMAT_R8G8B8A8_UNORM
 		};
 
-		batch_ids.push_back(vgd.load_image_files(std::move(filenames), std::move(formats)));
-		batch_ids.push_back(vgd.load_image_files(std::move(filenames2), std::move(formats2)));
+		batch_ids.push_back(vgd.load_image_files(filenames, formats));
+		batch_ids.push_back(vgd.load_image_files(filenames2, formats2));
 	}
 
 	uint32_t window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
@@ -461,62 +461,62 @@ int main(int argc, char* argv[]) {
 				ImGui::Render();
 				ImDrawData* draw_data = ImGui::GetDrawData();
 
-				const uint32_t per_vertex_padding = (uint32_t)(vgd.physical_limits.minStorageBufferOffsetAlignment - (sizeof(ImDrawVert) % vgd.physical_limits.minStorageBufferOffsetAlignment));
-				uint32_t im_vertex_size = draw_data->TotalVtxCount * (sizeof(ImDrawVert) + per_vertex_padding);
-
 				//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2
-				uint32_t vertex_local_offset = 0;
-				if (last_frame.vertex_start < im_vertex_size) {
-					vertex_local_offset = last_frame.vertex_start + last_frame.vertex_size;
+				uint32_t current_vertex_offset = 0;
+				if (last_frame.vertex_start < draw_data->TotalVtxCount) {
+					current_vertex_offset = last_frame.vertex_start + last_frame.vertex_size;
 				}
-				current_frame.vertex_start = vertex_local_offset;
-				current_frame.vertex_size = im_vertex_size;
+				current_frame.vertex_start = current_vertex_offset;
+				current_frame.vertex_size = draw_data->TotalVtxCount;
 
-				VulkanBuffer* im_vert_buffer = vgd.get_buffer(renderer.imgui_vertex_buffer);
-				uint8_t* vertex_ptr = vertex_local_offset + reinterpret_cast<uint8_t*>(im_vert_buffer->alloc_info.pMappedData);
-			
-				uint32_t im_index_size = draw_data->TotalIdxCount * sizeof(ImDrawIdx);
-
-				//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2
-				uint32_t index_local_offset = 0;
-				if (last_frame.index_start < im_index_size) {
-					index_local_offset = last_frame.index_start + last_frame.index_size;
+				uint32_t current_index_offset = 0;
+				if (last_frame.index_start < draw_data->TotalIdxCount) {
+					current_index_offset = last_frame.index_start + last_frame.index_size;
 				}
-				current_frame.index_start = index_local_offset;
-				current_frame.index_size = im_index_size;
+				current_frame.index_start = current_index_offset;
+				current_frame.index_size = draw_data->TotalIdxCount;
 
-				VulkanBuffer* im_idx_buffer = vgd.get_buffer(renderer.imgui_index_buffer);
-				uint8_t* index_ptr = index_local_offset + reinterpret_cast<uint8_t*>(im_idx_buffer->alloc_info.pMappedData);
+				VulkanBuffer* gpu_imgui_positions = vgd.get_buffer(renderer.imgui_position_buffer);
+				VulkanBuffer* gpu_imgui_uvs = vgd.get_buffer(renderer.imgui_uv_buffer);
+				VulkanBuffer* gpu_imgui_colors = vgd.get_buffer(renderer.imgui_color_buffer);
+				VulkanBuffer* gpu_imgui_indices = vgd.get_buffer(renderer.imgui_index_buffer);
+				
+				uint8_t* gpu_pos_ptr = std::bit_cast<uint8_t*>(gpu_imgui_positions->alloc_info.pMappedData);
+				uint8_t* gpu_uv_ptr = std::bit_cast<uint8_t*>(gpu_imgui_uvs->alloc_info.pMappedData);
+				uint8_t* gpu_col_ptr = std::bit_cast<uint8_t*>(gpu_imgui_colors->alloc_info.pMappedData);
+				uint8_t* gpu_idx_ptr = std::bit_cast<uint8_t*>(gpu_imgui_indices->alloc_info.pMappedData);
 
 				//Record once-per-frame binding of index buffer and graphics pipeline
-				vkCmdBindIndexBuffer(frame_cb, im_idx_buffer->buffer, index_local_offset, VK_INDEX_TYPE_UINT16);
+				vkCmdBindIndexBuffer(frame_cb, gpu_imgui_indices->buffer, current_index_offset * sizeof(ImDrawIdx), VK_INDEX_TYPE_UINT16);
 				vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(imgui_pipeline)->pipeline);
 
-				//Create intermediate vertex buffer
-				std::vector<uint8_t> vertex_buffer;
-				vertex_buffer.resize(im_vertex_size);
-				uint8_t* inter_vert_ptr = vertex_buffer.data();
+				//Create intermediate buffers for Imgui vertex attributes
+				std::vector<uint8_t> imgui_positions;
+				imgui_positions.resize(draw_data->TotalVtxCount * sizeof(float) * 2);
+				std::vector<uint8_t> imgui_uvs;
+				imgui_uvs.resize(draw_data->TotalVtxCount * sizeof(float) * 2);
+				std::vector<uint8_t> imgui_colors;
+				imgui_colors.resize(draw_data->TotalVtxCount * sizeof(uint32_t));
 
+				uint32_t vtx_offset = 0;
 				uint32_t idx_offset = 0;
 				for (int32_t i = 0; i < draw_data->CmdListsCount; i++) {
 					ImDrawList* draw_list = draw_data->CmdLists[i];
 
-					//Copy vertex data into intermediate buffer
-					uint32_t imgui_vert_offset = 0;
-					uint32_t inter_offset = 0;
+					//Copy vertex data into respective buffers
 					for (int32_t j = 0; j < draw_list->VtxBuffer.Size; j++) {
-						uint8_t* read = std::bit_cast<uint8_t*>(draw_list->VtxBuffer.Data) + imgui_vert_offset;
-						uint8_t* write = inter_vert_ptr + inter_offset;
-						memcpy(write, read, sizeof(ImDrawVert));
-						imgui_vert_offset += sizeof(ImDrawVert);
-						inter_offset += sizeof(ImDrawVert) + per_vertex_padding;
+						ImDrawVert* vert = draw_list->VtxBuffer.Data + j;
+						uint32_t vector_offset = j * 2 * sizeof(float);
+						uint32_t int_offset = j * sizeof(uint32_t);
+						memcpy(imgui_positions.data() + vector_offset, &vert->pos, 2 * sizeof(float));
+						memcpy(imgui_uvs.data() + vector_offset, &vert->uv, 2 * sizeof(float));
+						memcpy(imgui_colors.data() + int_offset, &vert->col, sizeof(uint32_t));
 					}
-					inter_vert_ptr += draw_list->VtxBuffer.Size * (sizeof(ImDrawVert) + per_vertex_padding);
 
 					//Copy index data
 					size_t copy_size = draw_list->IdxBuffer.Size * sizeof(ImDrawIdx);
-					memcpy(index_ptr, draw_list->IdxBuffer.Data, copy_size);
-					index_ptr += copy_size;
+					size_t copy_offset = (idx_offset + current_index_offset) * sizeof(ImDrawIdx);
+					memcpy(gpu_idx_ptr + copy_offset, draw_list->IdxBuffer.Data, copy_size);
 
 					//Record draw commands
 					for (int32_t j = 0; j < draw_list->CmdBuffer.Size; j++){
@@ -534,15 +534,18 @@ int main(int argc, char* argv[]) {
 						};
 						vkCmdSetScissor(frame_cb, 0, 1, &scissor);
 
-						vkCmdDrawIndexed(frame_cb, draw_command.ElemCount, 1, draw_command.IdxOffset + idx_offset, draw_command.VtxOffset + (vertex_local_offset / (sizeof(ImDrawVert) + per_vertex_padding)), 0);
+						vkCmdDrawIndexed(frame_cb, draw_command.ElemCount, 1, draw_command.IdxOffset + idx_offset, draw_command.VtxOffset + current_vertex_offset + vtx_offset, 0);
 					}
-
-
+					vtx_offset += draw_list->VtxBuffer.Size;
 					idx_offset += draw_list->IdxBuffer.Size;
 				}
 
-				//Finally copy the intermediate vertex buffer to the real one on the GPU
-				memcpy(vertex_ptr, vertex_buffer.data(), vertex_buffer.size());
+				//Finally copy the intermediate vertex buffers to the real ones on the GPU
+				uint32_t vector_offset = current_vertex_offset * 2 * sizeof(float);
+				uint32_t int_offset = current_vertex_offset * sizeof(uint32_t);
+				memcpy(gpu_pos_ptr + vector_offset, imgui_positions.data(), imgui_positions.size());
+				memcpy(gpu_uv_ptr + vector_offset, imgui_uvs.data(), imgui_uvs.size());
+				memcpy(gpu_col_ptr + int_offset, imgui_colors.data(), imgui_colors.size());
 			}
 
 			vkCmdEndRenderPass(frame_cb);
