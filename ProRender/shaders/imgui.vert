@@ -15,16 +15,13 @@ StructuredBuffer<ImguiColorBlock> imgui_colors;
 
 ImguiVertexOutput main(uint idx : SV_VertexID) {
     float2 pos = imgui_positions[idx / 8].positions[idx % 8];
-    //float2 pos = imgui_positions[idx];
 
     float2 uv = imgui_uvs[idx / 8].uvs[idx % 8];
     uint color = imgui_colors[idx / 16].colors[idx % 16];
 
     ImguiVertexOutput vo;
     vo.position = mul(float4(pos, 0.0, 1.0), frame_uniforms.clip_from_screen);
-    //vo.uv = vi.uv;
     vo.uv = uv;
-    //vo.color = vi.color;
     vo.color = color;
 
     return vo;

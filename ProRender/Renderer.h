@@ -25,7 +25,7 @@ struct Renderer {
 	uint64_t imgui_uv_buffer;
 	uint64_t imgui_color_buffer;
 	uint64_t imgui_index_buffer;
-	ImguiFrame imgui_frames[FRAMES_IN_FLIGHT + 1] = {};
+	ImguiFrame imgui_frames[FRAMES_IN_FLIGHT] = {};
 
 	Renderer(VulkanGraphicsDevice* vgd);
 	~Renderer();
@@ -33,3 +33,5 @@ struct Renderer {
 private:
 	VulkanGraphicsDevice* vgd;		//Very dangerous and dubiously recommended
 };
+
+enum ImGuiKey SDL2ToImGuiKey(int keycode);

@@ -293,6 +293,14 @@ int main(int argc, char* argv[]) {
 							current_pipeline_handle = normal_pipeline_handle;
 						}
 					}
+					
+					//Pass keystroke to imgui
+					io.AddKeyEvent(SDL2ToImGuiKey(event.key.keysym.sym), true);
+					io.AddInputCharacter(event.key.keysym.sym);
+
+					break;
+				case SDL_KEYUP:
+					io.AddKeyEvent(SDL2ToImGuiKey(event.key.keysym.sym), false);
 					break;
 				case SDL_MOUSEMOTION:
 					io.AddMousePosEvent((float)event.motion.x, (float)event.motion.y);
@@ -313,7 +321,7 @@ int main(int argc, char* argv[]) {
 		//Dear ImGUI update part
 		{
     		ImGuiIO& io = ImGui::GetIO();
-			io.DeltaTime = (float)last_frame_took;
+			io.DeltaTime = (float)(last_frame_took / 1000.0);
 
 			ImGui::NewFrame();
         	ImGui::ShowDemoWindow(nullptr);
