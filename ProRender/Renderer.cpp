@@ -32,81 +32,78 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
 	{
 		std::vector<VkWriteDescriptorSet> descriptor_writes;
         
-        {
-            VkDescriptorBufferInfo buffer_info = {
-                .buffer = vgd->get_buffer(frame_uniforms_buffer)->buffer,
-                .offset = 0,
-                .range = VK_WHOLE_SIZE
-            };
-            
-            VkWriteDescriptorSet write = {
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = vgd->descriptor_set,
-                .dstBinding = 2,
-                .dstArrayElement = 0,
-                .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .pBufferInfo = &buffer_info
-            };
-            descriptor_writes.push_back(write);
-        }
+        
+        VkDescriptorBufferInfo uniform_buffer_info = {
+            .buffer = vgd->get_buffer(frame_uniforms_buffer)->buffer,
+            .offset = 0,
+            .range = VK_WHOLE_SIZE
+        };
+        
+        VkWriteDescriptorSet uniform_write = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = vgd->descriptor_set,
+            .dstBinding = 2,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .pBufferInfo = &uniform_buffer_info
+        };
+        descriptor_writes.push_back(uniform_write);
+        
 
-        {
-            VkDescriptorBufferInfo buffer_info = {
-                .buffer = vgd->get_buffer(imgui_position_buffer)->buffer,
-                .offset = 0,
-                .range = VK_WHOLE_SIZE
-            };
-            
-            VkWriteDescriptorSet write = {
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = vgd->descriptor_set,
-                .dstBinding = 3,
-                .dstArrayElement = 0,
-                .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .pBufferInfo = &buffer_info
-            };
-            descriptor_writes.push_back(write);
-        }
+        
+        VkDescriptorBufferInfo im_pos_buffer_info = {
+            .buffer = vgd->get_buffer(imgui_position_buffer)->buffer,
+            .offset = 0,
+            .range = VK_WHOLE_SIZE
+        };
+        
+        VkWriteDescriptorSet im_pos_write = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = vgd->descriptor_set,
+            .dstBinding = 3,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .pBufferInfo = &im_pos_buffer_info
+        };
+        descriptor_writes.push_back(im_pos_write);
+        
+        VkDescriptorBufferInfo im_uv_buffer_info = {
+            .buffer = vgd->get_buffer(imgui_uv_buffer)->buffer,
+            .offset = 0,
+            .range = VK_WHOLE_SIZE
+        };
+        
+        VkWriteDescriptorSet im_uv_write = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = vgd->descriptor_set,
+            .dstBinding = 4,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .pBufferInfo = &im_uv_buffer_info
+        };
+        descriptor_writes.push_back(im_uv_write);
+        
 
-        {
-            VkDescriptorBufferInfo buffer_info = {
-                .buffer = vgd->get_buffer(imgui_uv_buffer)->buffer,
-                .offset = 0,
-                .range = VK_WHOLE_SIZE
-            };
-            
-            VkWriteDescriptorSet write = {
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = vgd->descriptor_set,
-                .dstBinding = 4,
-                .dstArrayElement = 0,
-                .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .pBufferInfo = &buffer_info
-            };
-            descriptor_writes.push_back(write);
-        }
-
-        {
-            VkDescriptorBufferInfo buffer_info = {
-                .buffer = vgd->get_buffer(imgui_color_buffer)->buffer,
-                .offset = 0,
-                .range = VK_WHOLE_SIZE
-            };
-            
-            VkWriteDescriptorSet write = {
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = vgd->descriptor_set,
-                .dstBinding = 5,
-                .dstArrayElement = 0,
-                .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .pBufferInfo = &buffer_info
-            };
-            descriptor_writes.push_back(write);
-        }
+        
+        VkDescriptorBufferInfo im_col_buffer_info = {
+            .buffer = vgd->get_buffer(imgui_color_buffer)->buffer,
+            .offset = 0,
+            .range = VK_WHOLE_SIZE
+        };
+        
+        VkWriteDescriptorSet im_col_write = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = vgd->descriptor_set,
+            .dstBinding = 5,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .pBufferInfo = &im_col_buffer_info
+        };
+        descriptor_writes.push_back(im_col_write);
 
         vkUpdateDescriptorSets(vgd->device, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
 	}
