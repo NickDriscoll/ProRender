@@ -258,6 +258,7 @@ int main(int argc, char* argv[]) {
 	bool running = true;
 	uint64_t current_frame = 0;
 	double last_frame_took = 0.0;
+	float time = 0.0;
 	while (running) {
 		Timer frame_timer;
 		frame_timer.start();
@@ -325,6 +326,7 @@ int main(int argc, char* argv[]) {
 
 			ImGui::NewFrame();
         	ImGui::ShowDemoWindow(nullptr);
+			ImGui::SliderFloat("Animation time", &time, -5.0, 5.0);
 		}
 
 		//Update per-frame uniforms
@@ -445,7 +447,7 @@ int main(int argc, char* argv[]) {
 				vkCmdSetScissor(frame_cb, 0, 1, &scissor);
 			}
 
-			float time = (float)app_timer.check() * 1.5f / 1000.0f;
+			//float time = (float)app_timer.check() * 1.5f / 1000.0f;
 
 			for (uint32_t i = 0; i < image_indices.size(); i++) {
 				uint32_t x = i & 1;
