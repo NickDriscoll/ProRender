@@ -69,7 +69,7 @@ struct VulkanDepthStencilState {
 
 struct VulkanColorBlendAttachmentState {
     VkBool32                 blendEnable                = VK_TRUE;
-    VkBlendFactor            srcColorBlendFactor        = VK_BLEND_FACTOR_SRC_COLOR;
+    VkBlendFactor            srcColorBlendFactor        = VK_BLEND_FACTOR_SRC_ALPHA;
     VkBlendFactor            dstColorBlendFactor        = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
     VkBlendOp                colorBlendOp               = VK_BLEND_OP_ADD;
     VkBlendFactor            srcAlphaBlendFactor        = VK_BLEND_FACTOR_SRC_ALPHA;     

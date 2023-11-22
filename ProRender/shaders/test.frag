@@ -56,6 +56,7 @@ float4 main(VertexOutput input, float4 screen_position : SV_POSITION) : SV_Targe
     }
 
     float4 image_color = sampled_images[pc.image_idx].Sample(samplers[0], uvs);
-    return float4((0.125 + float3(uvs.xy, 0.0)) * image_color.rgb, image_color.a);
+    //return float4((0.125 + float3(uvs.xy, 0.0)) * image_color.rgb, image_color.a);
+    return image_color;
     //return float4(uvs, 0.0, 1.0);
 }

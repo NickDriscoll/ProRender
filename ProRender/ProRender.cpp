@@ -85,12 +85,12 @@ int main(int argc, char* argv[]) {
 			"images/stressed_miyamoto.png"
 		};
 		std::vector<VkFormat> formats = {
-			VK_FORMAT_R8G8B8A8_UNORM,
-			VK_FORMAT_R8G8B8A8_UNORM
+			VK_FORMAT_R8G8B8A8_SRGB,
+			VK_FORMAT_R8G8B8A8_SRGB
 		};
 		std::vector<VkFormat> formats2 = {
-			VK_FORMAT_R8G8B8A8_UNORM,
-			VK_FORMAT_R8G8B8A8_UNORM
+			VK_FORMAT_R8G8B8A8_SRGB,
+			VK_FORMAT_R8G8B8A8_SRGB
 		};
 
 		batch_ids.push_back(vgd.load_image_files(filenames, formats));

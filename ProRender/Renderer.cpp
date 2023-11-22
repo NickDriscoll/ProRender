@@ -2,8 +2,7 @@
 #include "imgui.h"
 #include "SDL.h"
 
-ImGuiKey SDL2ToImGuiKey(int keycode)
-{
+ImGuiKey SDL2ToImGuiKey(int keycode) {
     switch (keycode)
     {
         case SDLK_TAB: return ImGuiKey_Tab;
@@ -178,8 +177,6 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
             .pBufferInfo = &uniform_buffer_info
         };
         descriptor_writes.push_back(uniform_write);
-        
-
         
         VkDescriptorBufferInfo im_pos_buffer_info = {
             .buffer = vgd->get_buffer(imgui_position_buffer)->buffer,
