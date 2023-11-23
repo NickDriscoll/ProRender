@@ -128,6 +128,22 @@ ImGuiKey SDL2ToImGuiKey(int keycode) {
     return ImGuiKey_None;
 }
 
+int SDL2ToImGuiMouseButton(int button) {
+    int ret = button;
+    switch (button) {
+    case SDL_BUTTON_MIDDLE:
+        ret = SDL_BUTTON_RIGHT;
+        break;
+    case SDL_BUTTON_RIGHT:
+        ret = SDL_BUTTON_MIDDLE;
+        break;
+    default:
+        break;
+    }
+
+    return ret - 1;
+}
+
 Renderer::Renderer(VulkanGraphicsDevice* vgd) {
     
     //Allocate memory for ImGUI vertex data

@@ -35,3 +35,4 @@ private:
 };
 
 enum ImGuiKey SDL2ToImGuiKey(int keycode);
+int SDL2ToImGuiMouseButton(int button);

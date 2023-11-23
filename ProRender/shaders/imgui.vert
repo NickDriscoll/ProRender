@@ -19,7 +19,6 @@ ImguiVertexOutput main(uint idx : SV_VertexID) {
     float2 uv = imgui_uvs[idx / 8].uvs[idx % 8];
     uint packed_color = imgui_colors[idx / 16].colors[idx % 16];
     
-
     float4 color = float4(
         (float)(packed_color & 0xFF) / 255.0,
         (float)((packed_color >> 8) & 0xFF) / 255.0,

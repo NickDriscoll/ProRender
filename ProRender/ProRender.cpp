@@ -307,10 +307,10 @@ int main(int argc, char* argv[]) {
 					io.AddMousePosEvent((float)event.motion.x, (float)event.motion.y);
 					break;
 				case SDL_MOUSEBUTTONDOWN:
-					io.AddMouseButtonEvent(event.button.which, true);
+					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), true);
 					break;
 				case SDL_MOUSEBUTTONUP:
-					io.AddMouseButtonEvent(event.button.which, false);
+					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), false);
 					break;
 				case SDL_MOUSEWHEEL:
 					io.AddMouseWheelEvent(event.wheel.preciseX, event.wheel.preciseY);
