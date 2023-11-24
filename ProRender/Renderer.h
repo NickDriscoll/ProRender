@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <hlsl++.h>
+#include <imgui.h>
 #include "VulkanGraphicsDevice.h"
 
 struct FrameUniforms {
@@ -34,5 +35,5 @@ private:
 	VulkanGraphicsDevice* vgd;		//Very dangerous and dubiously recommended
 };
 
-enum ImGuiKey SDL2ToImGuiKey(int keycode);
+ImGuiKey SDL2ToImGuiKey(int keycode);
 int SDL2ToImGuiMouseButton(int button);
