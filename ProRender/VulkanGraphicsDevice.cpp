@@ -448,15 +448,6 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 			bindings.push_back(frame_uniform_binding);
 			bindings_flags.push_back(binding_flags);
 
-			// VkDescriptorSetLayoutBinding imgui_vertex_binding = {
-			// 	.binding = 3,
-			// 	.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-			// 	.descriptorCount = 1,
-			// 	.stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-			// };
-			// bindings.push_back(imgui_vertex_binding);
-			// bindings_flags.push_back(binding_flags);
-
 			VkDescriptorSetLayoutBinding imgui_pos_binding = {
 				.binding = 3,
 				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -1227,8 +1218,6 @@ void VulkanGraphicsDevice::submit_image_upload_batch(uint64_t id, const std::vec
 		_pending_image_mutex.unlock();
 	}
 }
-
-//TODO: Just what is even happening with the image format :( UNORM works for everything??!???
 
 uint64_t VulkanGraphicsDevice::load_raw_images(
 	const std::vector<RawImage> raw_images,
