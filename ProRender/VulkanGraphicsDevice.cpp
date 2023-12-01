@@ -13,6 +13,8 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	_render_passes.alloc(32);
 	_graphics_pipelines.alloc(32);
 	_immutable_samplers = std::vector<VkSampler>();
+	_descriptor_set_layouts.alloc(64);
+	_pipeline_layouts.alloc(64);
 
 	//Initialize volk
 	if (volkInitialize() != VK_SUCCESS) {
@@ -388,178 +390,6 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	timer.print("Pipeline cache creation");
 	timer.start();
 
-	//Pipeline layout
-	{
-		//Immutable sampler creation
-		VkSampler sampler;
-		{
-			VkSamplerCreateInfo info = {
-				.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-				.magFilter = VK_FILTER_LINEAR,
-				.minFilter = VK_FILTER_LINEAR,
-				.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-				.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-				.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-				.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-				.anisotropyEnable = VK_TRUE,
-				.maxAnisotropy = 16.0,
-				.minLod = 0.0,
-				.maxLod = VK_LOD_CLAMP_NONE,
-			};
-
-			if (vkCreateSampler(device, &info, alloc_callbacks, &sampler) != VK_SUCCESS) {
-				printf("Creating sampler failed.\n");
-				exit(-1);
-			}
-		}
-		_immutable_samplers.push_back(sampler);
-
-		//Descriptor set layout
-		{
-			std::vector<VkDescriptorSetLayoutBinding> bindings;
-			std::vector<VkDescriptorBindingFlags> bindings_flags;
-			VkDescriptorBindingFlags binding_flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
-
-			VkDescriptorSetLayoutBinding sampled_image_binding = {
-				.binding = 0,
-				.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-				.descriptorCount = 1024*1024,
-				.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-			};
-			bindings.push_back(sampled_image_binding);
-			bindings_flags.push_back(binding_flags);
-
-			VkDescriptorSetLayoutBinding sampler_binding = {
-				.binding = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-				.descriptorCount = static_cast<uint32_t>(_immutable_samplers.size()),
-				.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-				.pImmutableSamplers = _immutable_samplers.data()
-			};
-			bindings.push_back(sampler_binding);
-			bindings_flags.push_back(binding_flags);
-
-			VkDescriptorSetLayoutBinding frame_uniform_binding = {
-				.binding = 2,
-				.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-				.descriptorCount = 1,
-				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-			};
-			bindings.push_back(frame_uniform_binding);
-			bindings_flags.push_back(binding_flags);
-
-			VkDescriptorSetLayoutBinding imgui_pos_binding = {
-				.binding = 3,
-				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				.descriptorCount = 1,
-				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-			};
-			bindings.push_back(imgui_pos_binding);
-			bindings_flags.push_back(binding_flags);
-
-			VkDescriptorSetLayoutBinding imgui_uv_binding = {
-				.binding = 4,
-				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				.descriptorCount = 1,
-				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-			};
-			bindings.push_back(imgui_uv_binding);
-			bindings_flags.push_back(binding_flags);
-
-			VkDescriptorSetLayoutBinding imgui_color_binding = {
-				.binding = 5,
-				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				.descriptorCount = 1,
-				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-			};
-			bindings.push_back(imgui_color_binding);
-			bindings_flags.push_back(binding_flags);
-
-			VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info = {
-				.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-				.bindingCount = static_cast<uint32_t>(bindings_flags.size()),
-				.pBindingFlags = bindings_flags.data()
-			};
-
-			VkDescriptorSetLayoutCreateInfo info = {};
-			info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-			info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
-			info.pNext = &binding_flags_info;
-			info.bindingCount = static_cast<uint32_t>(bindings.size());
-			info.pBindings = bindings.data();
-
-			if (vkCreateDescriptorSetLayout(device, &info, alloc_callbacks, &descriptor_set_layout) != VK_SUCCESS) {
-				printf("Creating descriptor set layout failed.\n");
-				exit(-1);
-			}
-		}
-
-		VkPushConstantRange range;
-		range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-		range.offset = 0;
-		range.size = 16;
-
-		VkPipelineLayoutCreateInfo info = {};
-		info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		info.setLayoutCount = 1;
-		info.pSetLayouts = &descriptor_set_layout;
-		info.pushConstantRangeCount = 1;
-		info.pPushConstantRanges = &range;
-
-
-		if (vkCreatePipelineLayout(device, &info, alloc_callbacks, &pipeline_layout) != VK_SUCCESS) {
-			printf("Creating pipeline layout failed.\n");
-			exit(-1);
-		}
-	}
-	timer.print("Pipeline layout creation");
-	timer.start();
-
-	//Create bindless descriptor set
-	{
-		{
-			VkDescriptorPoolSize sizes[] = {
-				{
-					.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-					.descriptorCount = 1,
-				},
-				{
-					.type = VK_DESCRIPTOR_TYPE_SAMPLER,
-					.descriptorCount = 1
-				}
-			};
-
-			VkDescriptorPoolCreateInfo info = {
-				.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-				.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-				.maxSets = 1,
-				.poolSizeCount = 2,
-				.pPoolSizes = sizes
-			};
-
-			if (vkCreateDescriptorPool(device, &info, alloc_callbacks, &descriptor_pool) != VK_SUCCESS) {
-				printf("Creating descriptor pool failed.\n");
-				exit(-1);
-			}
-		}
-
-		{
-			VkDescriptorSetAllocateInfo info = {
-				.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-				.descriptorPool = descriptor_pool,
-				.descriptorSetCount = 1,
-				.pSetLayouts = &descriptor_set_layout
-			};
-
-			if (vkAllocateDescriptorSets(device, &info, &descriptor_set) != VK_SUCCESS) {
-				printf("Allocating descriptor set failed.\n");
-				exit(-1);
-			}
-		}
-	}
-	timer.print("Descriptor pool/set creation");
-	timer.start();
-
 	//Start the dedicated image loading thread
 	_image_upload_thread = std::thread(
 		&VulkanGraphicsDevice::load_images_impl,
@@ -644,15 +474,28 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 		vkDestroyPipeline(device, _graphics_pipelines.data()[i].pipeline, alloc_callbacks);
 	}
 
+	uint32_t pl_seen = 0;
+	for (uint32_t i = 0; pl_seen < _pipeline_layouts.count(); i++) {
+		if (!_pipeline_layouts.is_live(i)) continue;
+		pl_seen += 1;
+
+		vkDestroyPipelineLayout(device, _pipeline_layouts.data()[i], alloc_callbacks);
+	}
+
+	uint32_t dsl_seen = 0;
+	for (uint32_t i = 0; dsl_seen < _descriptor_set_layouts.count(); i++) {
+		if (!_descriptor_set_layouts.is_live(i)) continue;
+		dsl_seen += 1;
+
+		vkDestroyDescriptorSetLayout(device, _descriptor_set_layouts.data()[i], alloc_callbacks);
+	}
+
 	//Wait for the image upload thread
 	_image_upload_running = false;
 	_image_upload_thread.join();
 	
 	vkDestroySemaphore(device, image_upload_semaphore, alloc_callbacks);
 
-	vkDestroyPipelineLayout(device, pipeline_layout, alloc_callbacks);
-	vkDestroyDescriptorPool(device, descriptor_pool, alloc_callbacks);
-	vkDestroyDescriptorSetLayout(device, descriptor_set_layout, alloc_callbacks);
 	vkDestroyCommandPool(device, transfer_command_pool, alloc_callbacks);
 	vkDestroyCommandPool(device, graphics_command_pool, alloc_callbacks);
 	vkDestroyPipelineCache(device, pipeline_cache, alloc_callbacks);
@@ -674,6 +517,7 @@ void VulkanGraphicsDevice::return_transfer_command_buffer(VkCommandBuffer cb) {
 }
 
 void VulkanGraphicsDevice::create_graphics_pipelines(
+	uint64_t pipeline_layout_handle,
 	uint64_t render_pass_handle,
 	const char** shaderfiles,
 	VulkanInputAssemblyState* ia_state,
@@ -874,7 +718,7 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 		info.pDepthStencilState = &ds_infos[i];
 		info.pColorBlendState = &blend_infos[i];
 		info.pDynamicState = &dynamic_info;
-		info.layout = pipeline_layout;
+		info.layout = *_pipeline_layouts.get(pipeline_layout_handle);
 		info.renderPass = *_render_passes.get(render_pass_handle);
 		info.subpass = 0;
 		pipeline_infos.push_back(info);
@@ -934,6 +778,89 @@ VulkanBuffer* VulkanGraphicsDevice::get_buffer(uint64_t key) {
 void VulkanGraphicsDevice::destroy_buffer(uint64_t key) {
 	VulkanBuffer* b = _buffers.get(key);
 	vmaDestroyBuffer(allocator, b->buffer, b->allocation);
+}
+
+VkSampler VulkanGraphicsDevice::create_sampler(VkSamplerCreateInfo& info) {
+	VkSampler sampler;
+	if (vkCreateSampler(device, &info, alloc_callbacks, &sampler) != VK_SUCCESS) {
+		printf("Creating sampler failed.\n");
+		exit(-1);
+	}
+	return sampler;
+}
+
+uint64_t VulkanGraphicsDevice::create_descriptor_set_layout(std::vector<VulkanDescriptorLayoutBinding>& descriptor_sets) {
+	VkDescriptorSetLayout ds_layout;
+	{
+		std::vector<VkDescriptorSetLayoutBinding> bindings;
+		bindings.reserve(descriptor_sets.size());
+		std::vector<VkDescriptorBindingFlags> bindings_flags;
+		bindings_flags.reserve(descriptor_sets.size());
+
+		//TODO: Maybe think about having these flags be configurable
+		//I'm having a hard time being bothered to do it bc it makes life so much easier on PC
+		VkDescriptorBindingFlags binding_flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+
+		for (uint32_t i = 0; i < descriptor_sets.size(); i++) {
+			VulkanDescriptorLayoutBinding& b = descriptor_sets[i];
+			VkDescriptorSetLayoutBinding binding = {
+				.binding = i,
+				.descriptorType = b.descriptor_type,
+				.descriptorCount = b.descriptor_count,
+				.stageFlags = b.stage_flags,
+				.pImmutableSamplers = b.immutable_samplers
+			};
+			bindings.push_back(binding);
+			bindings_flags.push_back(binding_flags);
+		}
+
+		VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info = {
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+			.bindingCount = static_cast<uint32_t>(bindings_flags.size()),
+			.pBindingFlags = bindings_flags.data()
+		};
+
+		VkDescriptorSetLayoutCreateInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+		info.pNext = &binding_flags_info;
+		info.bindingCount = static_cast<uint32_t>(bindings.size());
+		info.pBindings = bindings.data();
+
+		if (vkCreateDescriptorSetLayout(device, &info, alloc_callbacks, &ds_layout) != VK_SUCCESS) {
+			printf("Creating descriptor set layout failed.\n");
+			exit(-1);
+		}
+	}
+
+	return _descriptor_set_layouts.insert(ds_layout);
+}
+
+VkDescriptorSetLayout* VulkanGraphicsDevice::get_descriptor_set_layout(uint64_t id) {
+	return _descriptor_set_layouts.get(id);
+}
+
+uint64_t VulkanGraphicsDevice::create_pipeline_layout(uint64_t descriptor_set_layout_id, std::vector<VkPushConstantRange>& push_constants) {
+	VkDescriptorSetLayout* layout = _descriptor_set_layouts.get(descriptor_set_layout_id);
+
+	VkPipelineLayoutCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	info.setLayoutCount = 1;
+	info.pSetLayouts = layout;
+	info.pushConstantRangeCount = push_constants.size();
+	info.pPushConstantRanges = push_constants.data();
+
+	VkPipelineLayout pipeline_layout;
+	if (vkCreatePipelineLayout(device, &info, alloc_callbacks, &pipeline_layout) != VK_SUCCESS) {
+		printf("Creating pipeline layout failed.\n");
+		exit(-1);
+	}
+	
+	return _pipeline_layouts.insert(pipeline_layout);
+}
+
+VkPipelineLayout* VulkanGraphicsDevice::get_pipeline_layout(uint64_t id) {
+	return _pipeline_layouts.get(id);
 }
 
 void VulkanGraphicsDevice::submit_image_upload_batch(uint64_t id, const std::vector<RawImage>& raw_images, const std::vector<VkFormat>& image_formats) {
@@ -1209,9 +1136,9 @@ void VulkanGraphicsDevice::submit_image_upload_batch(uint64_t id, const std::vec
 		pending_image.vk_image.image_allocation = image_allocations[i];
 		pending_image.batch_id = current_batch.id;
 		pending_image.vk_image.mip_levels = mip_counts[i];
-		pending_image.vk_image.x = raw_images[i].width;
-		pending_image.vk_image.y = raw_images[i].height;
-		pending_image.vk_image.z = 1;
+		pending_image.vk_image.width = raw_images[i].width;
+		pending_image.vk_image.height = raw_images[i].height;
+		pending_image.vk_image.depth = 1;
 
 		_pending_image_mutex.lock();
 		_pending_images.insert(pending_image);
@@ -1304,7 +1231,7 @@ void VulkanGraphicsDevice::load_images_impl() {
 	}
 }
 
-void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb) {
+void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescriptorSet descriptor_set) {
 	if (!_pending_image_mutex.try_lock())
 		return;
 
@@ -1412,8 +1339,8 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb) {
 									.z = 0,
 								},
 								{
-									.x = static_cast<int32_t>(pending_image->vk_image.x >> k),
-									.y = static_cast<int32_t>(pending_image->vk_image.y >> k),
+									.x = static_cast<int32_t>(pending_image->vk_image.width >> k),
+									.y = static_cast<int32_t>(pending_image->vk_image.height >> k),
 									.z = 1,
 								}
 							},
@@ -1430,8 +1357,8 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb) {
 									.z = 0,
 								},
 								{
-									.x = static_cast<int32_t>(pending_image->vk_image.x >> (k + 1)),
-									.y = static_cast<int32_t>(pending_image->vk_image.y >> (k + 1)),
+									.x = static_cast<int32_t>(pending_image->vk_image.width >> (k + 1)),
+									.y = static_cast<int32_t>(pending_image->vk_image.height >> (k + 1)),
 									.z = 1,
 								}
 							},

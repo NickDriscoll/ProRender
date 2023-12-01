@@ -15,6 +15,10 @@ struct ImguiFrame {
 };
 
 struct Renderer {
+	uint64_t descriptor_set_layout_id;
+	uint64_t pipeline_layout_id;
+	VkDescriptorPool descriptor_pool;
+	VkDescriptorSet descriptor_set;
 
 	//Buffer of per-frame uniform data
 	FrameUniforms frame_uniforms;

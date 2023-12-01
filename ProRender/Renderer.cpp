@@ -145,6 +145,125 @@ int SDL2ToImGuiMouseButton(int button) {
 }
 
 Renderer::Renderer(VulkanGraphicsDevice* vgd) {
+
+    //Create bindless descriptor set
+    {
+        {
+            std::vector<VkSampler> samplers;
+            {
+                VkSamplerCreateInfo info = {
+                    .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                    .magFilter = VK_FILTER_LINEAR,
+                    .minFilter = VK_FILTER_LINEAR,
+                    .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+                    .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                    .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                    .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                    .anisotropyEnable = VK_TRUE,
+                    .maxAnisotropy = 16.0,
+                    .minLod = 0.0,
+                    .maxLod = VK_LOD_CLAMP_NONE,
+                };
+                samplers.push_back(vgd->create_sampler(info));
+            }
+
+            std::vector<VulkanDescriptorLayoutBinding> bindings;
+            bindings.push_back({
+                .descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                .descriptor_count = 1024*1024,
+                .stage_flags = VK_SHADER_STAGE_FRAGMENT_BIT
+            });
+            bindings.push_back({
+                .descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLER,
+                .descriptor_count = static_cast<uint32_t>(samplers.size()),
+                .stage_flags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                .immutable_samplers = samplers.data()
+            });
+            bindings.push_back({
+                .descriptor_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .descriptor_count = 1,
+                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+            });
+            bindings.push_back({
+                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptor_count = 1,
+                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
+            });
+            bindings.push_back({
+                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptor_count = 1,
+                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
+            });
+            bindings.push_back({
+                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptor_count = 1,
+                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
+            });
+
+            descriptor_set_layout_id = vgd->create_descriptor_set_layout(bindings);
+
+            std::vector<VkPushConstantRange> ranges = {
+                {
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                    .offset = 0,
+                    .size = 16
+                }
+            };
+
+            pipeline_layout_id = vgd->create_pipeline_layout(descriptor_set_layout_id, ranges);
+        }
+
+        //Create bindless descriptor set
+        {
+            {
+                VkDescriptorPoolSize sizes[] = {
+                    {
+                        .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                        .descriptorCount = 1024*1024,
+                    },
+                    {
+                        .type = VK_DESCRIPTOR_TYPE_SAMPLER,
+                        .descriptorCount = 16
+                    },
+                    {
+                        .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                        .descriptorCount = 256
+                    },
+                    {
+                        .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                        .descriptorCount = 16
+                    }
+                };
+
+                VkDescriptorPoolCreateInfo info = {
+                    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+                    .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+                    .maxSets = 1,
+                    .poolSizeCount = 4,
+                    .pPoolSizes = sizes
+                };
+
+                if (vkCreateDescriptorPool(vgd->device, &info, vgd->alloc_callbacks, &descriptor_pool) != VK_SUCCESS) {
+                    printf("Creating descriptor pool failed.\n");
+                    exit(-1);
+                }
+            }
+
+            {
+                VkDescriptorSetAllocateInfo info = {
+                    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                    .descriptorPool = descriptor_pool,
+                    .descriptorSetCount = 1,
+                    .pSetLayouts = vgd->get_descriptor_set_layout(descriptor_set_layout_id)
+                };
+
+                if (vkAllocateDescriptorSets(vgd->device, &info, &descriptor_set) != VK_SUCCESS) {
+                    printf("Allocating descriptor set failed.\n");
+                    exit(-1);
+                }
+            }
+        }
+    }
     
     //Allocate memory for ImGUI vertex data
     //TODO: probabaly shouldn't be in renderer init
@@ -185,7 +304,7 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
         
         VkWriteDescriptorSet uniform_write = {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = vgd->descriptor_set,
+            .dstSet = descriptor_set,
             .dstBinding = 2,
             .dstArrayElement = 0,
             .descriptorCount = 1,
@@ -202,7 +321,7 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
         
         VkWriteDescriptorSet im_pos_write = {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = vgd->descriptor_set,
+            .dstSet = descriptor_set,
             .dstBinding = 3,
             .dstArrayElement = 0,
             .descriptorCount = 1,
@@ -219,7 +338,7 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
         
         VkWriteDescriptorSet im_uv_write = {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = vgd->descriptor_set,
+            .dstSet = descriptor_set,
             .dstBinding = 4,
             .dstArrayElement = 0,
             .descriptorCount = 1,
@@ -238,7 +357,7 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
         
         VkWriteDescriptorSet im_col_write = {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = vgd->descriptor_set,
+            .dstSet = descriptor_set,
             .dstBinding = 5,
             .dstArrayElement = 0,
             .descriptorCount = 1,
@@ -256,6 +375,7 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
 
 Renderer::~Renderer() {
     //vgd->destroy_buffer(imgui_vertex_buffer);
+	vkDestroyDescriptorPool(vgd->device, descriptor_pool, vgd->alloc_callbacks);
     vgd->destroy_buffer(imgui_position_buffer);
     vgd->destroy_buffer(imgui_uv_buffer);
     vgd->destroy_buffer(imgui_color_buffer);

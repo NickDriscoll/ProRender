@@ -28,6 +28,13 @@ constexpr VkComponentMapping COMPONENT_MAPPING_DEFAULT = {
 	.a = VK_COMPONENT_SWIZZLE_A,
 };
 
+struct VulkanDescriptorLayoutBinding {
+	VkDescriptorType descriptor_type;
+	uint32_t descriptor_count;
+	VkShaderStageFlags stage_flags;
+	const VkSampler* immutable_samplers;
+};
+
 struct VulkanBuffer {
 	VkBuffer buffer;
 	VmaAllocation allocation;
@@ -35,9 +42,9 @@ struct VulkanBuffer {
 };
 
 struct VulkanImage {
-	uint32_t x;
-	uint32_t y;
-	uint32_t z;
+	uint32_t width;
+	uint32_t height;
+	uint32_t depth;
 	uint32_t mip_levels;
 	VkImage image;
 	VkImageView image_view;
@@ -99,20 +106,19 @@ struct VulkanGraphicsDevice {
 	
 	slotmap<VulkanAvailableImage> available_images;
 
-	//These fields can be members of the graphics device struct because
-	//we are assuming bindless resource management
-	VkDescriptorSetLayout descriptor_set_layout;
-	VkPipelineLayout pipeline_layout;
-	VkDescriptorPool descriptor_pool;
-	VkDescriptorSet descriptor_set;
-
 	VmaAllocator allocator;		//Thank you, AMD
 	const VmaDeviceMemoryCallbacks* vma_alloc_callbacks;
 
 	VkCommandBuffer borrow_transfer_command_buffer();
 	void return_transfer_command_buffer(VkCommandBuffer cb);
 
+	uint64_t create_descriptor_set_layout(std::vector<VulkanDescriptorLayoutBinding>& descriptor_sets);
+	VkDescriptorSetLayout* get_descriptor_set_layout(uint64_t id);
+	uint64_t create_pipeline_layout(uint64_t descriptor_set_layout_id, std::vector<VkPushConstantRange>& push_constants);
+	VkPipelineLayout* get_pipeline_layout(uint64_t id);
+
 	void create_graphics_pipelines(
+		uint64_t pipeline_layout_handle,
 		uint64_t render_pass_handle,
 		const char** shaderfiles,
 		VulkanInputAssemblyState* ia_state,
@@ -130,6 +136,8 @@ struct VulkanGraphicsDevice {
 	VulkanBuffer* get_buffer(uint64_t key);
 	void destroy_buffer(uint64_t key);
 
+	VkSampler create_sampler(VkSamplerCreateInfo& info);
+
 	uint64_t load_raw_images(
 		const std::vector<RawImage> raw_images,
 		const std::vector<VkFormat> image_formats
@@ -138,7 +146,7 @@ struct VulkanGraphicsDevice {
 		const std::vector<const char*> filenames,
 		const std::vector<VkFormat> image_formats
 	);
-	void tick_image_uploads(VkCommandBuffer render_cb);
+	void tick_image_uploads(VkCommandBuffer render_cb, VkDescriptorSet descriptor_set);
 	uint64_t get_completed_image_uploads();
 
 	VkSemaphore create_timeline_semaphore(uint64_t initial_value);
@@ -176,6 +184,8 @@ private:
 	std::mutex _image_upload_mutex;
 
 
+	slotmap<VkDescriptorSetLayout> _descriptor_set_layouts;
+	slotmap<VkPipelineLayout> _pipeline_layouts;
 	slotmap<VkRenderPass> _render_passes;
 	slotmap<VulkanGraphicsPipeline> _graphics_pipelines;
 	std::vector<VkSampler> _immutable_samplers;

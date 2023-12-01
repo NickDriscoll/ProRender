@@ -110,6 +110,15 @@ int main(int argc, char* argv[]) {
 	app_timer.print("Window creation");
 	app_timer.start();
 
+	//Initialize the renderer
+	Renderer renderer(&vgd);
+    renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
+        2.0f / (float)window.x_resolution, 0.0f, 0.0f, -1.0f,
+        0.0f, 2.0f / (float)window.y_resolution, 0.0f, -1.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
+    );
+
 	//Create graphics pipelines
 	uint64_t current_pipeline_handle = 0;
 	uint64_t pipeline_handles[] = {0, 0};
@@ -166,6 +175,7 @@ int main(int argc, char* argv[]) {
 		const char* shaders[] = { "shaders/test.vert.spv", "shaders/test.frag.spv", "shaders/test.vert.spv", "shaders/test.frag.spv" };
 
 		vgd.create_graphics_pipelines(
+			renderer.pipeline_layout_id,
 			window.swapchain_renderpass,
 			shaders,
 			ia_states,
@@ -226,6 +236,7 @@ int main(int argc, char* argv[]) {
 		const char* shaders[] = { "shaders/imgui.vert.spv", "shaders/imgui.frag.spv" };
 
 		vgd.create_graphics_pipelines(
+			renderer.pipeline_layout_id,
 			window.swapchain_renderpass,
 			shaders,
 			ia_states,
@@ -242,15 +253,6 @@ int main(int argc, char* argv[]) {
 
 	//Create graphics pipeline timeline semaphore
 	VkSemaphore graphics_timeline_semaphore = vgd.create_timeline_semaphore(0);
-
-	//Initialize the renderer
-	Renderer renderer(&vgd);
-    renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
-        2.0f / (float)window.x_resolution, 0.0f, 0.0f, -1.0f,
-        0.0f, 2.0f / (float)window.y_resolution, 0.0f, -1.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f
-    );
 
 	init_timer.print("App init");
 	
@@ -365,7 +367,7 @@ int main(int argc, char* argv[]) {
 			vkBeginCommandBuffer(frame_cb, &begin_info);
 
 			//Per-frame checking of pending images to see if they're ready
-			vgd.tick_image_uploads(frame_cb);
+			vgd.tick_image_uploads(frame_cb, renderer.descriptor_set);
 			uint64_t upload_batches_completed = vgd.get_completed_image_uploads();
 
 			{
@@ -387,7 +389,7 @@ int main(int argc, char* argv[]) {
 				}
 			}
 
-			vkCmdBindDescriptorSets(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.pipeline_layout, 0, 1, &vgd.descriptor_set, 0, nullptr);
+			vkCmdBindDescriptorSets(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), 0, 1, &renderer.descriptor_set, 0, nullptr);
 			vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(current_pipeline_handle)->pipeline);
 
 			//Begin render pass
@@ -456,7 +458,7 @@ int main(int argc, char* argv[]) {
 				uint32_t idx = image_indices[i];
 
 				uint32_t bytes[] = { std::bit_cast<uint32_t>(time), idx, x, y };
-				vkCmdPushConstants(frame_cb, vgd.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, bytes);
+				vkCmdPushConstants(frame_cb, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, bytes);
 
 				vkCmdDraw(frame_cb, 6, 1, 0, 0);
 			}
