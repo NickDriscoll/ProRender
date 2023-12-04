@@ -8,11 +8,11 @@ struct Ps1VertexOutput {
 };
 
 struct VertexPositionBlock {
-    float4 positions[4];
+    float4 positions[POSITION_BLOCK_SIZE];
 };
 
 struct VertexUvBlock {
-    float2 uvs[8];
+    float2 uvs[UV_BLOCK_SIZE];
 };
 
 [[vk::binding(6, 0)]]
