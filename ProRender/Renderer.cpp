@@ -265,6 +265,20 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
         }
     }
     
+    //Allocate memory for vertex data
+    {
+        VmaAllocationCreateInfo alloc_info = {
+            .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+            .usage = VMA_MEMORY_USAGE_AUTO,
+            .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            .priority = 1.0
+        };
+
+        VkDeviceSize buffer_size = 1024 * 1024;
+        vertex_position_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
+        vertex_uv_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
+    }
+
     //Allocate memory for ImGUI vertex data
     //TODO: probabaly shouldn't be in renderer init
     {
@@ -294,7 +308,6 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
 	//Bind static descriptors
 	{
 		std::vector<VkWriteDescriptorSet> descriptor_writes;
-        
         
         VkDescriptorBufferInfo uniform_buffer_info = {
             .buffer = vgd->get_buffer(frame_uniforms_buffer)->buffer,
@@ -374,11 +387,11 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
 }
 
 Renderer::~Renderer() {
-    //vgd->destroy_buffer(imgui_vertex_buffer);
 	vkDestroyDescriptorPool(vgd->device, descriptor_pool, vgd->alloc_callbacks);
     vgd->destroy_buffer(imgui_position_buffer);
     vgd->destroy_buffer(imgui_uv_buffer);
     vgd->destroy_buffer(imgui_color_buffer);
     vgd->destroy_buffer(imgui_index_buffer);
     vgd->destroy_buffer(frame_uniforms_buffer);
+    vgd->destroy_buffer(vertex_position_buffer);
 }

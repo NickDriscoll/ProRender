@@ -268,6 +268,8 @@ int main(int argc, char* argv[]) {
 		//Do input polling loop
 		{
     		ImGuiIO& io = ImGui::GetIO();
+			io.DeltaTime = (float)(last_frame_took / 1000.0);
+
 			SDL_Event event;
 			while (SDL_PollEvent(&event)) {
 				switch (event.type) {
@@ -323,9 +325,6 @@ int main(int argc, char* argv[]) {
 
 		//Dear ImGUI update part
 		{
-    		ImGuiIO& io = ImGui::GetIO();
-			io.DeltaTime = (float)(last_frame_took / 1000.0);
-
 			ImGui::NewFrame();
         	ImGui::ShowDemoWindow(nullptr);
 			ImGui::SliderFloat("Animation time", &time, -5.0, 5.0);

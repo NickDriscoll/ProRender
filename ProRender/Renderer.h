@@ -7,6 +7,10 @@ struct FrameUniforms {
 	hlslpp::float4x4 clip_from_screen;
 };
 
+struct Camera {
+	hlslpp::float3 position;
+};
+
 struct ImguiFrame {
 	uint32_t vertex_start;
 	uint32_t vertex_size;
@@ -23,6 +27,16 @@ struct Renderer {
 	//Buffer of per-frame uniform data
 	FrameUniforms frame_uniforms;
 	uint64_t frame_uniforms_buffer;
+
+	//Buffer of camera data
+	std::vector<Camera> cameras;
+	uint64_t camera_buffer;
+
+	//Vertex buffers
+	uint32_t vertex_position_offset = 0;
+	uint64_t vertex_position_buffer;
+	uint32_t vertex_uv_offset = 0;
+	uint64_t vertex_uv_buffer;
 
 	//TODO: Imgui data probably shouldn't be directly in init
 	//uint64_t imgui_vertex_buffer;
