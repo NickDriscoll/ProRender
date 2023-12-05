@@ -360,8 +360,6 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
         };
         descriptor_writes.push_back(im_uv_write);
         
-
-        
         VkDescriptorBufferInfo im_col_buffer_info = {
             .buffer = vgd->get_buffer(imgui_color_buffer)->buffer,
             .offset = 0,
@@ -386,6 +384,19 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
     this->vgd = vgd;
 }
 
+BufferView Renderer::push_vertex_positions(std::span<float> data) {
+    VulkanBuffer* pos_buffer = vgd->get_buffer(vertex_position_buffer);
+    memcpy(pos_buffer->alloc_info.pMappedData, data.data(), data.size_bytes());
+
+    BufferView b = {
+        .start = vertex_position_offset,
+        .length = (uint32_t)data.size()
+    };
+
+    vertex_position_offset += data.size();
+    return b;
+}
+
 Renderer::~Renderer() {
 	vkDestroyDescriptorPool(vgd->device, descriptor_pool, vgd->alloc_callbacks);
     vgd->destroy_buffer(imgui_position_buffer);
@@ -394,4 +405,5 @@ Renderer::~Renderer() {
     vgd->destroy_buffer(imgui_index_buffer);
     vgd->destroy_buffer(frame_uniforms_buffer);
     vgd->destroy_buffer(vertex_position_buffer);
+    vgd->destroy_buffer(vertex_uv_buffer);
 }

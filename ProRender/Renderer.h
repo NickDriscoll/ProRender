@@ -1,4 +1,6 @@
+#include <span>
 #include <stdint.h>
+#include <string.h>
 #include <hlsl++.h>
 #include <imgui.h>
 #include "VulkanGraphicsDevice.h"
@@ -9,6 +11,13 @@ struct FrameUniforms {
 
 struct Camera {
 	hlslpp::float3 position;
+	float yaw;
+	float pitch;
+};
+
+struct BufferView {
+	uint32_t start;
+	uint32_t length;
 };
 
 struct ImguiFrame {
@@ -45,6 +54,8 @@ struct Renderer {
 	uint64_t imgui_color_buffer;
 	uint64_t imgui_index_buffer;
 	ImguiFrame imgui_frames[FRAMES_IN_FLIGHT] = {};
+
+	BufferView push_vertex_positions(std::span<float> data);
 
 	Renderer(VulkanGraphicsDevice* vgd);
 	~Renderer();
