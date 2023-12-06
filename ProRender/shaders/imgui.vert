@@ -1,8 +1,6 @@
+#include "frame_uniform_bindings.hlsl"
 #include "structs.hlsl"
 #include "imgui.hlsl"
-
-[[vk::binding(2, 0)]]
-ConstantBuffer<FrameUniforms> frame_uniforms;
 
 ImguiVertexOutput main(uint idx : SV_VertexID) {
     float2 pos = imgui_positions[idx / 8].positions[idx % 8];
