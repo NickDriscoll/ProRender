@@ -88,10 +88,10 @@ struct FileImageBatchParameters {
 struct VulkanGraphicsDevice {
 	const VkAllocationCallbacks* alloc_callbacks;
 	VkInstance instance;
-	VkPhysicalDevice physical_device;
+	VkPhysicalDevice physical_device = 0;
 	VkPhysicalDeviceFeatures2 device_features;
 	VkPhysicalDeviceLimits physical_limits;
-	VkDevice device;
+	VkDevice device = 0;
 	VkPipelineCache pipeline_cache;
 
 	//Queue family indices
