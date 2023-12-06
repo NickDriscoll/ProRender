@@ -149,7 +149,6 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
     //Create bindless descriptor set
     {
         {
-            std::vector<VkSampler> samplers;
             {
                 VkSamplerCreateInfo info = {
                     .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -164,7 +163,22 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
                     .minLod = 0.0,
                     .maxLod = VK_LOD_CLAMP_NONE,
                 };
-                samplers.push_back(vgd->create_sampler(info));
+                _samplers.push_back(vgd->create_sampler(info));
+
+                info = {
+                    .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                    .magFilter = VK_FILTER_NEAREST,
+                    .minFilter = VK_FILTER_NEAREST,
+                    .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+                    .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                    .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                    .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                    .anisotropyEnable = VK_FALSE,
+                    .maxAnisotropy = 1.0,
+                    .minLod = 0.0,
+                    .maxLod = VK_LOD_CLAMP_NONE,
+                };
+                _samplers.push_back(vgd->create_sampler(info));
             }
 
             std::vector<VulkanDescriptorLayoutBinding> bindings;
@@ -175,9 +189,9 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
             });
             bindings.push_back({
                 .descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLER,
-                .descriptor_count = static_cast<uint32_t>(samplers.size()),
+                .descriptor_count = static_cast<uint32_t>(_samplers.size()),
                 .stage_flags = VK_SHADER_STAGE_FRAGMENT_BIT,
-                .immutable_samplers = samplers.data()
+                .immutable_samplers = _samplers.data()
             });
             bindings.push_back({
                 .descriptor_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -398,6 +412,10 @@ BufferView Renderer::push_vertex_positions(std::span<float> data) {
 }
 
 Renderer::~Renderer() {
+	for (uint32_t i = 0; i < _samplers.size(); i++) {
+		vkDestroySampler(vgd->device, _samplers[i], vgd->alloc_callbacks);
+	}
+
 	vkDestroyDescriptorPool(vgd->device, descriptor_pool, vgd->alloc_callbacks);
     vgd->destroy_buffer(imgui_position_buffer);
     vgd->destroy_buffer(imgui_uv_buffer);

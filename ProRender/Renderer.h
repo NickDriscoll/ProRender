@@ -61,6 +61,7 @@ struct Renderer {
 	~Renderer();
 
 private:
+	std::vector<VkSampler> _samplers;
 	VulkanGraphicsDevice* vgd;		//Very dangerous and dubiously recommended
 };
 
