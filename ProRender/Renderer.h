@@ -49,6 +49,8 @@ struct Renderer {
 
 	//TODO: Imgui data probably shouldn't be directly in init
 	//uint64_t imgui_vertex_buffer;
+	uint32_t imgui_atlas_idx;
+	uint32_t imgui_sampler_idx;
 	uint64_t imgui_position_buffer;
 	uint64_t imgui_uv_buffer;
 	uint64_t imgui_color_buffer;

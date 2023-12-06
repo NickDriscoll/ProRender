@@ -179,6 +179,7 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
                     .maxLod = VK_LOD_CLAMP_NONE,
                 };
                 _samplers.push_back(vgd->create_sampler(info));
+                imgui_sampler_idx = 1;
             }
 
             std::vector<VulkanDescriptorLayoutBinding> bindings;
