@@ -1,11 +1,6 @@
 #include "structs.hlsl"
 #include "test_pushconstants.hlsl"
-
-[[vk::binding(0, 0)]]
-Texture2D sampled_images[];
-
-[[vk::binding(1, 0)]]
-SamplerState samplers[];
+#include "sampled_image_bindings.hlsl"
 
 float4 main(VertexOutput input, float4 screen_position : SV_POSITION) : SV_Target0 {
     float2 uvs = input.uvs;

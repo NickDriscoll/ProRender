@@ -188,7 +188,7 @@ private:
 	slotmap<VkPipelineLayout> _pipeline_layouts;
 	slotmap<VkRenderPass> _render_passes;
 	slotmap<VulkanGraphicsPipeline> _graphics_pipelines;
-	std::vector<VkSampler> _immutable_samplers;
+	//std::vector<VkSampler> _immutable_samplers;
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _graphics_command_buffers;
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _transfer_command_buffers;
 };

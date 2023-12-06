@@ -12,7 +12,6 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	_image_upload_batches.alloc(1024);
 	_render_passes.alloc(32);
 	_graphics_pipelines.alloc(32);
-	_immutable_samplers = std::vector<VkSampler>();
 	_descriptor_set_layouts.alloc(64);
 	_pipeline_layouts.alloc(64);
 
@@ -452,10 +451,6 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 
 		vkDestroyImageView(device, im->vk_image.image_view, alloc_callbacks);
 		vmaDestroyImage(allocator, im->vk_image.image, im->vk_image.image_allocation);
-	}
-	
-	for (uint32_t i = 0; i < _immutable_samplers.size(); i++) {
-		vkDestroySampler(device, _immutable_samplers[i], alloc_callbacks);
 	}
 
 	uint32_t rp_seen = 0;

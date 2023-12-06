@@ -149,7 +149,6 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
     //Create bindless descriptor set
     {
         {
-            std::vector<VkSampler> samplers;
             {
                 VkSamplerCreateInfo info = {
                     .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -164,36 +163,78 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
                     .minLod = 0.0,
                     .maxLod = VK_LOD_CLAMP_NONE,
                 };
-                samplers.push_back(vgd->create_sampler(info));
+                _samplers.push_back(vgd->create_sampler(info));
+
+                info = {
+                    .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                    .magFilter = VK_FILTER_NEAREST,
+                    .minFilter = VK_FILTER_NEAREST,
+                    .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+                    .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                    .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                    .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                    .anisotropyEnable = VK_FALSE,
+                    .maxAnisotropy = 1.0,
+                    .minLod = 0.0,
+                    .maxLod = VK_LOD_CLAMP_NONE,
+                };
+                _samplers.push_back(vgd->create_sampler(info));
+                imgui_sampler_idx = 1;
             }
 
             std::vector<VulkanDescriptorLayoutBinding> bindings;
+
+            //Images
             bindings.push_back({
                 .descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
                 .descriptor_count = 1024*1024,
                 .stage_flags = VK_SHADER_STAGE_FRAGMENT_BIT
             });
+
+            //Samplers
             bindings.push_back({
                 .descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLER,
-                .descriptor_count = static_cast<uint32_t>(samplers.size()),
+                .descriptor_count = static_cast<uint32_t>(_samplers.size()),
                 .stage_flags = VK_SHADER_STAGE_FRAGMENT_BIT,
-                .immutable_samplers = samplers.data()
+                .immutable_samplers = _samplers.data()
             });
+
+            //Frame uniforms
             bindings.push_back({
                 .descriptor_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                 .descriptor_count = 1,
                 .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
             });
+
+            //Imgui positions
             bindings.push_back({
                 .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .descriptor_count = 1,
                 .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
             });
+
+            //Imgui UVs
             bindings.push_back({
                 .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .descriptor_count = 1,
                 .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
             });
+
+            //Imgui colors
+            bindings.push_back({
+                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptor_count = 1,
+                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
+            });
+
+            //Vertex positions
+            bindings.push_back({
+                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptor_count = 1,
+                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
+            });
+
+            //Vertex uvs
             bindings.push_back({
                 .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .descriptor_count = 1,
@@ -265,6 +306,20 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
         }
     }
     
+    //Allocate memory for vertex data
+    {
+        VmaAllocationCreateInfo alloc_info = {
+            .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+            .usage = VMA_MEMORY_USAGE_AUTO,
+            .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            .priority = 1.0
+        };
+
+        VkDeviceSize buffer_size = 1024 * 1024;
+        vertex_position_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
+        vertex_uv_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
+    }
+
     //Allocate memory for ImGUI vertex data
     //TODO: probabaly shouldn't be in renderer init
     {
@@ -294,7 +349,6 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
 	//Bind static descriptors
 	{
 		std::vector<VkWriteDescriptorSet> descriptor_writes;
-        
         
         VkDescriptorBufferInfo uniform_buffer_info = {
             .buffer = vgd->get_buffer(frame_uniforms_buffer)->buffer,
@@ -347,8 +401,6 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
         };
         descriptor_writes.push_back(im_uv_write);
         
-
-        
         VkDescriptorBufferInfo im_col_buffer_info = {
             .buffer = vgd->get_buffer(imgui_color_buffer)->buffer,
             .offset = 0,
@@ -365,6 +417,40 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
             .pBufferInfo = &im_col_buffer_info
         };
         descriptor_writes.push_back(im_col_write);
+        
+        VkDescriptorBufferInfo vert_pos_buffer_info = {
+            .buffer = vgd->get_buffer(vertex_position_buffer)->buffer,
+            .offset = 0,
+            .range = VK_WHOLE_SIZE
+        };
+        
+        VkWriteDescriptorSet vert_pos_write = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = descriptor_set,
+            .dstBinding = 6,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .pBufferInfo = &vert_pos_buffer_info
+        };
+        descriptor_writes.push_back(vert_pos_write);
+        
+        VkDescriptorBufferInfo vert_uv_buffer_info = {
+            .buffer = vgd->get_buffer(vertex_uv_buffer)->buffer,
+            .offset = 0,
+            .range = VK_WHOLE_SIZE
+        };
+        
+        VkWriteDescriptorSet vert_uv_write = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = descriptor_set,
+            .dstBinding = 7,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .pBufferInfo = &vert_uv_buffer_info
+        };
+        descriptor_writes.push_back(vert_uv_write);
 
         vkUpdateDescriptorSets(vgd->device, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
 	}
@@ -373,12 +459,30 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
     this->vgd = vgd;
 }
 
+BufferView Renderer::push_vertex_positions(std::span<float> data) {
+    VulkanBuffer* pos_buffer = vgd->get_buffer(vertex_position_buffer);
+    memcpy(pos_buffer->alloc_info.pMappedData, data.data(), data.size_bytes());
+
+    BufferView b = {
+        .start = vertex_position_offset,
+        .length = (uint32_t)data.size()
+    };
+
+    vertex_position_offset += data.size();
+    return b;
+}
+
 Renderer::~Renderer() {
-    //vgd->destroy_buffer(imgui_vertex_buffer);
+	for (uint32_t i = 0; i < _samplers.size(); i++) {
+		vkDestroySampler(vgd->device, _samplers[i], vgd->alloc_callbacks);
+	}
+
 	vkDestroyDescriptorPool(vgd->device, descriptor_pool, vgd->alloc_callbacks);
     vgd->destroy_buffer(imgui_position_buffer);
     vgd->destroy_buffer(imgui_uv_buffer);
     vgd->destroy_buffer(imgui_color_buffer);
     vgd->destroy_buffer(imgui_index_buffer);
     vgd->destroy_buffer(frame_uniforms_buffer);
+    vgd->destroy_buffer(vertex_position_buffer);
+    vgd->destroy_buffer(vertex_uv_buffer);
 }

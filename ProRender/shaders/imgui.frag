@@ -1,14 +1,6 @@
 #include "imgui.hlsl"
 #include "structs.hlsl"
-
-[[vk::binding(0, 0)]]
-Texture2D sampled_images[];
-
-[[vk::binding(1, 0)]]
-SamplerState samplers[];
-
-[[vk::binding(2, 0)]]
-ConstantBuffer<FrameUniforms> frame_uniforms;
+#include "sampled_image_bindings.hlsl"
 
 [[vk::push_constant]]
 struct PushConstants {
@@ -17,8 +9,7 @@ struct PushConstants {
 } pc;
 
 float4 main(ImguiVertexOutput input) : SV_Target0 {
-
-    float4 atlas_sample = sampled_images[0].Sample(samplers[0], input.uv);
+    float4 atlas_sample = sampled_images[pc.atlas_idx].Sample(samplers[pc.sampler_idx], input.uv);
     if (atlas_sample.a == 0.0)
         discard;
     

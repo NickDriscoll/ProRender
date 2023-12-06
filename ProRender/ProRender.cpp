@@ -18,6 +18,28 @@ int main(int argc, char* argv[]) {
 	app_timer.print("VGD Initialization");
 	app_timer.start();
 
+	uint32_t window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
+	SDL_Window* sdl_window = SDL_CreateWindow("losing my mind", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, my_config.window_width, my_config.window_height, window_flags);
+	
+	//Init the vulkan window
+	VkSurfaceKHR window_surface;
+	if (SDL_Vulkan_CreateSurface(sdl_window, vgd.instance, &window_surface) == SDL_FALSE) {
+		printf("Creating VkSurface failed.\n");
+		exit(-1);
+	}
+	VulkanWindow window(vgd, window_surface);
+	app_timer.print("Window creation");
+	app_timer.start();
+
+	//Initialize the renderer
+	Renderer renderer(&vgd);
+    renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
+        2.0f / (float)window.x_resolution, 0.0f, 0.0f, -1.0f,
+        0.0f, 2.0f / (float)window.y_resolution, 0.0f, -1.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
+    );
+
 	//Initialize Dear ImGui
 	{
 		IMGUI_CHECKVERSION();
@@ -66,6 +88,7 @@ int main(int argc, char* argv[]) {
 			}
 		}
 
+		renderer.imgui_atlas_idx = tex_index;
 		io.Fonts->SetTexID(std::bit_cast<void*>(tex_index));
 	}
 	app_timer.print("Dear ImGUI Initialization");
@@ -96,28 +119,6 @@ int main(int argc, char* argv[]) {
 		batch_ids.push_back(vgd.load_image_files(filenames, formats));
 		batch_ids.push_back(vgd.load_image_files(filenames2, formats2));
 	}
-
-	uint32_t window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
-	SDL_Window* sdl_window = SDL_CreateWindow("losing my mind", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, my_config.window_width, my_config.window_height, window_flags);
-	
-	//Init the vulkan window
-	VkSurfaceKHR window_surface;
-	if (SDL_Vulkan_CreateSurface(sdl_window, vgd.instance, &window_surface) == SDL_FALSE) {
-		printf("Creating VkSurface failed.\n");
-		exit(-1);
-	}
-	VulkanWindow window(vgd, window_surface);
-	app_timer.print("Window creation");
-	app_timer.start();
-
-	//Initialize the renderer
-	Renderer renderer(&vgd);
-    renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
-        2.0f / (float)window.x_resolution, 0.0f, 0.0f, -1.0f,
-        0.0f, 2.0f / (float)window.y_resolution, 0.0f, -1.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f
-    );
 
 	//Create graphics pipelines
 	uint64_t current_pipeline_handle = 0;
@@ -268,6 +269,8 @@ int main(int argc, char* argv[]) {
 		//Do input polling loop
 		{
     		ImGuiIO& io = ImGui::GetIO();
+			io.DeltaTime = (float)(last_frame_took / 1000.0);
+
 			SDL_Event event;
 			while (SDL_PollEvent(&event)) {
 				switch (event.type) {
@@ -323,9 +326,6 @@ int main(int argc, char* argv[]) {
 
 		//Dear ImGUI update part
 		{
-    		ImGuiIO& io = ImGui::GetIO();
-			io.DeltaTime = (float)(last_frame_took / 1000.0);
-
 			ImGui::NewFrame();
         	ImGui::ShowDemoWindow(nullptr);
 			ImGui::SliderFloat("Animation time", &time, -5.0, 5.0);
@@ -501,6 +501,9 @@ int main(int argc, char* argv[]) {
 				//Record once-per-frame binding of index buffer and graphics pipeline
 				vkCmdBindIndexBuffer(frame_cb, gpu_imgui_indices->buffer, current_index_offset * sizeof(ImDrawIdx), VK_INDEX_TYPE_UINT16);
 				vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(imgui_pipeline)->pipeline);
+
+				uint32_t pcs[] = { renderer.imgui_atlas_idx, renderer.imgui_sampler_idx };
+				vkCmdPushConstants(frame_cb, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 8, pcs);
 
 				//Create intermediate buffers for Imgui vertex attributes
 				std::vector<uint8_t> imgui_positions;

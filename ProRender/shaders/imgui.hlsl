@@ -24,3 +24,12 @@ struct ImguiVertexOutput {
     float2 uv : UVS;
     float4 color : COLOR;
 };
+
+[[vk::binding(3, 0)]]
+StructuredBuffer<ImguiPositionBlock> imgui_positions;
+
+[[vk::binding(4, 0)]]
+StructuredBuffer<ImguiUvBlock> imgui_uvs;
+
+[[vk::binding(5, 0)]]
+StructuredBuffer<ImguiColorBlock> imgui_colors;
