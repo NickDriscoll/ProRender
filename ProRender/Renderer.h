@@ -3,7 +3,10 @@
 #include <string.h>
 #include <hlsl++.h>
 #include <imgui.h>
+#include "slotmap.h"
 #include "VulkanGraphicsDevice.h"
+
+#define MAX_CAMERAS 64
 
 struct FrameUniforms {
 	hlslpp::float4x4 clip_from_screen;
@@ -13,6 +16,11 @@ struct Camera {
 	hlslpp::float3 position;
 	float yaw;
 	float pitch;
+};
+
+struct GPUCamera {
+	hlslpp::float4x4 view_matrix;
+	hlslpp::float4x4 projection_matrix;
 };
 
 struct BufferView {
@@ -38,14 +46,17 @@ struct Renderer {
 	uint64_t frame_uniforms_buffer;
 
 	//Buffer of camera data
-	std::vector<Camera> cameras;
 	uint64_t camera_buffer;
+	uint64_t main_viewport_camera;
 
 	//Vertex buffers
 	uint32_t vertex_position_offset = 0;
 	uint64_t vertex_position_buffer;
 	uint32_t vertex_uv_offset = 0;
 	uint64_t vertex_uv_buffer;
+
+	uint32_t index_buffer_offset = 0;
+	uint64_t index_buffer;
 
 	//TODO: Imgui data probably shouldn't be directly in init
 	//uint64_t imgui_vertex_buffer;
@@ -59,11 +70,15 @@ struct Renderer {
 
 	BufferView push_vertex_positions(std::span<float> data);
 	BufferView push_vertex_uvs(std::span<float> data);
+	BufferView push_indices16(std::span<uint16_t> data);
+
+	Camera* get_camera(uint64_t key);
 
 	Renderer(VulkanGraphicsDevice* vgd);
 	~Renderer();
 
 private:
+	slotmap<Camera> _cameras;
 	std::vector<VkSampler> _samplers;
 	VulkanGraphicsDevice* vgd;		//Very dangerous and dubiously recommended
 };

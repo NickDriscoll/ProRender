@@ -4,4 +4,4 @@ struct Camera {
 };
 
 [[vk::binding(8, 0)]]
-ConstantBuffer<Camera> cameras;
+StructuredBuffer<Camera> cameras;
