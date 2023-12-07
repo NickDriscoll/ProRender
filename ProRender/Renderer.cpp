@@ -146,9 +146,12 @@ int SDL2ToImGuiMouseButton(int button) {
 
 Renderer::Renderer(VulkanGraphicsDevice* vgd) {
 
+    _cameras.alloc(MAX_CAMERAS);
+
     //Create bindless descriptor set
     {
         {
+            //Create immutable samplers
             {
                 VkSamplerCreateInfo info = {
                     .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -241,6 +244,13 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
                 .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
             });
 
+            //Camera buffer
+            bindings.push_back({
+                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptor_count = 1,
+                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+            });
+
             descriptor_set_layout_id = vgd->create_descriptor_set_layout(bindings);
 
             std::vector<VkPushConstantRange> ranges = {
@@ -318,12 +328,13 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
         VkDeviceSize buffer_size = 1024 * 1024;
         vertex_position_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
         vertex_uv_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
+        index_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, alloc_info);
     }
 
     //Allocate memory for ImGUI vertex data
     //TODO: probabaly shouldn't be in renderer init
     {
-        VkDeviceSize buffer_size = 256 * 1024;
+        VkDeviceSize buffer_size = 1024 * 1024;
 
         VmaAllocationCreateInfo alloc_info = {};
         alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -331,7 +342,6 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
         alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
         alloc_info.priority = 1.0;
 
-        //imgui_vertex_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
         imgui_position_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
         imgui_uv_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
         imgui_color_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
@@ -339,14 +349,29 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
     }
 
     //Create buffer for per-frame uniform data
-    VmaAllocationCreateInfo alloc_info = {};
-    alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-    alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
-    alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    alloc_info.priority = 1.0;
-    frame_uniforms_buffer = vgd->create_buffer(FRAMES_IN_FLIGHT * sizeof(FrameUniforms), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, alloc_info);
+    {
+        VmaAllocationCreateInfo alloc_info = {};
+        alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
+        alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        alloc_info.priority = 1.0;
+        frame_uniforms_buffer = vgd->create_buffer(FRAMES_IN_FLIGHT * sizeof(FrameUniforms), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, alloc_info);
+    }
 
-	//Bind static descriptors
+    //Create camera buffer
+    {
+        VmaAllocationCreateInfo alloc_info = {};
+        alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
+        alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        alloc_info.priority = 1.0;
+        camera_buffer = vgd->create_buffer(FRAMES_IN_FLIGHT * MAX_CAMERAS * sizeof(GPUCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
+    }
+
+    //Create main camera
+    main_viewport_camera = _cameras.insert({});
+
+	//Write static descriptors
 	{
 		std::vector<VkWriteDescriptorSet> descriptor_writes;
         
@@ -451,6 +476,23 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
             .pBufferInfo = &vert_uv_buffer_info
         };
         descriptor_writes.push_back(vert_uv_write);
+        
+        VkDescriptorBufferInfo camera_buffer_info = {
+            .buffer = vgd->get_buffer(camera_buffer)->buffer,
+            .offset = 0,
+            .range = VK_WHOLE_SIZE
+        };
+        
+        VkWriteDescriptorSet camera_write = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = descriptor_set,
+            .dstBinding = 8,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .pBufferInfo = &camera_buffer_info
+        };
+        descriptor_writes.push_back(camera_write);
 
         vkUpdateDescriptorSets(vgd->device, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
 	}
@@ -460,8 +502,10 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
 }
 
 BufferView Renderer::push_vertex_positions(std::span<float> data) {
-    VulkanBuffer* pos_buffer = vgd->get_buffer(vertex_position_buffer);
-    memcpy(pos_buffer->alloc_info.pMappedData, data.data(), data.size_bytes());
+    VulkanBuffer* buffer = vgd->get_buffer(vertex_position_buffer);
+    float* ptr = (float*)buffer->alloc_info.pMappedData;
+    ptr += vertex_position_offset;
+    memcpy(ptr, data.data(), data.size_bytes());
 
     BufferView b = {
         .start = vertex_position_offset,
@@ -470,6 +514,40 @@ BufferView Renderer::push_vertex_positions(std::span<float> data) {
 
     vertex_position_offset += data.size();
     return b;
+}
+
+BufferView Renderer::push_vertex_uvs(std::span<float> data) {
+    VulkanBuffer* buffer = vgd->get_buffer(vertex_uv_buffer);
+    float* ptr = (float*)buffer->alloc_info.pMappedData;
+    ptr += vertex_uv_offset;
+    memcpy(buffer->alloc_info.pMappedData, data.data(), data.size_bytes());
+
+    BufferView b = {
+        .start = vertex_uv_offset,
+        .length = (uint32_t)data.size()
+    };
+
+    vertex_uv_offset += data.size();
+    return b;
+}
+
+BufferView Renderer::push_indices16(std::span<uint16_t> data) {
+    VulkanBuffer* buffer = vgd->get_buffer(index_buffer);
+    uint16_t* ptr = (uint16_t*)buffer->alloc_info.pMappedData;
+    ptr += index_buffer_offset;
+    memcpy(ptr, data.data(), data.size_bytes());
+
+    BufferView b = {
+        .start = index_buffer_offset,
+        .length = (uint32_t) data.size()
+    };
+
+    index_buffer_offset += data.size();
+    return b;
+}
+
+Camera* Renderer::get_camera(uint64_t key) {
+    return _cameras.get(key);
 }
 
 Renderer::~Renderer() {
@@ -482,7 +560,9 @@ Renderer::~Renderer() {
     vgd->destroy_buffer(imgui_uv_buffer);
     vgd->destroy_buffer(imgui_color_buffer);
     vgd->destroy_buffer(imgui_index_buffer);
+    vgd->destroy_buffer(camera_buffer);
     vgd->destroy_buffer(frame_uniforms_buffer);
     vgd->destroy_buffer(vertex_position_buffer);
     vgd->destroy_buffer(vertex_uv_buffer);
+    vgd->destroy_buffer(index_buffer);
 }

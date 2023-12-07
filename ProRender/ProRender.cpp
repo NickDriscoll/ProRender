@@ -89,42 +89,84 @@ int main(int argc, char* argv[]) {
 		}
 
 		renderer.imgui_atlas_idx = tex_index;
-		io.Fonts->SetTexID(std::bit_cast<void*>(tex_index));
+		io.Fonts->SetTexID((void*)tex_index);
 	}
 	app_timer.print("Dear ImGUI Initialization");
 	app_timer.start();
-	
-	std::vector<uint32_t> image_indices;
-	std::vector<uint64_t> batch_ids;
-	uint64_t max_id_taken_care_of = 0;
-	batch_ids.reserve(4);
-	{
-		std::vector<const char*> filenames = {
-			"images/doogan.png",
-			"images/birds-allowed.png"
-		};
-		std::vector<const char*> filenames2 = {
-			"images/normal.png",
-			"images/stressed_miyamoto.png"
-		};
-		std::vector<VkFormat> formats = {
-			VK_FORMAT_R8G8B8A8_SRGB,
-			VK_FORMAT_R8G8B8A8_SRGB
-		};
-		std::vector<VkFormat> formats2 = {
-			VK_FORMAT_R8G8B8A8_SRGB,
-			VK_FORMAT_R8G8B8A8_SRGB
-		};
-
-		batch_ids.push_back(vgd.load_image_files(filenames, formats));
-		batch_ids.push_back(vgd.load_image_files(filenames2, formats2));
-	}
 
 	//Create graphics pipelines
-	uint64_t current_pipeline_handle = 0;
-	uint64_t pipeline_handles[] = {0, 0};
-	uint64_t normal_pipeline_handle;
-	uint64_t wire_pipeline_handle;
+	// uint64_t current_pipeline_handle = 0;
+	// uint64_t pipeline_handles[] = {0, 0};
+	// uint64_t normal_pipeline_handle;
+	// uint64_t wire_pipeline_handle;
+	// {
+	// 	VulkanInputAssemblyState ia_states[] = {
+	// 		{},
+	// 		{}
+	// 	};
+
+	// 	VulkanTesselationState tess_states[] = {
+	// 		{},
+	// 		{}
+	// 	};
+
+	// 	VulkanViewportState vs_states[] = {
+	// 		{},
+	// 		{}
+	// 	};
+
+	// 	VulkanRasterizationState rast_states[] = {
+	// 		{},
+	// 		{
+	// 			.polygonMode = VK_POLYGON_MODE_LINE
+	// 		}
+	// 	};
+
+	// 	VulkanMultisampleState ms_states[] = {
+	// 		{},
+	// 		{}
+	// 	};
+
+	// 	VulkanDepthStencilState ds_states[] = {
+	// 		{},
+	// 		{}
+	// 	};
+
+	// 	VulkanColorBlendAttachmentState blend_attachment_state = {};
+	// 	VulkanColorBlendState blend_states[] = {
+	// 		{
+	// 			.attachmentCount = 1,
+	// 			.pAttachments = &blend_attachment_state
+	// 		},
+	// 		{
+	// 			.attachmentCount = 1,
+	// 			.pAttachments = &blend_attachment_state
+	// 		}
+	// 	};
+
+	// 	const char* shaders[] = { "shaders/test.vert.spv", "shaders/test.frag.spv", "shaders/test.vert.spv", "shaders/test.frag.spv" };
+
+	// 	vgd.create_graphics_pipelines(
+	// 		renderer.pipeline_layout_id,
+	// 		window.swapchain_renderpass,
+	// 		shaders,
+	// 		ia_states,
+	// 		tess_states,
+	// 		vs_states,
+	// 		rast_states,
+	// 		ms_states,
+	// 		ds_states,
+	// 		blend_states,
+	// 		pipeline_handles,
+	// 		2
+	// 	);
+	// 	normal_pipeline_handle = pipeline_handles[0];
+	// 	wire_pipeline_handle = pipeline_handles[1];
+	// }
+
+	//Create Dear ImGUI pipeline and PS1 pipeline
+	uint64_t imgui_pipeline;
+	uint64_t ps1_pipeline;
 	{
 		VulkanInputAssemblyState ia_states[] = {
 			{},
@@ -142,10 +184,10 @@ int main(int argc, char* argv[]) {
 		};
 
 		VulkanRasterizationState rast_states[] = {
-			{},
 			{
-				.polygonMode = VK_POLYGON_MODE_LINE
-			}
+				.cullMode = VK_CULL_MODE_NONE
+			},
+			{}
 		};
 
 		VulkanMultisampleState ms_states[] = {
@@ -157,9 +199,6 @@ int main(int argc, char* argv[]) {
 			{},
 			{}
 		};
-		
-		//Blend func description
-		VkColorComponentFlags component_flags = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
 		VulkanColorBlendAttachmentState blend_attachment_state = {};
 		VulkanColorBlendState blend_states[] = {
@@ -173,8 +212,9 @@ int main(int argc, char* argv[]) {
 			}
 		};
 
-		const char* shaders[] = { "shaders/test.vert.spv", "shaders/test.frag.spv", "shaders/test.vert.spv", "shaders/test.frag.spv" };
+		const char* shaders[] = { "shaders/imgui.vert.spv", "shaders/imgui.frag.spv", "shaders/ps1.vert.spv", "shaders/ps1.frag.spv" };
 
+		uint64_t pipelines[2] = {0, 0};
 		vgd.create_graphics_pipelines(
 			renderer.pipeline_layout_id,
 			window.swapchain_renderpass,
@@ -186,74 +226,52 @@ int main(int argc, char* argv[]) {
 			ms_states,
 			ds_states,
 			blend_states,
-			pipeline_handles,
+			pipelines,
 			2
 		);
-		normal_pipeline_handle = pipeline_handles[0];
-		wire_pipeline_handle = pipeline_handles[1];
+
+		imgui_pipeline = pipelines[0];
+		ps1_pipeline = pipelines[1];
 	}
-	printf("Created graphics pipeline.\n");
-
-	//Create Dear ImGUI pipeline
-	uint64_t imgui_pipeline;
-	{
-		VulkanInputAssemblyState ia_states[] = {
-			{}
-		};
-
-		VulkanTesselationState tess_states[] = {
-			{}
-		};
-
-		VulkanViewportState vs_states[] = {
-			{}
-		};
-
-		VulkanRasterizationState rast_states[] = {
-			{
-				.cullMode = VK_CULL_MODE_NONE
-			}
-		};
-
-		VulkanMultisampleState ms_states[] = {
-			{}
-		};
-
-		VulkanDepthStencilState ds_states[] = {
-			{}
-		};
-		
-		//Blend func description
-		VkColorComponentFlags component_flags = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-
-		VulkanColorBlendAttachmentState blend_attachment_state = {};
-		VulkanColorBlendState blend_states[] = {
-			{
-				.attachmentCount = 1,
-				.pAttachments = &blend_attachment_state
-			}
-		};
-
-		const char* shaders[] = { "shaders/imgui.vert.spv", "shaders/imgui.frag.spv" };
-
-		vgd.create_graphics_pipelines(
-			renderer.pipeline_layout_id,
-			window.swapchain_renderpass,
-			shaders,
-			ia_states,
-			tess_states,
-			vs_states,
-			rast_states,
-			ms_states,
-			ds_states,
-			blend_states,
-			&imgui_pipeline,
-			1
-		);
-	}
+	printf("Created graphics pipelines.\n");
 
 	//Create graphics pipeline timeline semaphore
 	VkSemaphore graphics_timeline_semaphore = vgd.create_timeline_semaphore(0);
+
+	//Load simple 3D plane
+	uint64_t plane_image_batch_id;
+	uint32_t plane_image_idx = 0xFFFFFFFF;
+	BufferView plane_positions;
+	BufferView plane_uvs;
+	BufferView plane_indices;
+	{
+		//Load plane texture
+		{
+			std::vector<const char*> names = { "images/stressed_miyamoto.png" };
+			std::vector<VkFormat> formats = { VK_FORMAT_R8G8B8A8_SRGB };
+			plane_image_batch_id = vgd.load_image_files(names, formats);
+		}
+
+		float plane_pos[] = {
+			-1.0, -1.0, 0.0, 1.0,
+			1.0, -1.0, 0.0, 1.0,
+			-1.0, 1.0, 0.0, 1.0,
+			1.0, 1.0, 0.0, 1.0
+		};
+		float plane_uv[] = {
+			0.0, 1.0,
+			1.0, 1.0,
+			0.0, 0.0,
+			1.0, 0.0
+		};
+		uint16_t inds[] = {
+			0, 1, 2,
+			1, 3, 2
+		};
+		plane_positions = renderer.push_vertex_positions(std::span(plane_pos));
+		plane_uvs = renderer.push_vertex_uvs(std::span(plane_uv));
+		plane_indices = renderer.push_indices16(std::span(inds));
+	}
 
 	init_timer.print("App init");
 	
@@ -292,13 +310,13 @@ int main(int argc, char* argv[]) {
 					}
 					break;
 				case SDL_KEYDOWN:
-					if (event.key.keysym.scancode == SDL_SCANCODE_SPACE) {
-						if (current_pipeline_handle == normal_pipeline_handle) {
-							current_pipeline_handle = wire_pipeline_handle;
-						} else {
-							current_pipeline_handle = normal_pipeline_handle;
-						}
-					}
+					// if (event.key.keysym.scancode == SDL_SCANCODE_SPACE) {
+					// 	if (current_pipeline_handle == normal_pipeline_handle) {
+					// 		current_pipeline_handle = wire_pipeline_handle;
+					// 	} else {
+					// 		current_pipeline_handle = normal_pipeline_handle;
+					// 	}
+					// }
 					
 					//Pass keystroke to imgui
 					io.AddKeyEvent(SDL2ToImGuiKey(event.key.keysym.sym), true);
@@ -322,16 +340,19 @@ int main(int argc, char* argv[]) {
 					break;
 				}
 			}
+
+			//We only need to wait for io updates to finish before calling ImGui::NewFrame();
+			ImGui::NewFrame();
 		}
 
 		//Dear ImGUI update part
 		{
-			ImGui::NewFrame();
-        	ImGui::ShowDemoWindow(nullptr);
-			ImGui::SliderFloat("Animation time", &time, -5.0, 5.0);
+			ImGui::ShowDemoWindow(nullptr);
+			ImGui::SliderFloat("Animation time", &time, -8.0, 8.0);
 		}
 
 		//Update per-frame uniforms
+		//TODO: This is currently doing nothing to account for multiple in-flight frames
 		{
 			VulkanBuffer* uniform_buffer = vgd.get_buffer(renderer.frame_uniforms_buffer);
 			memcpy(uniform_buffer->alloc_info.pMappedData, &renderer.frame_uniforms, sizeof(FrameUniforms));
@@ -370,27 +391,46 @@ int main(int argc, char* argv[]) {
 			vgd.tick_image_uploads(frame_cb, renderer.descriptor_set);
 			uint64_t upload_batches_completed = vgd.get_completed_image_uploads();
 
+			//Check for plane image
 			{
-				for (uint32_t i = 0; i < batch_ids.size(); i++) {
-					if (max_id_taken_care_of < batch_ids[i] && batch_ids[i] <= upload_batches_completed) {
-						uint32_t seen = 0;
-						for (uint32_t j = 0; seen < vgd.available_images.count(); j++) {
-							if (!vgd.available_images.is_live(j)) continue;
-							seen += 1;
-
-							VulkanAvailableImage* image = vgd.available_images.data() + j;
-							if (batch_ids[i] == image->batch_id) {
-								printf("Found image from batch %i at index %i\n", i, j);
-								image_indices.push_back(j);
-								max_id_taken_care_of = batch_ids[i];
-							}
+				static bool iheartstaticbools = false;
+				if (!iheartstaticbools && plane_image_batch_id <= upload_batches_completed) {
+					iheartstaticbools = true;
+					uint32_t seen = 0;
+					for (uint32_t j = 0; seen < vgd.available_images.count(); j++) {
+						if (!vgd.available_images.is_live(j)) continue;
+						seen += 1;
+						VulkanAvailableImage* image = vgd.available_images.data() + j;
+						if (plane_image_batch_id == image->batch_id) {
+							printf("Found plane image at index %i\n", j);
+							plane_image_idx = j;
 						}
 					}
 				}
 			}
 
+			// {
+			// 	for (uint32_t i = 0; i < batch_ids.size(); i++) {
+			// 		if (max_id_taken_care_of < batch_ids[i] && batch_ids[i] <= upload_batches_completed) {
+			// 			uint32_t seen = 0;
+			// 			for (uint32_t j = 0; seen < vgd.available_images.count(); j++) {
+			// 				if (!vgd.available_images.is_live(j)) continue;
+			// 				seen += 1;
+
+			// 				VulkanAvailableImage* image = vgd.available_images.data() + j;
+			// 				if (batch_ids[i] == image->batch_id) {
+			// 					printf("Found image from batch %i at index %i\n", i, j);
+			// 					image_indices.push_back(j);
+			// 					max_id_taken_care_of = batch_ids[i];
+			// 				}
+			// 			}
+			// 		}
+			// 	}
+			// }
+
 			vkCmdBindDescriptorSets(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), 0, 1, &renderer.descriptor_set, 0, nullptr);
-			vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(current_pipeline_handle)->pipeline);
+			
+			//vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(current_pipeline_handle)->pipeline);
 
 			//Begin render pass
 			{
@@ -406,9 +446,9 @@ int main(int argc, char* argv[]) {
 				};
 
 				VkClearValue clear_color;
-				clear_color.color.float32[0] = 0.1f;
+				clear_color.color.float32[0] = 0.0f;
 				clear_color.color.float32[1] = 0.0f;
-				clear_color.color.float32[2] = 0.9f;
+				clear_color.color.float32[2] = 0.0f;
 				clear_color.color.float32[3] = 1.0f;
 				clear_color.depthStencil.depth = 0.0f;
 				clear_color.depthStencil.stencil = 0;
@@ -451,16 +491,16 @@ int main(int argc, char* argv[]) {
 
 			//float time = (float)app_timer.check() * 1.5f / 1000.0f;
 
-			for (uint32_t i = 0; i < image_indices.size(); i++) {
-				uint32_t x = i & 1;
-				uint32_t y = i > 1;
+			//Bind global index buffer
+			vkCmdBindIndexBuffer(frame_cb, vgd.get_buffer(renderer.index_buffer)->buffer, 0, VK_INDEX_TYPE_UINT16);
 
-				uint32_t idx = image_indices[i];
+			//Draw hardcoded plane
+			vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(ps1_pipeline)->pipeline);
+			if (plane_image_idx != 0xFFFFFFFF) {
+				uint32_t pcs[] = { plane_positions.start / 4, plane_uvs.start / 2, EXTRACT_IDX(renderer.main_viewport_camera), plane_image_idx };
+				vkCmdPushConstants(frame_cb, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, pcs);
 
-				uint32_t bytes[] = { std::bit_cast<uint32_t>(time), idx, x, y };
-				vkCmdPushConstants(frame_cb, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, bytes);
-
-				vkCmdDraw(frame_cb, 6, 1, 0, 0);
+				vkCmdDrawIndexed(frame_cb, plane_indices.length, 1, plane_indices.start, 0, 0);
 			}
 
 			//Upload ImGUI vertex data and record ImGUI draw commands
