@@ -1,5 +1,6 @@
 #include "frame_uniform_bindings.hlsl"
 #include "vertex_bindings.hlsl"
+#include "camera_bindings.hlsl"
 #include "ps1.hlsl"
 
 Ps1VertexOutput main(uint vtx_id : SV_VertexID) {
