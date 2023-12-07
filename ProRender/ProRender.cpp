@@ -93,32 +93,6 @@ int main(int argc, char* argv[]) {
 	}
 	app_timer.print("Dear ImGUI Initialization");
 	app_timer.start();
-	
-	std::vector<uint32_t> image_indices;
-	std::vector<uint64_t> batch_ids;
-	uint64_t max_id_taken_care_of = 0;
-	batch_ids.reserve(4);
-	{
-		std::vector<const char*> filenames = {
-			"images/doogan.png",
-			"images/birds-allowed.png"
-		};
-		std::vector<const char*> filenames2 = {
-			"images/normal.png",
-			"images/stressed_miyamoto.png"
-		};
-		std::vector<VkFormat> formats = {
-			VK_FORMAT_R8G8B8A8_SRGB,
-			VK_FORMAT_R8G8B8A8_SRGB
-		};
-		std::vector<VkFormat> formats2 = {
-			VK_FORMAT_R8G8B8A8_SRGB,
-			VK_FORMAT_R8G8B8A8_SRGB
-		};
-
-		batch_ids.push_back(vgd.load_image_files(filenames, formats));
-		batch_ids.push_back(vgd.load_image_files(filenames2, formats2));
-	}
 
 	//Create graphics pipelines
 	uint64_t current_pipeline_handle = 0;
@@ -371,24 +345,24 @@ int main(int argc, char* argv[]) {
 			vgd.tick_image_uploads(frame_cb, renderer.descriptor_set);
 			uint64_t upload_batches_completed = vgd.get_completed_image_uploads();
 
-			{
-				for (uint32_t i = 0; i < batch_ids.size(); i++) {
-					if (max_id_taken_care_of < batch_ids[i] && batch_ids[i] <= upload_batches_completed) {
-						uint32_t seen = 0;
-						for (uint32_t j = 0; seen < vgd.available_images.count(); j++) {
-							if (!vgd.available_images.is_live(j)) continue;
-							seen += 1;
+			// {
+			// 	for (uint32_t i = 0; i < batch_ids.size(); i++) {
+			// 		if (max_id_taken_care_of < batch_ids[i] && batch_ids[i] <= upload_batches_completed) {
+			// 			uint32_t seen = 0;
+			// 			for (uint32_t j = 0; seen < vgd.available_images.count(); j++) {
+			// 				if (!vgd.available_images.is_live(j)) continue;
+			// 				seen += 1;
 
-							VulkanAvailableImage* image = vgd.available_images.data() + j;
-							if (batch_ids[i] == image->batch_id) {
-								printf("Found image from batch %i at index %i\n", i, j);
-								image_indices.push_back(j);
-								max_id_taken_care_of = batch_ids[i];
-							}
-						}
-					}
-				}
-			}
+			// 				VulkanAvailableImage* image = vgd.available_images.data() + j;
+			// 				if (batch_ids[i] == image->batch_id) {
+			// 					printf("Found image from batch %i at index %i\n", i, j);
+			// 					image_indices.push_back(j);
+			// 					max_id_taken_care_of = batch_ids[i];
+			// 				}
+			// 			}
+			// 		}
+			// 	}
+			// }
 
 			vkCmdBindDescriptorSets(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), 0, 1, &renderer.descriptor_set, 0, nullptr);
 			vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(current_pipeline_handle)->pipeline);
@@ -451,18 +425,6 @@ int main(int argc, char* argv[]) {
 			}
 
 			//float time = (float)app_timer.check() * 1.5f / 1000.0f;
-
-			for (uint32_t i = 0; i < image_indices.size(); i++) {
-				uint32_t x = i & 1;
-				uint32_t y = i > 1;
-
-				uint32_t idx = image_indices[i];
-
-				uint32_t bytes[] = { std::bit_cast<uint32_t>(time), idx, x, y };
-				vkCmdPushConstants(frame_cb, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, bytes);
-
-				vkCmdDraw(frame_cb, 6, 1, 0, 0);
-			}
 
 			//Upload ImGUI vertex data and record ImGUI draw commands
 			{
