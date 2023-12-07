@@ -58,6 +58,7 @@ struct Renderer {
 	ImguiFrame imgui_frames[FRAMES_IN_FLIGHT] = {};
 
 	BufferView push_vertex_positions(std::span<float> data);
+	BufferView push_vertex_uvs(std::span<float> data);
 
 	Renderer(VulkanGraphicsDevice* vgd);
 	~Renderer();

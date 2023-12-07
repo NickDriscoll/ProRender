@@ -328,10 +328,11 @@ int main(int argc, char* argv[]) {
 		{
 			ImGui::NewFrame();
         	ImGui::ShowDemoWindow(nullptr);
-			ImGui::SliderFloat("Animation time", &time, -5.0, 5.0);
+			ImGui::SliderFloat("Animation time", &time, -8.0, 8.0);
 		}
 
 		//Update per-frame uniforms
+		//TODO: This is currently doing nothing to account for multiple in-flight frames
 		{
 			VulkanBuffer* uniform_buffer = vgd.get_buffer(renderer.frame_uniforms_buffer);
 			memcpy(uniform_buffer->alloc_info.pMappedData, &renderer.frame_uniforms, sizeof(FrameUniforms));

@@ -472,6 +472,19 @@ BufferView Renderer::push_vertex_positions(std::span<float> data) {
     return b;
 }
 
+BufferView Renderer::push_vertex_uvs(std::span<float> data) {
+    VulkanBuffer* buffer = vgd->get_buffer(vertex_uv_buffer);
+    memcpy(buffer->alloc_info.pMappedData, data.data(), data.size_bytes());
+
+    BufferView b = {
+        .start = vertex_uv_offset,
+        .length = (uint32_t)data.size()
+    };
+
+    vertex_uv_offset += data.size();
+    return b;
+}
+
 Renderer::~Renderer() {
 	for (uint32_t i = 0; i < _samplers.size(); i++) {
 		vkDestroySampler(vgd->device, _samplers[i], vgd->alloc_callbacks);
