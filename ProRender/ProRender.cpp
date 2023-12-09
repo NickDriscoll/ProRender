@@ -94,76 +94,6 @@ int main(int argc, char* argv[]) {
 	app_timer.print("Dear ImGUI Initialization");
 	app_timer.start();
 
-	//Create graphics pipelines
-	// uint64_t current_pipeline_handle = 0;
-	// uint64_t pipeline_handles[] = {0, 0};
-	// uint64_t normal_pipeline_handle;
-	// uint64_t wire_pipeline_handle;
-	// {
-	// 	VulkanInputAssemblyState ia_states[] = {
-	// 		{},
-	// 		{}
-	// 	};
-
-	// 	VulkanTesselationState tess_states[] = {
-	// 		{},
-	// 		{}
-	// 	};
-
-	// 	VulkanViewportState vs_states[] = {
-	// 		{},
-	// 		{}
-	// 	};
-
-	// 	VulkanRasterizationState rast_states[] = {
-	// 		{},
-	// 		{
-	// 			.polygonMode = VK_POLYGON_MODE_LINE
-	// 		}
-	// 	};
-
-	// 	VulkanMultisampleState ms_states[] = {
-	// 		{},
-	// 		{}
-	// 	};
-
-	// 	VulkanDepthStencilState ds_states[] = {
-	// 		{},
-	// 		{}
-	// 	};
-
-	// 	VulkanColorBlendAttachmentState blend_attachment_state = {};
-	// 	VulkanColorBlendState blend_states[] = {
-	// 		{
-	// 			.attachmentCount = 1,
-	// 			.pAttachments = &blend_attachment_state
-	// 		},
-	// 		{
-	// 			.attachmentCount = 1,
-	// 			.pAttachments = &blend_attachment_state
-	// 		}
-	// 	};
-
-	// 	const char* shaders[] = { "shaders/test.vert.spv", "shaders/test.frag.spv", "shaders/test.vert.spv", "shaders/test.frag.spv" };
-
-	// 	vgd.create_graphics_pipelines(
-	// 		renderer.pipeline_layout_id,
-	// 		window.swapchain_renderpass,
-	// 		shaders,
-	// 		ia_states,
-	// 		tess_states,
-	// 		vs_states,
-	// 		rast_states,
-	// 		ms_states,
-	// 		ds_states,
-	// 		blend_states,
-	// 		pipeline_handles,
-	// 		2
-	// 	);
-	// 	normal_pipeline_handle = pipeline_handles[0];
-	// 	wire_pipeline_handle = pipeline_handles[1];
-	// }
-
 	//Create Dear ImGUI pipeline and PS1 pipeline
 	uint64_t imgui_pipeline;
 	uint64_t ps1_pipeline;
@@ -196,8 +126,11 @@ int main(int argc, char* argv[]) {
 		};
 
 		VulkanDepthStencilState ds_states[] = {
-			{},
-			{}
+			{
+				.depthTestEnable = VK_FALSE},
+			{
+				.depthTestEnable = VK_FALSE
+			}
 		};
 
 		VulkanColorBlendAttachmentState blend_attachment_state = {};
@@ -345,6 +278,11 @@ int main(int argc, char* argv[]) {
 			ImGui::NewFrame();
 		}
 
+		//Move camera
+		{
+			
+		}
+
 		//Dear ImGUI update part
 		{
 			ImGui::ShowDemoWindow(nullptr);
@@ -356,6 +294,44 @@ int main(int argc, char* argv[]) {
 		{
 			VulkanBuffer* uniform_buffer = vgd.get_buffer(renderer.frame_uniforms_buffer);
 			memcpy(uniform_buffer->alloc_info.pMappedData, &renderer.frame_uniforms, sizeof(FrameUniforms));
+		}
+
+		//Update GPU camera data
+		//TODO: This is currently doing nothing to account for multiple in-flight frames
+		{
+			std::vector<GPUCamera> g_cameras(renderer.cameras.count());
+
+			uint32_t seen = 0;
+			for (uint32_t i = 0; seen < renderer.cameras.count(); i++) {
+				if (!renderer.cameras.is_live(i)) continue;
+				seen += 1;
+				Camera* camera = renderer.cameras.data() + i;
+
+				GPUCamera gcam;
+				gcam.view_matrix = hlslpp::float4x4(
+					1.0f, 0.0f, 0.0f, -camera->position.x,
+					0.0f, 1.0f, 0.0f, -camera->position.y,
+					0.0f, 0.0f, 1.0f, -camera->position.z,
+					0.0f, 0.0f, 0.0f, 1.0f
+				);
+
+				float aspect = 1.0f / (float)window.x_resolution / (float)window.y_resolution;
+				float tan_fovx = tanf(M_PI / 2.0f);
+				float nearplane = 0.1;
+				float farplane = 1000.0;
+				gcam.projection_matrix = hlslpp::float4x4(
+					1.0 / tan_fovx, 0.0, 0.0, 0.0,
+					0.0, 1.0 / (tan_fovx * aspect), 0.0, 0.0,
+					0.0, 0.0, nearplane / (nearplane - farplane), (nearplane * farplane) / (farplane - nearplane),
+					0.0, 0.0, 1.0, 0.0
+				);
+
+				g_cameras.push_back(gcam);
+			}
+
+			//Write camera data to GPU buffer in one contiguous push
+			VulkanBuffer* camera_buffer = vgd.get_buffer(renderer.camera_buffer);
+			memcpy(camera_buffer->alloc_info.pMappedData, g_cameras.data(), g_cameras.size() * sizeof(GPUCamera));
 		}
 
 		//Draw
@@ -409,28 +385,7 @@ int main(int argc, char* argv[]) {
 				}
 			}
 
-			// {
-			// 	for (uint32_t i = 0; i < batch_ids.size(); i++) {
-			// 		if (max_id_taken_care_of < batch_ids[i] && batch_ids[i] <= upload_batches_completed) {
-			// 			uint32_t seen = 0;
-			// 			for (uint32_t j = 0; seen < vgd.available_images.count(); j++) {
-			// 				if (!vgd.available_images.is_live(j)) continue;
-			// 				seen += 1;
-
-			// 				VulkanAvailableImage* image = vgd.available_images.data() + j;
-			// 				if (batch_ids[i] == image->batch_id) {
-			// 					printf("Found image from batch %i at index %i\n", i, j);
-			// 					image_indices.push_back(j);
-			// 					max_id_taken_care_of = batch_ids[i];
-			// 				}
-			// 			}
-			// 		}
-			// 	}
-			// }
-
 			vkCmdBindDescriptorSets(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), 0, 1, &renderer.descriptor_set, 0, nullptr);
-			
-			//vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(current_pipeline_handle)->pipeline);
 
 			//Begin render pass
 			{

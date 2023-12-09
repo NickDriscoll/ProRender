@@ -22,6 +22,7 @@
 #include <string.h>
 #include <vector>
 #include <thread>
+#include <math.h>
 #include <hlsl++.h>
 #include "SDL.h"
 #include "SDL_main.h"
