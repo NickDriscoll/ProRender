@@ -186,10 +186,10 @@ int main(int argc, char* argv[]) {
 		}
 
 		float plane_pos[] = {
-			-1.0, -1.0, 0.0, 1.0,
-			1.0, -1.0, 0.0, 1.0,
-			-1.0, 1.0, 0.0, 1.0,
-			1.0, 1.0, 0.0, 1.0
+			-10.0, -10.0, 0.0, 1.0,
+			10.0, -10.0, 0.0, 1.0,
+			-10.0, 10.0, 0.0, 1.0,
+			10.0, 10.0, 0.0, 1.0
 		};
 		float plane_uv[] = {
 			0.0, 1.0,
@@ -212,7 +212,6 @@ int main(int argc, char* argv[]) {
 	bool running = true;
 	uint64_t current_frame = 0;
 	double last_frame_took = 0.0;
-	float time = 0.0;
 	while (running) {
 		Timer frame_timer;
 		frame_timer.start();
@@ -277,16 +276,24 @@ int main(int argc, char* argv[]) {
 			//We only need to wait for io updates to finish before calling ImGui::NewFrame();
 			ImGui::NewFrame();
 		}
+		
+		float time = (float)app_timer.check() * 1.5f / 1000.0f;
 
 		//Move camera
 		{
+			Camera* main_cam = renderer.cameras.get(renderer.main_viewport_camera);
+
+			main_cam->position.x = 0.0;
+			main_cam->position.y = sinf(time) - 1.0;
+			main_cam->position.z = 2.0;
 			
+			float y = main_cam->position.y;
+			ImGui::DragFloat("Camera y", &y);
 		}
 
 		//Dear ImGUI update part
 		{
 			ImGui::ShowDemoWindow(nullptr);
-			ImGui::SliderFloat("Animation time", &time, -8.0, 8.0);
 		}
 
 		//Update per-frame uniforms
@@ -299,7 +306,8 @@ int main(int argc, char* argv[]) {
 		//Update GPU camera data
 		//TODO: This is currently doing nothing to account for multiple in-flight frames
 		{
-			std::vector<GPUCamera> g_cameras(renderer.cameras.count());
+			std::vector<GPUCamera> g_cameras;
+			g_cameras.reserve(renderer.cameras.count());
 
 			uint32_t seen = 0;
 			for (uint32_t i = 0; seen < renderer.cameras.count(); i++) {
@@ -315,16 +323,25 @@ int main(int argc, char* argv[]) {
 					0.0f, 0.0f, 0.0f, 1.0f
 				);
 
-				float aspect = 1.0f / (float)window.x_resolution / (float)window.y_resolution;
-				float tan_fovx = tanf(M_PI / 2.0f);
+				hlslpp::float4x4 c_matrix(
+					1.0, 0.0, 0.0, 0.0,
+					0.0, -1.0, 0.0, 0.0,
+					0.0, 0.0, -1.0, 0.0,
+					0.0, 0.0, 0.0, 1.0
+				);
+
+				float aspect = (float)window.x_resolution / (float)window.y_resolution;
+				float desired_fov = M_PI / 2.0f;
+				float tan_fovy = tanf(desired_fov / 2.0f);
 				float nearplane = 0.1;
 				float farplane = 1000.0;
 				gcam.projection_matrix = hlslpp::float4x4(
-					1.0 / tan_fovx, 0.0, 0.0, 0.0,
-					0.0, 1.0 / (tan_fovx * aspect), 0.0, 0.0,
+					1.0 / (tan_fovy * aspect), 0.0, 0.0, 0.0,
+					0.0, 1.0 / tan_fovy, 0.0, 0.0,
 					0.0, 0.0, nearplane / (nearplane - farplane), (nearplane * farplane) / (farplane - nearplane),
 					0.0, 0.0, 1.0, 0.0
 				);
+				gcam.projection_matrix *= c_matrix;
 
 				g_cameras.push_back(gcam);
 			}
@@ -443,8 +460,6 @@ int main(int argc, char* argv[]) {
 				};
 				vkCmdSetScissor(frame_cb, 0, 1, &scissor);
 			}
-
-			//float time = (float)app_timer.check() * 1.5f / 1000.0f;
 
 			//Bind global index buffer
 			vkCmdBindIndexBuffer(frame_cb, vgd.get_buffer(renderer.index_buffer)->buffer, 0, VK_INDEX_TYPE_UINT16);
