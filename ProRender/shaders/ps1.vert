@@ -16,8 +16,7 @@ Ps1VertexOutput main(uint vtx_id : SV_VertexID) {
     Camera cam = cameras[pc.camera_idx];
 
     Ps1VertexOutput output;
-    //output.position = mul(mul(pos, cam.view_matrix), cam.projection_matrix);
-    output.position = pos;
+    output.position = mul(mul(pos, cam.view_matrix), cam.projection_matrix);
     output.uv = uv;
 
     return output;

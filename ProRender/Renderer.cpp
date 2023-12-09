@@ -368,9 +368,6 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
         camera_buffer = vgd->create_buffer(FRAMES_IN_FLIGHT * MAX_CAMERAS * sizeof(GPUCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
     }
 
-    //Create main camera
-    main_viewport_camera = cameras.insert({});
-
 	//Write static descriptors
 	{
 		std::vector<VkWriteDescriptorSet> descriptor_writes;

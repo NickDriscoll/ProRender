@@ -47,7 +47,6 @@ struct Renderer {
 
 	//Buffer of camera data
 	uint64_t camera_buffer;
-	uint64_t main_viewport_camera;
 	slotmap<Camera> cameras;
 
 	//Vertex buffers
