@@ -146,7 +146,7 @@ int SDL2ToImGuiMouseButton(int button) {
 
 Renderer::Renderer(VulkanGraphicsDevice* vgd) {
 
-    _cameras.alloc(MAX_CAMERAS);
+    cameras.alloc(MAX_CAMERAS);
 
     //Create bindless descriptor set
     {
@@ -369,7 +369,7 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
     }
 
     //Create main camera
-    main_viewport_camera = _cameras.insert({});
+    main_viewport_camera = cameras.insert({});
 
 	//Write static descriptors
 	{
@@ -544,10 +544,6 @@ BufferView Renderer::push_indices16(std::span<uint16_t> data) {
 
     index_buffer_offset += data.size();
     return b;
-}
-
-Camera* Renderer::get_camera(uint64_t key) {
-    return _cameras.get(key);
 }
 
 Renderer::~Renderer() {

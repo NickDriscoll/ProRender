@@ -48,6 +48,7 @@ struct Renderer {
 	//Buffer of camera data
 	uint64_t camera_buffer;
 	uint64_t main_viewport_camera;
+	slotmap<Camera> cameras;
 
 	//Vertex buffers
 	uint32_t vertex_position_offset = 0;
@@ -72,13 +73,10 @@ struct Renderer {
 	BufferView push_vertex_uvs(std::span<float> data);
 	BufferView push_indices16(std::span<uint16_t> data);
 
-	Camera* get_camera(uint64_t key);
-
 	Renderer(VulkanGraphicsDevice* vgd);
 	~Renderer();
 
 private:
-	slotmap<Camera> _cameras;
 	std::vector<VkSampler> _samplers;
 	VulkanGraphicsDevice* vgd;		//Very dangerous and dubiously recommended
 };
