@@ -167,6 +167,7 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
                     .maxLod = VK_LOD_CLAMP_NONE,
                 };
                 _samplers.push_back(vgd->create_sampler(info));
+                standard_sampler_idx = 0;
 
                 info = {
                     .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -257,7 +258,7 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
                 {
                     .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                     .offset = 0,
-                    .size = 16
+                    .size = 20
                 }
             };
 
@@ -367,9 +368,6 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
         alloc_info.priority = 1.0;
         camera_buffer = vgd->create_buffer(FRAMES_IN_FLIGHT * MAX_CAMERAS * sizeof(GPUCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
     }
-
-    //Create main camera
-    main_viewport_camera = cameras.insert({});
 
 	//Write static descriptors
 	{

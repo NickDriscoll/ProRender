@@ -7,6 +7,7 @@ struct {
     uint position_offset;
     uint uv_offset;
     uint camera_idx;
+    uint texture_id;
 } pc;
 
 Ps1VertexOutput main(uint vtx_id : SV_VertexID) {
@@ -16,8 +17,7 @@ Ps1VertexOutput main(uint vtx_id : SV_VertexID) {
     Camera cam = cameras[pc.camera_idx];
 
     Ps1VertexOutput output;
-    //output.position = mul(mul(pos, cam.view_matrix), cam.projection_matrix);
-    output.position = pos;
+    output.position = mul(mul(pos, cam.view_matrix), cam.projection_matrix);
     output.uv = uv;
 
     return output;

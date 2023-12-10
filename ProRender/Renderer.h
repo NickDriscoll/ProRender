@@ -47,7 +47,6 @@ struct Renderer {
 
 	//Buffer of camera data
 	uint64_t camera_buffer;
-	uint64_t main_viewport_camera;
 	slotmap<Camera> cameras;
 
 	//Vertex buffers
@@ -58,6 +57,8 @@ struct Renderer {
 
 	uint32_t index_buffer_offset = 0;
 	uint64_t index_buffer;
+
+	uint64_t standard_sampler_idx;
 
 	//TODO: Imgui data probably shouldn't be directly in init
 	//uint64_t imgui_vertex_buffer;

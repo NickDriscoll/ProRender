@@ -127,7 +127,8 @@ int main(int argc, char* argv[]) {
 
 		VulkanDepthStencilState ds_states[] = {
 			{
-				.depthTestEnable = VK_FALSE},
+				.depthTestEnable = VK_FALSE
+			},
 			{
 				.depthTestEnable = VK_FALSE
 			}
@@ -171,6 +172,10 @@ int main(int argc, char* argv[]) {
 	//Create graphics pipeline timeline semaphore
 	VkSemaphore graphics_timeline_semaphore = vgd.create_timeline_semaphore(0);
 
+    //Create main camera
+    uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 0.0, 0.0, 2.0 } });
+	bool camera_control = false;
+
 	//Load simple 3D plane
 	uint64_t plane_image_batch_id;
 	uint32_t plane_image_idx = 0xFFFFFFFF;
@@ -186,10 +191,10 @@ int main(int argc, char* argv[]) {
 		}
 
 		float plane_pos[] = {
-			-1.0, -1.0, 0.0, 1.0,
-			1.0, -1.0, 0.0, 1.0,
-			-1.0, 1.0, 0.0, 1.0,
-			1.0, 1.0, 0.0, 1.0
+			-10.0, -10.0, 0.0, 1.0,
+			10.0, -10.0, 0.0, 1.0,
+			-10.0, 10.0, 0.0, 1.0,
+			10.0, 10.0, 0.0, 1.0
 		};
 		float plane_uv[] = {
 			0.0, 1.0,
@@ -212,12 +217,13 @@ int main(int argc, char* argv[]) {
 	bool running = true;
 	uint64_t current_frame = 0;
 	double last_frame_took = 0.0;
-	float time = 0.0;
 	while (running) {
 		Timer frame_timer;
 		frame_timer.start();
 
 		//Do input polling loop
+		float mouse_motion_x = 0.0;
+		float mouse_motion_y = 0.0;
 		{
     		ImGuiIO& io = ImGui::GetIO();
 			io.DeltaTime = (float)(last_frame_took / 1000.0);
@@ -260,12 +266,18 @@ int main(int argc, char* argv[]) {
 					io.AddKeyEvent(SDL2ToImGuiKey(event.key.keysym.sym), false);
 					break;
 				case SDL_MOUSEMOTION:
+					mouse_motion_x = (float)event.motion.x;
+					mouse_motion_y = (float)event.motion.y;
 					io.AddMousePosEvent((float)event.motion.x, (float)event.motion.y);
 					break;
 				case SDL_MOUSEBUTTONDOWN:
 					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), true);
 					break;
 				case SDL_MOUSEBUTTONUP:
+					if (event.button.button == SDL_BUTTON_RIGHT) {
+						camera_control = !camera_control;
+					}
+
 					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), false);
 					break;
 				case SDL_MOUSEWHEEL:
@@ -277,16 +289,26 @@ int main(int argc, char* argv[]) {
 			//We only need to wait for io updates to finish before calling ImGui::NewFrame();
 			ImGui::NewFrame();
 		}
+		
+		float time = (float)app_timer.check() * 1.5f / 1000.0f;
 
 		//Move camera
-		{
+		if (camera_control) {
+			Camera* main_cam = renderer.cameras.get(main_viewport_camera);
+
+			main_cam->yaw += mouse_motion_x;
+			main_cam->pitch += mouse_motion_y;
+
+			main_cam->position.x = 0.0;
+			//main_cam->position.y = sinf(time) - 1.0;
+			main_cam->position.z = 2.0;
 			
+			ImGui::SliderFloat("Camera y", &main_cam->position[1], -10.0, 10.0);
 		}
 
 		//Dear ImGUI update part
 		{
 			ImGui::ShowDemoWindow(nullptr);
-			ImGui::SliderFloat("Animation time", &time, -8.0, 8.0);
 		}
 
 		//Update per-frame uniforms
@@ -299,13 +321,23 @@ int main(int argc, char* argv[]) {
 		//Update GPU camera data
 		//TODO: This is currently doing nothing to account for multiple in-flight frames
 		{
-			std::vector<GPUCamera> g_cameras(renderer.cameras.count());
+			std::vector<GPUCamera> g_cameras;
+			g_cameras.reserve(renderer.cameras.count());
 
 			uint32_t seen = 0;
 			for (uint32_t i = 0; seen < renderer.cameras.count(); i++) {
 				if (!renderer.cameras.is_live(i)) continue;
 				seen += 1;
 				Camera* camera = renderer.cameras.data() + i;
+
+				//Transformation applied after view transform to correct axes to match Vulkan clip-space
+				//(x-right, y-forward, z-up) -> (x-right, y-down, z-forward)
+				hlslpp::float4x4 c_matrix(
+					1.0, 0.0, 0.0, 0.0,
+					0.0, 0.0, -1.0, 0.0,
+					0.0, 1.0, 0.0, 0.0,
+					0.0, 0.0, 0.0, 1.0
+				);
 
 				GPUCamera gcam;
 				gcam.view_matrix = hlslpp::float4x4(
@@ -314,14 +346,17 @@ int main(int argc, char* argv[]) {
 					0.0f, 0.0f, 1.0f, -camera->position.z,
 					0.0f, 0.0f, 0.0f, 1.0f
 				);
+				//gcam.view_matrix = hlslpp::mul(gcam.view_matrix, c_matrix);
+				gcam.view_matrix = hlslpp::mul(c_matrix, gcam.view_matrix);
 
-				float aspect = 1.0f / (float)window.x_resolution / (float)window.y_resolution;
-				float tan_fovx = tanf(M_PI / 2.0f);
+				float aspect = (float)window.x_resolution / (float)window.y_resolution;
+				float desired_fov = M_PI / 2.0f;
+				float tan_fovy = tanf(desired_fov / 2.0f);
 				float nearplane = 0.1;
 				float farplane = 1000.0;
 				gcam.projection_matrix = hlslpp::float4x4(
-					1.0 / tan_fovx, 0.0, 0.0, 0.0,
-					0.0, 1.0 / (tan_fovx * aspect), 0.0, 0.0,
+					1.0 / (tan_fovy * aspect), 0.0, 0.0, 0.0,
+					0.0, 1.0 / tan_fovy, 0.0, 0.0,
 					0.0, 0.0, nearplane / (nearplane - farplane), (nearplane * farplane) / (farplane - nearplane),
 					0.0, 0.0, 1.0, 0.0
 				);
@@ -444,16 +479,20 @@ int main(int argc, char* argv[]) {
 				vkCmdSetScissor(frame_cb, 0, 1, &scissor);
 			}
 
-			//float time = (float)app_timer.check() * 1.5f / 1000.0f;
-
 			//Bind global index buffer
 			vkCmdBindIndexBuffer(frame_cb, vgd.get_buffer(renderer.index_buffer)->buffer, 0, VK_INDEX_TYPE_UINT16);
 
 			//Draw hardcoded plane
 			vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(ps1_pipeline)->pipeline);
 			if (plane_image_idx != 0xFFFFFFFF) {
-				uint32_t pcs[] = { plane_positions.start / 4, plane_uvs.start / 2, EXTRACT_IDX(renderer.main_viewport_camera), plane_image_idx };
-				vkCmdPushConstants(frame_cb, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, pcs);
+				uint32_t pcs[] = {
+					plane_positions.start / 4,
+					plane_uvs.start / 2,
+					EXTRACT_IDX(main_viewport_camera),
+					plane_image_idx,
+					renderer.standard_sampler_idx
+				};
+				vkCmdPushConstants(frame_cb, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 20, pcs);
 
 				vkCmdDrawIndexed(frame_cb, plane_indices.length, 1, plane_indices.start, 0, 0);
 			}
