@@ -127,7 +127,8 @@ int main(int argc, char* argv[]) {
 
 		VulkanDepthStencilState ds_states[] = {
 			{
-				.depthTestEnable = VK_FALSE},
+				.depthTestEnable = VK_FALSE
+			},
 			{
 				.depthTestEnable = VK_FALSE
 			}
@@ -172,7 +173,7 @@ int main(int argc, char* argv[]) {
 	VkSemaphore graphics_timeline_semaphore = vgd.create_timeline_semaphore(0);
 
     //Create main camera
-    uint64_t main_viewport_camera = renderer.cameras.insert({});
+    uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 0.0, 0.0, 2.0 } });
 	bool camera_control = false;
 
 	//Load simple 3D plane
@@ -484,8 +485,14 @@ int main(int argc, char* argv[]) {
 			//Draw hardcoded plane
 			vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(ps1_pipeline)->pipeline);
 			if (plane_image_idx != 0xFFFFFFFF) {
-				uint32_t pcs[] = { plane_positions.start / 4, plane_uvs.start / 2, EXTRACT_IDX(main_viewport_camera), plane_image_idx };
-				vkCmdPushConstants(frame_cb, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, pcs);
+				uint32_t pcs[] = {
+					plane_positions.start / 4,
+					plane_uvs.start / 2,
+					EXTRACT_IDX(main_viewport_camera),
+					plane_image_idx,
+					renderer.standard_sampler_idx
+				};
+				vkCmdPushConstants(frame_cb, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 20, pcs);
 
 				vkCmdDrawIndexed(frame_cb, plane_indices.length, 1, plane_indices.start, 0, 0);
 			}

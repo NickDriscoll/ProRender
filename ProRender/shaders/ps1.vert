@@ -7,6 +7,7 @@ struct {
     uint position_offset;
     uint uv_offset;
     uint camera_idx;
+    uint texture_id;
 } pc;
 
 Ps1VertexOutput main(uint vtx_id : SV_VertexID) {

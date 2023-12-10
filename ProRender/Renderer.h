@@ -58,6 +58,8 @@ struct Renderer {
 	uint32_t index_buffer_offset = 0;
 	uint64_t index_buffer;
 
+	uint64_t standard_sampler_idx;
+
 	//TODO: Imgui data probably shouldn't be directly in init
 	//uint64_t imgui_vertex_buffer;
 	uint32_t imgui_atlas_idx;
