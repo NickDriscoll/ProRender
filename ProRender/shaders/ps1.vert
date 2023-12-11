@@ -11,8 +11,8 @@ struct {
 } pc;
 
 Ps1VertexOutput main(uint vtx_id : SV_VertexID) {
-    float4 pos = vertex_positions[vtx_id / POSITION_BLOCK_SIZE].positions[vtx_id % POSITION_BLOCK_SIZE];
-    float2 uv = vertex_uvs[vtx_id / UV_BLOCK_SIZE].uvs[vtx_id % UV_BLOCK_SIZE];
+    float4 pos = vertex_positions[(vtx_id + pc.position_offset) / POSITION_BLOCK_SIZE].positions[(vtx_id + pc.position_offset) % POSITION_BLOCK_SIZE];
+    float2 uv = vertex_uvs[(vtx_id + pc.uv_offset) / UV_BLOCK_SIZE].uvs[(vtx_id + pc.uv_offset) % UV_BLOCK_SIZE];
 
     Camera cam = cameras[pc.camera_idx];
 
