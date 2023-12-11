@@ -1,5 +1,7 @@
 ﻿#include "ProRender.h"
 
+using namespace hlslpp;
+
 int main(int argc, char* argv[]) {
 	Timer init_timer = Timer("Init");
 	Timer app_timer = Timer("Main function");
@@ -33,7 +35,7 @@ int main(int argc, char* argv[]) {
 
 	//Initialize the renderer
 	Renderer renderer(&vgd);
-    renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
+    renderer.frame_uniforms.clip_from_screen = float4x4(
         2.0f / (float)window.x_resolution, 0.0f, 0.0f, -1.0f,
         0.0f, 2.0f / (float)window.y_resolution, 0.0f, -1.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
@@ -239,7 +241,7 @@ int main(int argc, char* argv[]) {
 					case SDL_WINDOWEVENT_SIZE_CHANGED:
 						window.resize(vgd);
 						io.DisplaySize = ImVec2((float)window.x_resolution, (float)window.y_resolution);
-						renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
+						renderer.frame_uniforms.clip_from_screen = float4x4(
 							2.0f / (float)window.x_resolution, 0.0f, 0.0f, -1.0f,
 							0.0f, 2.0f / (float)window.y_resolution, 0.0f, -1.0f,
 							0.0f, 0.0f, 1.0f, 0.0f,
@@ -266,8 +268,8 @@ int main(int argc, char* argv[]) {
 					io.AddKeyEvent(SDL2ToImGuiKey(event.key.keysym.sym), false);
 					break;
 				case SDL_MOUSEMOTION:
-					mouse_motion_x = (float)event.motion.x;
-					mouse_motion_y = (float)event.motion.y;
+					mouse_motion_x = (float)event.motion.xrel;
+					mouse_motion_y = (float)event.motion.yrel;
 					io.AddMousePosEvent((float)event.motion.x, (float)event.motion.y);
 					break;
 				case SDL_MOUSEBUTTONDOWN:
@@ -276,6 +278,7 @@ int main(int argc, char* argv[]) {
 				case SDL_MOUSEBUTTONUP:
 					if (event.button.button == SDL_BUTTON_RIGHT) {
 						camera_control = !camera_control;
+						SDL_SetRelativeMouseMode((SDL_bool)camera_control);
 					}
 
 					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), false);
@@ -286,23 +289,20 @@ int main(int argc, char* argv[]) {
 				}
 			}
 
-			//We only need to wait for io updates to finish before calling ImGui::NewFrame();
+			//We only need to wait for io updates to finish before beginning a new imgui frame
 			ImGui::NewFrame();
 		}
 		
 		float time = (float)app_timer.check() * 1.5f / 1000.0f;
 
 		//Move camera
-		if (camera_control) {
+		{
 			Camera* main_cam = renderer.cameras.get(main_viewport_camera);
-
-			main_cam->yaw += mouse_motion_x;
-			main_cam->pitch += mouse_motion_y;
-
-			main_cam->position.x = 0.0;
-			//main_cam->position.y = sinf(time) - 1.0;
-			main_cam->position.z = 2.0;
-			
+			if (camera_control) {
+				const float SENSITIVITY = 0.01;
+				main_cam->yaw += mouse_motion_x * SENSITIVITY;
+				main_cam->pitch += mouse_motion_y * SENSITIVITY;
+			}
 			ImGui::SliderFloat("Camera y", &main_cam->position[1], -10.0, 10.0);
 		}
 
@@ -332,29 +332,48 @@ int main(int argc, char* argv[]) {
 
 				//Transformation applied after view transform to correct axes to match Vulkan clip-space
 				//(x-right, y-forward, z-up) -> (x-right, y-down, z-forward)
-				hlslpp::float4x4 c_matrix(
+				float4x4 c_matrix(
 					1.0, 0.0, 0.0, 0.0,
 					0.0, 0.0, -1.0, 0.0,
 					0.0, 1.0, 0.0, 0.0,
 					0.0, 0.0, 0.0, 1.0
 				);
 
-				GPUCamera gcam;
-				gcam.view_matrix = hlslpp::float4x4(
+				float cospitch = cosf(camera->pitch);
+				float sinpitch = sinf(camera->pitch);
+				float4x4 pitch_matrix(
+					1.0, 0.0, 0.0, 0.0,
+					0.0, cospitch, -sinpitch, 0.0,
+					0.0, sinpitch, cospitch, 0.0,
+					0.0, 0.0, 0.0, 1.0
+				);
+
+				float cosyaw = cosf(camera->yaw);
+				float sinyaw = sinf(camera->yaw);
+				float4x4 yaw_matrix(
+					cosyaw, -sinyaw, 0.0, 0.0,
+					sinyaw, cosyaw, 0.0, 0.0,
+					0.0, 0.0, 1.0, 0.0,
+					0.0, 0.0, 0.0, 1.0
+				);
+
+				float4x4 view_matrix(
 					1.0f, 0.0f, 0.0f, -camera->position.x,
 					0.0f, 1.0f, 0.0f, -camera->position.y,
 					0.0f, 0.0f, 1.0f, -camera->position.z,
 					0.0f, 0.0f, 0.0f, 1.0f
 				);
-				//gcam.view_matrix = hlslpp::mul(gcam.view_matrix, c_matrix);
-				gcam.view_matrix = hlslpp::mul(c_matrix, gcam.view_matrix);
+
+				GPUCamera gcam;
+				//gcam.view_matrix = mul(gcam.view_matrix, c_matrix);
+				gcam.view_matrix = mul(c_matrix, mul(mul(pitch_matrix, yaw_matrix), view_matrix));
 
 				float aspect = (float)window.x_resolution / (float)window.y_resolution;
 				float desired_fov = M_PI / 2.0f;
 				float tan_fovy = tanf(desired_fov / 2.0f);
 				float nearplane = 0.1;
 				float farplane = 1000.0;
-				gcam.projection_matrix = hlslpp::float4x4(
+				gcam.projection_matrix = float4x4(
 					1.0 / (tan_fovy * aspect), 0.0, 0.0, 0.0,
 					0.0, 1.0 / tan_fovy, 0.0, 0.0,
 					0.0, 0.0, nearplane / (nearplane - farplane), (nearplane * farplane) / (farplane - nearplane),
