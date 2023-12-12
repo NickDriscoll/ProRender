@@ -171,9 +171,6 @@ int main(int argc, char* argv[]) {
 	}
 	printf("Created graphics pipelines.\n");
 
-	//Create graphics pipeline timeline semaphore
-	VkSemaphore graphics_timeline_semaphore = vgd.create_timeline_semaphore(0);
-
     //Create main camera
     uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 0.0, 0.0, 2.0 } });
 	bool camera_control = false;
@@ -214,6 +211,12 @@ int main(int argc, char* argv[]) {
 	}
 
 	init_timer.print("App init");
+
+	//Freecam input variables
+	bool move_back = false;
+	bool move_forward = false;
+	bool move_left = false;
+	bool move_right = false;
 	
 	//Main loop
 	bool running = true;
@@ -223,13 +226,15 @@ int main(int argc, char* argv[]) {
 		Timer frame_timer;
 		frame_timer.start();
 
-		//Do input polling loop
+		//These variables are the paradoxically named "InputOutput" variables
+		//like the output of the input system, you see
 		float mouse_motion_x = 0.0;
 		float mouse_motion_y = 0.0;
 		{
     		ImGuiIO& io = ImGui::GetIO();
 			io.DeltaTime = (float)(last_frame_took / 1000.0);
 
+			//Do input polling loop
 			SDL_Event event;
 			while (SDL_PollEvent(&event)) {
 				switch (event.type) {
@@ -251,20 +256,40 @@ int main(int argc, char* argv[]) {
 					}
 					break;
 				case SDL_KEYDOWN:
-					// if (event.key.keysym.scancode == SDL_SCANCODE_SPACE) {
-					// 	if (current_pipeline_handle == normal_pipeline_handle) {
-					// 		current_pipeline_handle = wire_pipeline_handle;
-					// 	} else {
-					// 		current_pipeline_handle = normal_pipeline_handle;
-					// 	}
-					// }
-					
+					switch (event.key.keysym.sym) {
+					case SDLK_w:
+						move_forward = true;
+						break;
+					case SDLK_s:
+						move_back = true;
+						break;
+					case SDLK_a:
+						move_left = true;
+						break;
+					case SDLK_d:
+						move_right = true;
+						break;
+					}
+
 					//Pass keystroke to imgui
 					io.AddKeyEvent(SDL2ToImGuiKey(event.key.keysym.sym), true);
 					io.AddInputCharacter(event.key.keysym.sym);
-
 					break;
 				case SDL_KEYUP:
+					switch (event.key.keysym.sym) {
+					case SDLK_w:
+						move_forward = false;
+						break;
+					case SDLK_s:
+						move_back = false;
+						break;
+					case SDLK_a:
+						move_left = false;
+						break;
+					case SDLK_d:
+						move_right = false;
+						break;
+					}
 					io.AddKeyEvent(SDL2ToImGuiKey(event.key.keysym.sym), false);
 					break;
 				case SDL_MOUSEMOTION:
@@ -296,14 +321,70 @@ int main(int argc, char* argv[]) {
 		float time = (float)app_timer.check() * 1.5f / 1000.0f;
 
 		//Move camera
+		float4x4 view_matrix;
 		{
 			Camera* main_cam = renderer.cameras.get(main_viewport_camera);
 			if (camera_control) {
-				const float SENSITIVITY = 0.01;
+				const float SENSITIVITY = 0.001;
 				main_cam->yaw += mouse_motion_x * SENSITIVITY;
 				main_cam->pitch += mouse_motion_y * SENSITIVITY;
 			}
 			ImGui::SliderFloat("Camera y", &main_cam->position[1], -10.0, 10.0);
+
+			//Transformation applied after view transform to correct axes to match Vulkan clip-space
+			//(x-right, y-forward, z-up) -> (x-right, y-down, z-forward)
+			float4x4 c_matrix(
+				1.0, 0.0, 0.0, 0.0,
+				0.0, 0.0, -1.0, 0.0,
+				0.0, 1.0, 0.0, 0.0,
+				0.0, 0.0, 0.0, 1.0
+			);
+
+			float cospitch = cosf(main_cam->pitch);
+			float sinpitch = sinf(main_cam->pitch);
+			float4x4 pitch_matrix(
+				1.0, 0.0, 0.0, 0.0,
+				0.0, cospitch, -sinpitch, 0.0,
+				0.0, sinpitch, cospitch, 0.0,
+				0.0, 0.0, 0.0, 1.0
+			);
+
+			float cosyaw = cosf(main_cam->yaw);
+			float sinyaw = sinf(main_cam->yaw);
+			float4x4 yaw_matrix(
+				cosyaw, -sinyaw, 0.0, 0.0,
+				sinyaw, cosyaw, 0.0, 0.0,
+				0.0, 0.0, 1.0, 0.0,
+				0.0, 0.0, 0.0, 1.0
+			);
+
+			float4x4 trans_matrix(
+				1.0f, 0.0f, 0.0f, -main_cam->position.x,
+				0.0f, 1.0f, 0.0f, -main_cam->position.y,
+				0.0f, 0.0f, 1.0f, -main_cam->position.z,
+				0.0f, 0.0f, 0.0f, 1.0f
+			);
+
+			view_matrix = mul(c_matrix, mul(mul(pitch_matrix, yaw_matrix), trans_matrix));
+
+			//Do updates that require knowing the view matrix
+
+			if (move_forward) {
+				float4 d = mul(0.1 * float4(0.0, 0.0, 1.0, 0.0), view_matrix);
+				main_cam->position += float3(d.x, d.y, d.z);
+			}
+			if (move_back) {
+				float4 d = mul(0.1 * float4(0.0, 0.0, -1.0, 0.0), view_matrix);
+				main_cam->position += float3(d.x, d.y, d.z);
+			}
+			if (move_left) {
+				float4 d = mul(0.1 * float4(-1.0, 0.0, 0.0, 0.0), view_matrix);
+				main_cam->position += float3(d.x, d.y, d.z);
+			}
+			if (move_right) {
+				float4 d = mul(0.1 * float4(1.0, 0.0, 0.0, 0.0), view_matrix);
+				main_cam->position += float3(d.x, d.y, d.z);
+			}
 		}
 
 		//Dear ImGUI update part
@@ -319,7 +400,6 @@ int main(int argc, char* argv[]) {
 		}
 
 		//Update GPU camera data
-		//TODO: This is currently doing nothing to account for multiple in-flight frames
 		{
 			std::vector<GPUCamera> g_cameras;
 			g_cameras.reserve(renderer.cameras.count());
@@ -330,43 +410,8 @@ int main(int argc, char* argv[]) {
 				seen += 1;
 				Camera* camera = renderer.cameras.data() + i;
 
-				//Transformation applied after view transform to correct axes to match Vulkan clip-space
-				//(x-right, y-forward, z-up) -> (x-right, y-down, z-forward)
-				float4x4 c_matrix(
-					1.0, 0.0, 0.0, 0.0,
-					0.0, 0.0, -1.0, 0.0,
-					0.0, 1.0, 0.0, 0.0,
-					0.0, 0.0, 0.0, 1.0
-				);
-
-				float cospitch = cosf(camera->pitch);
-				float sinpitch = sinf(camera->pitch);
-				float4x4 pitch_matrix(
-					1.0, 0.0, 0.0, 0.0,
-					0.0, cospitch, -sinpitch, 0.0,
-					0.0, sinpitch, cospitch, 0.0,
-					0.0, 0.0, 0.0, 1.0
-				);
-
-				float cosyaw = cosf(camera->yaw);
-				float sinyaw = sinf(camera->yaw);
-				float4x4 yaw_matrix(
-					cosyaw, -sinyaw, 0.0, 0.0,
-					sinyaw, cosyaw, 0.0, 0.0,
-					0.0, 0.0, 1.0, 0.0,
-					0.0, 0.0, 0.0, 1.0
-				);
-
-				float4x4 view_matrix(
-					1.0f, 0.0f, 0.0f, -camera->position.x,
-					0.0f, 1.0f, 0.0f, -camera->position.y,
-					0.0f, 0.0f, 1.0f, -camera->position.z,
-					0.0f, 0.0f, 0.0f, 1.0f
-				);
-
 				GPUCamera gcam;
-				//gcam.view_matrix = mul(gcam.view_matrix, c_matrix);
-				gcam.view_matrix = mul(c_matrix, mul(mul(pitch_matrix, yaw_matrix), view_matrix));
+				gcam.view_matrix = view_matrix;
 
 				float aspect = (float)window.x_resolution / (float)window.y_resolution;
 				float desired_fov = M_PI / 2.0f;
@@ -384,6 +429,7 @@ int main(int argc, char* argv[]) {
 			}
 
 			//Write camera data to GPU buffer in one contiguous push
+			//TODO: This is currently doing nothing to account for multiple in-flight frames
 			VulkanBuffer* camera_buffer = vgd.get_buffer(renderer.camera_buffer);
 			memcpy(camera_buffer->alloc_info.pMappedData, g_cameras.data(), g_cameras.size() * sizeof(GPUCamera));
 		}
@@ -403,7 +449,7 @@ int main(int argc, char* argv[]) {
 				VkSemaphoreWaitInfo info = {};
 				info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
 				info.semaphoreCount = 1;
-				info.pSemaphores = &graphics_timeline_semaphore;
+				info.pSemaphores = &renderer.graphics_timeline_semaphore;
 				info.pValues = &wait_value;
 				if (vkWaitSemaphores(vgd.device, &info, U64_MAX) != VK_SUCCESS) {
 					printf("Waiting for graphics timeline semaphore failed.\n");
@@ -635,7 +681,7 @@ int main(int argc, char* argv[]) {
 				VkPipelineStageFlags wait_flags[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
 
 				VkSubmitInfo info = {};
-				VkSemaphore signal_semaphores[] = { graphics_timeline_semaphore, window.present_semaphore };
+				VkSemaphore signal_semaphores[] = { renderer.graphics_timeline_semaphore, window.present_semaphore };
 				VkSemaphore wait_semaphores[] = {window.acquire_semaphore, vgd.image_upload_semaphore};
 				info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 				info.pNext = &ts_info;
@@ -692,8 +738,6 @@ int main(int argc, char* argv[]) {
 	vkDeviceWaitIdle(vgd.device);
 
 	//Cleanup resources
-
-	vkDestroySemaphore(vgd.device, graphics_timeline_semaphore, vgd.alloc_callbacks);
 	
     ImGui::DestroyContext();
 	SDL_Quit();
