@@ -36,6 +36,8 @@ struct ImguiFrame {
 };
 
 struct Renderer {
+	VkSemaphore graphics_timeline_semaphore;
+
 	uint64_t descriptor_set_layout_id;
 	uint64_t pipeline_layout_id;
 	VkDescriptorPool descriptor_pool;

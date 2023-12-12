@@ -495,6 +495,9 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
         vkUpdateDescriptorSets(vgd->device, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
 	}
 
+	//Create graphics pipeline timeline semaphore
+	graphics_timeline_semaphore = vgd->create_timeline_semaphore(0);
+
     //Save pointer to graphics device
     this->vgd = vgd;
 }
@@ -548,6 +551,8 @@ Renderer::~Renderer() {
 	for (uint32_t i = 0; i < _samplers.size(); i++) {
 		vkDestroySampler(vgd->device, _samplers[i], vgd->alloc_callbacks);
 	}
+
+	vkDestroySemaphore(vgd->device, graphics_timeline_semaphore, vgd->alloc_callbacks);
 
 	vkDestroyDescriptorPool(vgd->device, descriptor_pool, vgd->alloc_callbacks);
     vgd->destroy_buffer(imgui_position_buffer);
