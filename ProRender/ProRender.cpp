@@ -217,6 +217,8 @@ int main(int argc, char* argv[]) {
 	bool move_forward = false;
 	bool move_left = false;
 	bool move_right = false;
+	bool move_down = false;
+	bool move_up = false;
 	
 	//Main loop
 	bool running = true;
@@ -269,6 +271,12 @@ int main(int argc, char* argv[]) {
 					case SDLK_d:
 						move_right = true;
 						break;
+					case SDLK_q:
+						move_down = true;
+						break;
+					case SDLK_e:
+						move_up = true;
+						break;
 					}
 
 					//Pass keystroke to imgui
@@ -288,6 +296,12 @@ int main(int argc, char* argv[]) {
 						break;
 					case SDLK_d:
 						move_right = false;
+						break;
+					case SDLK_q:
+						move_down = false;
+						break;
+					case SDLK_e:
+						move_up = false;
 						break;
 					}
 					io.AddKeyEvent(SDL2ToImGuiKey(event.key.keysym.sym), false);
@@ -325,11 +339,17 @@ int main(int argc, char* argv[]) {
 		{
 			Camera* main_cam = renderer.cameras.get(main_viewport_camera);
 			if (camera_control) {
-				const float SENSITIVITY = 0.001;
+				const float SENSITIVITY = 0.01;
 				main_cam->yaw += mouse_motion_x * SENSITIVITY;
 				main_cam->pitch += mouse_motion_y * SENSITIVITY;
+
+				while (main_cam->yaw < -2.0 * M_PI) main_cam->yaw += 2.0 * M_PI;
+				while (main_cam->yaw > 2.0 * M_PI) main_cam->yaw -= 2.0 * M_PI;
+				if (main_cam->pitch < -M_PI / 2.0) main_cam->pitch = -M_PI / 2.0;
+				if (main_cam->pitch > M_PI / 2.0) main_cam->pitch = M_PI / 2.0;
+
+				//ImGui::SliderFloat("Yaw", -2.0f * M_PI, 2.0f * M_PI);
 			}
-			ImGui::SliderFloat("Camera y", &main_cam->position[1], -10.0, 10.0);
 
 			//Transformation applied after view transform to correct axes to match Vulkan clip-space
 			//(x-right, y-forward, z-up) -> (x-right, y-down, z-forward)
@@ -383,6 +403,14 @@ int main(int argc, char* argv[]) {
 			}
 			if (move_right) {
 				float4 d = mul(0.1 * float4(1.0, 0.0, 0.0, 0.0), view_matrix);
+				main_cam->position += float3(d.x, d.y, d.z);
+			}
+			if (move_down) {
+				float4 d = mul(0.1 * float4(0.0, 1.0, 0.0, 0.0), view_matrix);
+				main_cam->position += float3(d.x, d.y, d.z);
+			}
+			if (move_up) {
+				float4 d = mul(0.1 * float4(0.0, -1.0, 0.0, 0.0), view_matrix);
 				main_cam->position += float3(d.x, d.y, d.z);
 			}
 		}
@@ -546,15 +574,21 @@ int main(int argc, char* argv[]) {
 
 			//Bind global index buffer
 			vkCmdBindIndexBuffer(frame_cb, vgd.get_buffer(renderer.index_buffer)->buffer, 0, VK_INDEX_TYPE_UINT16);
+			
+			//Bind pipeline for this pass
+			vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(ps1_pipeline)->pipeline);
 
 			//Draw hardcoded plane
-			vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(ps1_pipeline)->pipeline);
-			if (plane_image_idx != 0xFFFFFFFF) {
+			{
+				uint32_t image_idx = renderer.imgui_atlas_idx;
+				if (plane_image_idx != 0xFFFFFFFF)
+					image_idx = plane_image_idx;
+
 				uint32_t pcs[] = {
 					plane_positions.start / 4,
 					plane_uvs.start / 2,
 					EXTRACT_IDX(main_viewport_camera),
-					plane_image_idx,
+					image_idx,
 					renderer.standard_sampler_idx
 				};
 				vkCmdPushConstants(frame_cb, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 20, pcs);
