@@ -351,66 +351,21 @@ int main(int argc, char* argv[]) {
 				//ImGui::SliderFloat("Yaw", -2.0f * M_PI, 2.0f * M_PI);
 			}
 
-			//Transformation applied after view transform to correct axes to match Vulkan clip-space
-			//(x-right, y-forward, z-up) -> (x-right, y-down, z-forward)
-			float4x4 c_matrix(
-				1.0, 0.0, 0.0, 0.0,
-				0.0, 0.0, -1.0, 0.0,
-				0.0, 1.0, 0.0, 0.0,
-				0.0, 0.0, 0.0, 1.0
-			);
-
-			float cospitch = cosf(main_cam->pitch);
-			float sinpitch = sinf(main_cam->pitch);
-			float4x4 pitch_matrix(
-				1.0, 0.0, 0.0, 0.0,
-				0.0, cospitch, -sinpitch, 0.0,
-				0.0, sinpitch, cospitch, 0.0,
-				0.0, 0.0, 0.0, 1.0
-			);
-
-			float cosyaw = cosf(main_cam->yaw);
-			float sinyaw = sinf(main_cam->yaw);
-			float4x4 yaw_matrix(
-				cosyaw, -sinyaw, 0.0, 0.0,
-				sinyaw, cosyaw, 0.0, 0.0,
-				0.0, 0.0, 1.0, 0.0,
-				0.0, 0.0, 0.0, 1.0
-			);
-
-			float4x4 trans_matrix(
-				1.0f, 0.0f, 0.0f, -main_cam->position.x,
-				0.0f, 1.0f, 0.0f, -main_cam->position.y,
-				0.0f, 0.0f, 1.0f, -main_cam->position.z,
-				0.0f, 0.0f, 0.0f, 1.0f
-			);
-
-			view_matrix = mul(c_matrix, mul(mul(pitch_matrix, yaw_matrix), trans_matrix));
+			view_matrix = main_cam->make_view_matrix();
 
 			//Do updates that require knowing the view matrix
 
-			if (move_forward) {
-				float4 d = mul(0.1 * float4(0.0, 0.0, 1.0, 0.0), view_matrix);
-				main_cam->position += float3(d.x, d.y, d.z);
-			}
-			if (move_back) {
-				float4 d = mul(0.1 * float4(0.0, 0.0, -1.0, 0.0), view_matrix);
-				main_cam->position += float3(d.x, d.y, d.z);
-			}
-			if (move_left) {
-				float4 d = mul(0.1 * float4(-1.0, 0.0, 0.0, 0.0), view_matrix);
-				main_cam->position += float3(d.x, d.y, d.z);
-			}
-			if (move_right) {
-				float4 d = mul(0.1 * float4(1.0, 0.0, 0.0, 0.0), view_matrix);
-				main_cam->position += float3(d.x, d.y, d.z);
-			}
-			if (move_down) {
-				float4 d = mul(0.1 * float4(0.0, 1.0, 0.0, 0.0), view_matrix);
-				main_cam->position += float3(d.x, d.y, d.z);
-			}
-			if (move_up) {
-				float4 d = mul(0.1 * float4(0.0, -1.0, 0.0, 0.0), view_matrix);
+			float4 move_direction = float4(0);
+			if (move_forward) move_direction += float4(0.0, 0.0, 1.0, 0.0);
+			if (move_back) move_direction += float4(0.0, 0.0, -1.0, 0.0);
+			if (move_left) move_direction += float4(-1.0, 0.0, 0.0, 0.0);
+			if (move_right) move_direction += float4(1.0, 0.0, 0.0, 0.0);
+			if (move_down) move_direction += float4(0.0, 1.0, 0.0, 0.0);
+			if (move_up) move_direction += float4(0.0, -1.0, 0.0, 0.0);
+
+			bool moved = move_forward || move_back || move_left || move_right || move_up || move_down;
+			if (moved) {
+				float4 d = mul(0.1 * normalize(move_direction), view_matrix);
 				main_cam->position += float3(d.x, d.y, d.z);
 			}
 		}
@@ -596,7 +551,7 @@ int main(int argc, char* argv[]) {
 				vkCmdDrawIndexed(frame_cb, plane_indices.length, 1, plane_indices.start, 0, 0);
 			}
 
-			//Upload ImGUI vertex data and record ImGUI draw commands
+			//Upload ImGUI triangle data and record ImGUI draw commands
 			{
 				uint32_t frame_slot = current_frame % FRAMES_IN_FLIGHT;
 				uint32_t last_frame_slot = frame_slot == 0 ? FRAMES_IN_FLIGHT - 1 : frame_slot - 1;
@@ -772,7 +727,6 @@ int main(int argc, char* argv[]) {
 	vkDeviceWaitIdle(vgd.device);
 
 	//Cleanup resources
-	
     ImGui::DestroyContext();
 	SDL_Quit();
 
