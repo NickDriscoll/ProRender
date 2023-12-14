@@ -16,6 +16,8 @@ struct Camera {
 	hlslpp::float3 position;
 	float yaw;
 	float pitch;
+
+	hlslpp::float4x4 make_view_matrix();
 };
 
 struct GPUCamera {

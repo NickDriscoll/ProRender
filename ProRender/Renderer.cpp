@@ -144,6 +144,46 @@ int SDL2ToImGuiMouseButton(int button) {
     return ret - 1;
 }
 
+hlslpp::float4x4 Camera::make_view_matrix() {
+    using namespace hlslpp;
+
+    //Transformation applied after view transform to correct axes to match Vulkan clip-space
+	//(x-right, y-forward, z-up) -> (x-right, y-down, z-forward)
+	float4x4 c_matrix(
+		1.0, 0.0, 0.0, 0.0,
+		0.0, 0.0, -1.0, 0.0,
+		0.0, 1.0, 0.0, 0.0,
+		0.0, 0.0, 0.0, 1.0
+	);
+
+	float cospitch = cosf(pitch);
+	float sinpitch = sinf(pitch);
+	float4x4 pitch_matrix(
+		1.0, 0.0, 0.0, 0.0,
+		0.0, cospitch, -sinpitch, 0.0,
+		0.0, sinpitch, cospitch, 0.0,
+		0.0, 0.0, 0.0, 1.0
+	);
+
+	float cosyaw = cosf(yaw);
+	float sinyaw = sinf(yaw);
+	float4x4 yaw_matrix(
+		cosyaw, -sinyaw, 0.0, 0.0,
+		sinyaw, cosyaw, 0.0, 0.0,
+		0.0, 0.0, 1.0, 0.0,
+		0.0, 0.0, 0.0, 1.0
+	);
+
+	float4x4 trans_matrix(
+		1.0f, 0.0f, 0.0f, -position.x,
+		0.0f, 1.0f, 0.0f, -position.y,
+		0.0f, 0.0f, 1.0f, -position.z,
+		0.0f, 0.0f, 0.0f, 1
+	);
+
+	return mul(c_matrix, mul(mul(pitch_matrix, yaw_matrix), trans_matrix));
+}
+
 Renderer::Renderer(VulkanGraphicsDevice* vgd) {
 
     cameras.alloc(MAX_CAMERAS);
