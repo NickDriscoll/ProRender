@@ -356,12 +356,12 @@ int main(int argc, char* argv[]) {
 			//Do updates that require knowing the view matrix
 
 			float4 move_direction = float4(0);
-			if (move_forward) move_direction += float4(0.0, 0.0, 1.0, 0.0);
-			if (move_back) move_direction += float4(0.0, 0.0, -1.0, 0.0);
+			if (move_forward) move_direction += float4(0.0, 1.0, 0.0, 0.0);
+			if (move_back) move_direction += float4(0.0, -1.0, 0.0, 0.0);
 			if (move_left) move_direction += float4(-1.0, 0.0, 0.0, 0.0);
 			if (move_right) move_direction += float4(1.0, 0.0, 0.0, 0.0);
-			if (move_down) move_direction += float4(0.0, 1.0, 0.0, 0.0);
-			if (move_up) move_direction += float4(0.0, -1.0, 0.0, 0.0);
+			if (move_down) move_direction += float4(0.0, 0.0, -1.0, 0.0);
+			if (move_up) move_direction += float4(0.0, 0.0, 1.0, 0.0);
 
 			bool moved = move_forward || move_back || move_left || move_right || move_up || move_down;
 			if (moved) {
@@ -396,6 +396,15 @@ int main(int argc, char* argv[]) {
 				GPUCamera gcam;
 				gcam.view_matrix = view_matrix;
 
+			    //Transformation applied after view transform to correct axes to match Vulkan clip-space
+				//(x-right, y-forward, z-up) -> (x-right, y-down, z-forward)
+				float4x4 c_matrix(
+					1.0, 0.0, 0.0, 0.0,
+					0.0, 0.0, -1.0, 0.0,
+					0.0, 1.0, 0.0, 0.0,
+					0.0, 0.0, 0.0, 1.0
+				);
+
 				float aspect = (float)window.x_resolution / (float)window.y_resolution;
 				float desired_fov = M_PI / 2.0f;
 				float tan_fovy = tanf(desired_fov / 2.0f);
@@ -407,6 +416,7 @@ int main(int argc, char* argv[]) {
 					0.0, 0.0, nearplane / (nearplane - farplane), (nearplane * farplane) / (farplane - nearplane),
 					0.0, 0.0, 1.0, 0.0
 				);
+				gcam.projection_matrix = mul(gcam.projection_matrix, c_matrix);
 
 				g_cameras.push_back(gcam);
 			}
