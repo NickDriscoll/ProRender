@@ -362,9 +362,7 @@ int main(int argc, char* argv[]) {
 			if (move_right) move_direction += float4(1.0, 0.0, 0.0, 0.0);
 			if (move_down) move_direction += float4(0.0, 0.0, -1.0, 0.0);
 			if (move_up) move_direction += float4(0.0, 0.0, 1.0, 0.0);
-
-			bool moved = move_forward || move_back || move_left || move_right || move_up || move_down;
-			if (moved) {
+			if (length(move_direction) >= float1(0.001)) {
 				float4 d = mul(0.1 * normalize(move_direction), view_matrix);
 				main_cam->position += float3(d.x, d.y, d.z);
 			}
