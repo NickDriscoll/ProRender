@@ -228,6 +228,11 @@ int main(int argc, char* argv[]) {
 		Timer frame_timer;
 		frame_timer.start();
 
+		//Acquire swapchain image for this frame
+		//We want to do this as soon as possible
+		uint32_t acquired_image_idx;
+		vkAcquireNextImageKHR(vgd.device, window.swapchain, U64_MAX, window.acquire_semaphore, VK_NULL_HANDLE, &acquired_image_idx);
+		
 		//These variables are the paradoxically named "InputOutput" variables
 		//like the output of the input system, you see
 		float mouse_motion_x = 0.0;
@@ -366,6 +371,8 @@ int main(int argc, char* argv[]) {
 				float4 d = mul(0.1 * normalize(move_direction), view_matrix);
 				main_cam->position += float3(d.x, d.y, d.z);
 			}
+
+			view_matrix = main_cam->make_view_matrix();
 		}
 
 		//Dear ImGUI update part
@@ -405,9 +412,9 @@ int main(int argc, char* argv[]) {
 
 				float aspect = (float)window.x_resolution / (float)window.y_resolution;
 				float desired_fov = M_PI / 2.0f;
-				float tan_fovy = tanf(desired_fov / 2.0f);
 				float nearplane = 0.1;
 				float farplane = 1000.0;
+				float tan_fovy = tanf(desired_fov / 2.0f);
 				gcam.projection_matrix = float4x4(
 					1.0 / (tan_fovy * aspect), 0.0, 0.0, 0.0,
 					0.0, 1.0 / tan_fovy, 0.0, 0.0,
@@ -427,9 +434,6 @@ int main(int argc, char* argv[]) {
 
 		//Draw
 		{
-			//Acquire swapchain image for this frame
-			uint32_t acquired_image_idx;
-			vkAcquireNextImageKHR(vgd.device, window.swapchain, U64_MAX, window.acquire_semaphore, VK_NULL_HANDLE, &acquired_image_idx);
 
 			VkCommandBuffer frame_cb = vgd.command_buffers[current_frame % FRAMES_IN_FLIGHT];
 			
