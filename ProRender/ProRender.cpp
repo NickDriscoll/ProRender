@@ -174,6 +174,7 @@ int main(int argc, char* argv[]) {
     //Create main camera
     uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 0.0, 0.0, 2.0 } });
 	bool camera_control = false;
+	int32_t mouse_saved_x, mouse_saved_y;
 
 	//Load simple 3D plane
 	uint64_t plane_image_batch_id;
@@ -323,6 +324,12 @@ int main(int argc, char* argv[]) {
 					if (event.button.button == SDL_BUTTON_RIGHT) {
 						camera_control = !camera_control;
 						SDL_SetRelativeMouseMode((SDL_bool)camera_control);
+						if (camera_control) {
+							mouse_saved_x = event.button.x;
+							mouse_saved_y = event.button.y;
+						} else {
+							SDL_WarpMouseInWindow(sdl_window, mouse_saved_x, mouse_saved_y);
+						}
 					}
 
 					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), false);
@@ -340,11 +347,10 @@ int main(int argc, char* argv[]) {
 		float time = (float)app_timer.check() * 1.5f / 1000.0f;
 
 		//Move camera
-		float4x4 view_matrix;
 		{
 			Camera* main_cam = renderer.cameras.get(main_viewport_camera);
 			if (camera_control) {
-				const float SENSITIVITY = 0.01;
+				const float SENSITIVITY = 0.005;
 				main_cam->yaw += mouse_motion_x * SENSITIVITY;
 				main_cam->pitch += mouse_motion_y * SENSITIVITY;
 
@@ -352,11 +358,9 @@ int main(int argc, char* argv[]) {
 				while (main_cam->yaw > 2.0 * M_PI) main_cam->yaw -= 2.0 * M_PI;
 				if (main_cam->pitch < -M_PI / 2.0) main_cam->pitch = -M_PI / 2.0;
 				if (main_cam->pitch > M_PI / 2.0) main_cam->pitch = M_PI / 2.0;
-
-				//ImGui::SliderFloat("Yaw", -2.0f * M_PI, 2.0f * M_PI);
 			}
 
-			view_matrix = main_cam->make_view_matrix();
+			float4x4 view_matrix = main_cam->make_view_matrix();
 
 			//Do updates that require knowing the view matrix
 
@@ -371,8 +375,6 @@ int main(int argc, char* argv[]) {
 				float4 d = mul(0.1 * normalize(move_direction), view_matrix);
 				main_cam->position += float3(d.x, d.y, d.z);
 			}
-
-			view_matrix = main_cam->make_view_matrix();
 		}
 
 		//Dear ImGUI update part
@@ -399,7 +401,7 @@ int main(int argc, char* argv[]) {
 				Camera* camera = renderer.cameras.data() + i;
 
 				GPUCamera gcam;
-				gcam.view_matrix = view_matrix;
+				gcam.view_matrix = camera->make_view_matrix();
 
 			    //Transformation applied after view transform to correct axes to match Vulkan clip-space
 				//(x-right, y-forward, z-up) -> (x-right, y-down, z-forward)
