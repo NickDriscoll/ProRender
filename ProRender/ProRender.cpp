@@ -315,7 +315,8 @@ int main(int argc, char* argv[]) {
 				case SDL_MOUSEMOTION:
 					mouse_motion_x = (float)event.motion.xrel;
 					mouse_motion_y = (float)event.motion.yrel;
-					io.AddMousePosEvent((float)event.motion.x, (float)event.motion.y);
+					if (!camera_control)
+						io.AddMousePosEvent((float)event.motion.x, (float)event.motion.y);
 					break;
 				case SDL_MOUSEBUTTONDOWN:
 					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), true);

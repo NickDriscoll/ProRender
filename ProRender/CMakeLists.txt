@@ -34,6 +34,9 @@ target_include_directories(ProRender PUBLIC "${HLSLPP_INCLUDE_DIRS}")
 #Include Dear ImGUI
 target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/imgui")
 
+#Include fastgltf
+target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/fastgltf/include")
+
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)
 endif()
