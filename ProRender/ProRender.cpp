@@ -34,7 +34,7 @@ int main(int argc, char* argv[]) {
 	app_timer.start();
 
 	//Initialize the renderer
-	Renderer renderer(&vgd);
+	Renderer renderer(&vgd, window.swapchain_renderpass);
     renderer.frame_uniforms.clip_from_screen = float4x4(
         2.0f / (float)window.x_resolution, 0.0f, 0.0f, -1.0f,
         0.0f, 2.0f / (float)window.y_resolution, 0.0f, -1.0f,
@@ -96,9 +96,8 @@ int main(int argc, char* argv[]) {
 	app_timer.print("Dear ImGUI Initialization");
 	app_timer.start();
 
-	//Create Dear ImGUI pipeline and PS1 pipeline
+	//Create Dear ImGUI pipeline
 	uint64_t imgui_pipeline;
-	uint64_t ps1_pipeline;
 	{
 		VulkanInputAssemblyState ia_states[] = {
 			{},
@@ -148,9 +147,9 @@ int main(int argc, char* argv[]) {
 			}
 		};
 
-		const char* shaders[] = { "shaders/imgui.vert.spv", "shaders/imgui.frag.spv", "shaders/ps1.vert.spv", "shaders/ps1.frag.spv" };
+		const char* shaders[] = { "shaders/imgui.vert.spv", "shaders/imgui.frag.spv" };
 
-		uint64_t pipelines[2] = {0, 0};
+		uint64_t pipelines[] = {0};
 		vgd.create_graphics_pipelines(
 			renderer.pipeline_layout_id,
 			window.swapchain_renderpass,
@@ -163,13 +162,11 @@ int main(int argc, char* argv[]) {
 			ds_states,
 			blend_states,
 			pipelines,
-			2
+			1
 		);
 
 		imgui_pipeline = pipelines[0];
-		ps1_pipeline = pipelines[1];
 	}
-	printf("Created graphics pipelines.\n");
 
     //Create main camera
     uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 0.0, 0.0, 2.0 } });
@@ -229,10 +226,11 @@ int main(int argc, char* argv[]) {
 	//Main loop
 	bool running = true;
 	uint64_t current_frame = 0;
-	double last_frame_took = 0.0;
+	double last_frame_took = 0.0001;
 	while (running) {
 		Timer frame_timer;
 		frame_timer.start();
+		float delta_time = (float)(last_frame_took / 1000.0);
 		
 		//These variables are the paradoxically named "InputOutput" variables
 		//like the output of the input system, you see
@@ -240,7 +238,7 @@ int main(int argc, char* argv[]) {
 		float mouse_motion_y = 0.0;
 		{
     		ImGuiIO& io = ImGui::GetIO();
-			io.DeltaTime = (float)(last_frame_took / 1000.0);
+			io.DeltaTime = delta_time;
 
 			//Do input polling loop
 			SDL_Event event;
@@ -313,8 +311,8 @@ int main(int argc, char* argv[]) {
 					io.AddKeyEvent(SDL2ToImGuiKey(event.key.keysym.sym), false);
 					break;
 				case SDL_MOUSEMOTION:
-					mouse_motion_x = (float)event.motion.xrel;
-					mouse_motion_y = (float)event.motion.yrel;
+					mouse_motion_x += (float)event.motion.xrel;
+					mouse_motion_y += (float)event.motion.yrel;
 					if (!camera_control)
 						io.AddMousePosEvent((float)event.motion.x, (float)event.motion.y);
 					break;
@@ -351,7 +349,7 @@ int main(int argc, char* argv[]) {
 		{
 			Camera* main_cam = renderer.cameras.get(main_viewport_camera);
 			if (camera_control) {
-				const float SENSITIVITY = 0.005;
+				const float SENSITIVITY = 0.001;
 				main_cam->yaw += mouse_motion_x * SENSITIVITY;
 				main_cam->pitch += mouse_motion_y * SENSITIVITY;
 
@@ -365,6 +363,7 @@ int main(int argc, char* argv[]) {
 
 			//Do updates that require knowing the view matrix
 
+			const float FREECAM_SPEED = 100.0;
 			float4 move_direction = float4(0);
 			if (move_forward) move_direction += float4(0.0, 1.0, 0.0, 0.0);
 			if (move_back) move_direction += float4(0.0, -1.0, 0.0, 0.0);
@@ -374,7 +373,7 @@ int main(int argc, char* argv[]) {
 			if (move_up) move_direction += float4(0.0, 0.0, 1.0, 0.0);
 			if (length(move_direction) >= float1(0.001)) {
 				float4 d = mul(0.1 * normalize(move_direction), view_matrix);
-				main_cam->position += float3(d.x, d.y, d.z);
+				main_cam->position += FREECAM_SPEED * delta_time * float3(d.x, d.y, d.z);
 			}
 		}
 
@@ -550,7 +549,7 @@ int main(int argc, char* argv[]) {
 			vkCmdBindIndexBuffer(frame_cb, vgd.get_buffer(renderer.index_buffer)->buffer, 0, VK_INDEX_TYPE_UINT16);
 			
 			//Bind pipeline for this pass
-			vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(ps1_pipeline)->pipeline);
+			vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(renderer.ps1_pipeline)->pipeline);
 
 			//Draw hardcoded plane
 			{
