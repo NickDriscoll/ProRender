@@ -179,9 +179,10 @@ int main(int argc, char* argv[]) {
 	//Load simple 3D plane
 	uint64_t plane_image_batch_id;
 	uint32_t plane_image_idx = 0xFFFFFFFF;
-	BufferView plane_positions;
-	BufferView plane_uvs;
-	BufferView plane_indices;
+	// BufferView plane_positions;
+	// BufferView plane_uvs;
+	// BufferView plane_indices;
+	uint64_t plane_key;
 	{
 		//Load plane texture
 		{
@@ -206,9 +207,13 @@ int main(int argc, char* argv[]) {
 			0, 1, 2,
 			1, 3, 2
 		};
-		plane_positions = renderer.push_vertex_positions(std::span(plane_pos));
-		plane_uvs = renderer.push_vertex_uvs(std::span(plane_uv));
-		plane_indices = renderer.push_indices16(std::span(inds));
+		// plane_positions = renderer.push_vertex_positions(std::span(plane_pos));
+		// plane_uvs = renderer.push_vertex_uvs(std::span(plane_uv));
+		// plane_indices = renderer.push_indices16(std::span(inds));
+
+		plane_key = renderer.push_vertex_positions(std::span(plane_pos));
+		renderer.push_vertex_uvs(plane_key, std::span(plane_uv));
+		renderer.push_indices16(plane_key, std::span(inds));
 	}
 
 	init_timer.print("App init");
@@ -228,11 +233,6 @@ int main(int argc, char* argv[]) {
 	while (running) {
 		Timer frame_timer;
 		frame_timer.start();
-
-		//Acquire swapchain image for this frame
-		//We want to do this as soon as possible
-		uint32_t acquired_image_idx;
-		vkAcquireNextImageKHR(vgd.device, window.swapchain, U64_MAX, window.acquire_semaphore, VK_NULL_HANDLE, &acquired_image_idx);
 		
 		//These variables are the paradoxically named "InputOutput" variables
 		//like the output of the input system, you see
@@ -437,6 +437,10 @@ int main(int argc, char* argv[]) {
 
 		//Draw
 		{
+			//Acquire swapchain image for this frame
+			//We want to do this as soon as possible
+			uint32_t acquired_image_idx;
+			vkAcquireNextImageKHR(vgd.device, window.swapchain, U64_MAX, window.acquire_semaphore, VK_NULL_HANDLE, &acquired_image_idx);
 
 			VkCommandBuffer frame_cb = vgd.command_buffers[current_frame % FRAMES_IN_FLIGHT];
 			
@@ -554,16 +558,20 @@ int main(int argc, char* argv[]) {
 				if (plane_image_idx != 0xFFFFFFFF)
 					image_idx = plane_image_idx;
 
+				BufferView* plane_positions = renderer.get_vertex_positions(plane_key);
+				BufferView* plane_uvs = renderer.get_vertex_uvs(plane_key);
+				BufferView* plane_indices = renderer.get_indices16(plane_key);
+
 				uint32_t pcs[] = {
-					plane_positions.start / 4,
-					plane_uvs.start / 2,
+					plane_positions->start / 4,
+					plane_uvs->start / 2,
 					EXTRACT_IDX(main_viewport_camera),
 					image_idx,
 					renderer.standard_sampler_idx
 				};
 				vkCmdPushConstants(frame_cb, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 20, pcs);
 
-				vkCmdDrawIndexed(frame_cb, plane_indices.length, 1, plane_indices.start, 0, 0);
+				vkCmdDrawIndexed(frame_cb, plane_indices->length, 1, plane_indices->start, 0, 0);
 			}
 
 			//Upload ImGUI triangle data and record ImGUI draw commands
