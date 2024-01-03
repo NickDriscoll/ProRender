@@ -10,7 +10,7 @@
 
 #define SLOTMAP_IMPLEMENTATION  //TODO: Figure out how to remove this
 
-template<class T>
+template<typename T>
 struct slotmap {
 
     void alloc(uint32_t size);
@@ -29,7 +29,7 @@ private:
 };
 
 #ifdef SLOTMAP_IMPLEMENTATION
-template<class T>
+template<typename T>
 void slotmap<T>::alloc(uint32_t size) {
     assert(_data.size() == 0);
     _data.resize(size);
@@ -44,17 +44,17 @@ void slotmap<T>::alloc(uint32_t size) {
     free_indices = std::stack(free_inds);
 }
 
-template<class T>
+template<typename T>
 uint32_t slotmap<T>::count() {
     return _count;
 }
 
-template<class T>
+template<typename T>
 T* slotmap<T>::data() {
     return _data.data();
 }
 
-template<class T>
+template<typename T>
 T* slotmap<T>::get(uint64_t key) {
     uint32_t idx = EXTRACT_IDX(key);
     uint32_t gen = static_cast<uint32_t>(key >> 32);
@@ -65,7 +65,7 @@ T* slotmap<T>::get(uint64_t key) {
     return d;
 }
 
-template<class T>
+template<typename T>
 uint64_t slotmap<T>::insert(T thing) {
     uint32_t free_idx = free_indices.top();
     free_indices.pop();
@@ -76,13 +76,13 @@ uint64_t slotmap<T>::insert(T thing) {
     return (static_cast<uint64_t>(generation) << 32) | static_cast<uint64_t>(free_idx);
 }
 
-template<class T>
+template<typename T>
 bool slotmap<T>::is_live(uint64_t idx) {
     if (_data.size() == 0) return false;
     return generation_bits[idx] & LIVE_BIT;
 }
 
-template<class T>
+template<typename T>
 void slotmap<T>::remove(uint32_t idx) {
     free_indices.push(idx);
     generation_bits[idx] &= ~LIVE_BIT;
