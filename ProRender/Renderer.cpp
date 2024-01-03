@@ -178,6 +178,9 @@ hlslpp::float4x4 Camera::make_view_matrix() {
 Renderer::Renderer(VulkanGraphicsDevice* vgd) {
 
     cameras.alloc(MAX_CAMERAS);
+    _position_buffers.alloc(MAX_VERTEX_ATTRIBS);
+    _uv_buffers.alloc(MAX_VERTEX_ATTRIBS);
+    _index16_buffers.alloc(MAX_VERTEX_ATTRIBS);
 
     //Create bindless descriptor set
     {
@@ -533,7 +536,7 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
     this->vgd = vgd;
 }
 
-BufferView Renderer::push_vertex_positions(std::span<float> data) {
+uint64_t Renderer::push_vertex_positions(std::span<float> data) {
     VulkanBuffer* buffer = vgd->get_buffer(vertex_position_buffer);
     float* ptr = (float*)buffer->alloc_info.pMappedData;
     ptr += vertex_position_offset;
@@ -545,10 +548,14 @@ BufferView Renderer::push_vertex_positions(std::span<float> data) {
     };
 
     vertex_position_offset += data.size();
-    return b;
+    return _position_buffers.insert(b);
 }
 
-BufferView Renderer::push_vertex_uvs(std::span<float> data) {
+BufferView* Renderer::get_vertex_positions(uint64_t key) {
+    return _position_buffers.get(key);
+}
+
+uint64_t Renderer::push_vertex_uvs(uint64_t position_key, std::span<float> data) {
     VulkanBuffer* buffer = vgd->get_buffer(vertex_uv_buffer);
     float* ptr = (float*)buffer->alloc_info.pMappedData;
     ptr += vertex_uv_offset;
@@ -560,10 +567,34 @@ BufferView Renderer::push_vertex_uvs(std::span<float> data) {
     };
 
     vertex_uv_offset += data.size();
-    return b;
+
+    ModelAttribute a = {
+        .position_key = position_key,
+        .view = b
+    };
+    return _uv_buffers.insert(a);
 }
 
-BufferView Renderer::push_indices16(std::span<uint16_t> data) {
+//TODO: Just kind of accepting the O(n) lookup because of hand-waving about cache
+BufferView* Renderer::get_vertex_uvs(uint64_t position_key) {
+
+    BufferView* result = nullptr;
+    uint32_t seen = 0;
+    for (uint32_t i = 0; seen < _uv_buffers.count(); i++) {
+        if (!_uv_buffers.is_live(i)) continue;
+        seen += 1;
+
+        ModelAttribute* att = _uv_buffers.data() + i;
+        if (att->position_key == position_key) {
+            result = &att->view;
+            break;
+        }
+    }
+
+    return result;
+}
+
+uint64_t Renderer::push_indices16(uint64_t position_key, std::span<uint16_t> data) {
     VulkanBuffer* buffer = vgd->get_buffer(index_buffer);
     uint16_t* ptr = (uint16_t*)buffer->alloc_info.pMappedData;
     ptr += index_buffer_offset;
@@ -575,7 +606,31 @@ BufferView Renderer::push_indices16(std::span<uint16_t> data) {
     };
 
     index_buffer_offset += data.size();
-    return b;
+
+    ModelAttribute a = {
+        .position_key = position_key,
+        .view = b
+    };
+    return _index16_buffers.insert(a);
+}
+
+BufferView* Renderer::get_indices16(uint64_t position_key) {
+
+    BufferView* result = nullptr;
+    uint32_t seen = 0;
+    for (uint32_t i = 0; seen < _index16_buffers.count(); i++) {
+        if (!_index16_buffers.is_live(i)) continue;
+        seen += 1;
+
+        ModelAttribute* att = _index16_buffers.data() + i;
+        if (att->position_key == position_key) {
+            result = &att->view;
+            break;
+        }
+    }
+
+    return result;
+
 }
 
 Renderer::~Renderer() {

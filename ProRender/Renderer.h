@@ -7,6 +7,7 @@
 #include "VulkanGraphicsDevice.h"
 
 #define MAX_CAMERAS 64
+#define MAX_VERTEX_ATTRIBS 1024
 
 struct FrameUniforms {
 	hlslpp::float4x4 clip_from_screen;
@@ -37,6 +38,11 @@ struct ImguiFrame {
 	uint32_t index_size;
 };
 
+struct ModelAttribute {
+	uint64_t position_key;
+	BufferView view;
+};
+
 struct Renderer {
 	VkSemaphore graphics_timeline_semaphore;
 
@@ -59,9 +65,17 @@ struct Renderer {
 	uint32_t vertex_uv_offset = 0;
 	uint64_t vertex_uv_buffer;
 
+	uint64_t push_vertex_positions(std::span<float> data);
+	BufferView* get_vertex_positions(uint64_t key);
+	uint64_t push_vertex_uvs(uint64_t position_key, std::span<float> data);
+	BufferView* get_vertex_uvs(uint64_t key);
+
 	uint32_t index_buffer_offset = 0;
 	uint64_t index_buffer;
 
+	uint64_t push_indices16(uint64_t position_key, std::span<uint16_t> data);
+	BufferView* get_indices16(uint64_t position_key);
+	
 	uint64_t standard_sampler_idx;
 
 	//TODO: Imgui data probably shouldn't be directly in init
@@ -74,14 +88,14 @@ struct Renderer {
 	uint64_t imgui_index_buffer;
 	ImguiFrame imgui_frames[FRAMES_IN_FLIGHT] = {};
 
-	BufferView push_vertex_positions(std::span<float> data);
-	BufferView push_vertex_uvs(std::span<float> data);
-	BufferView push_indices16(std::span<uint16_t> data);
 
 	Renderer(VulkanGraphicsDevice* vgd);
 	~Renderer();
 
 private:
+	slotmap<BufferView> _position_buffers;
+	slotmap<ModelAttribute> _uv_buffers;
+	slotmap<ModelAttribute> _index16_buffers;
 	std::vector<VkSampler> _samplers;
 	VulkanGraphicsDevice* vgd;		//Very dangerous and dubiously recommended
 };
