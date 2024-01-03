@@ -322,7 +322,9 @@ int main(int argc, char* argv[]) {
 					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), true);
 					break;
 				case SDL_MOUSEBUTTONUP:
-					if (event.button.button == SDL_BUTTON_RIGHT) {
+					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), false);
+					
+					if (!io.WantCaptureMouse && event.button.button == SDL_BUTTON_RIGHT) {
 						camera_control = !camera_control;
 						SDL_SetRelativeMouseMode((SDL_bool)camera_control);
 						if (camera_control) {
@@ -332,8 +334,6 @@ int main(int argc, char* argv[]) {
 							SDL_WarpMouseInWindow(sdl_window, mouse_saved_x, mouse_saved_y);
 						}
 					}
-
-					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), false);
 					break;
 				case SDL_MOUSEWHEEL:
 					io.AddMouseWheelEvent(event.wheel.preciseX, event.wheel.preciseY);
