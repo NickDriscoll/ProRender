@@ -175,7 +175,7 @@ hlslpp::float4x4 Camera::make_view_matrix() {
 	return mul(mul(pitch_matrix, yaw_matrix), trans_matrix);
 }
 
-Renderer::Renderer(VulkanGraphicsDevice* vgd) {
+Renderer::Renderer(VulkanGraphicsDevice* vgd, uint64_t swapchain_renderpass) {
 
     cameras.alloc(MAX_CAMERAS);
     _position_buffers.alloc(MAX_VERTEX_ATTRIBS);
@@ -527,6 +527,67 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd) {
         descriptor_writes.push_back(camera_write);
 
         vkUpdateDescriptorSets(vgd->device, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
+	}
+
+    //Create hardcoded graphics pipelines
+	{
+		VulkanInputAssemblyState ia_states[] = {
+			{}
+		};
+
+		VulkanTesselationState tess_states[] = {
+			{}
+		};
+
+		VulkanViewportState vs_states[] = {
+			{}
+		};
+
+		VulkanRasterizationState rast_states[] = {
+			{}
+		};
+
+		VulkanMultisampleState ms_states[] = {
+			{}
+		};
+
+		VulkanDepthStencilState ds_states[] = {
+			{
+				.depthTestEnable = VK_FALSE
+			}
+		};
+
+		VulkanColorBlendAttachmentState blend_attachment_state = {};
+		VulkanColorBlendState blend_states[] = {
+			{
+				.attachmentCount = 1,
+				.pAttachments = &blend_attachment_state
+			},
+			{
+				.attachmentCount = 1,
+				.pAttachments = &blend_attachment_state
+			}
+		};
+
+		const char* shaders[] = { "shaders/ps1.vert.spv", "shaders/ps1.frag.spv" };
+
+		uint64_t pipelines[] = {0};
+		vgd->create_graphics_pipelines(
+			pipeline_layout_id,
+			swapchain_renderpass,
+			shaders,
+			ia_states,
+			tess_states,
+			vs_states,
+			rast_states,
+			ms_states,
+			ds_states,
+			blend_states,
+			pipelines,
+			1
+		);
+
+		ps1_pipeline = pipelines[0];
 	}
 
 	//Create graphics pipeline timeline semaphore

@@ -44,6 +44,8 @@ struct ModelAttribute {
 };
 
 struct Renderer {
+	uint64_t ps1_pipeline;
+
 	VkSemaphore graphics_timeline_semaphore;
 
 	uint64_t descriptor_set_layout_id;
@@ -78,6 +80,8 @@ struct Renderer {
 	
 	uint64_t standard_sampler_idx;
 
+	void record_ps1_draw();
+
 	//TODO: Imgui data probably shouldn't be directly in init
 	//uint64_t imgui_vertex_buffer;
 	uint32_t imgui_atlas_idx;
@@ -89,7 +93,7 @@ struct Renderer {
 	ImguiFrame imgui_frames[FRAMES_IN_FLIGHT] = {};
 
 
-	Renderer(VulkanGraphicsDevice* vgd);
+	Renderer(VulkanGraphicsDevice* vgd, uint64_t swapchain_renderpass);
 	~Renderer();
 
 private:
@@ -97,6 +101,7 @@ private:
 	slotmap<ModelAttribute> _uv_buffers;
 	slotmap<ModelAttribute> _index16_buffers;
 	std::vector<VkSampler> _samplers;
+
 	VulkanGraphicsDevice* vgd;		//Very dangerous and dubiously recommended
 };
 
