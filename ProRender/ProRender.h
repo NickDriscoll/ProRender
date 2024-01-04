@@ -1,10 +1,5 @@
-﻿// ProRender.h : Include file for standard system include files,
-// or project specific include files.
-
-#pragma once
+﻿#pragma once
 #define _CRT_SECURE_NO_WARNINGS
-
-// TODO: Reference additional headers your program requires here.
 
 #ifdef _WIN32
 	#define VK_USE_PLATFORM_WIN32_KHR
@@ -26,10 +21,10 @@
 #include "SDL.h"
 #include "SDL_main.h"
 #include "SDL_vulkan.h"
+#include <fastgltf/parser.hpp>
 #include "volk.h"
 #include "stb_image.h"
 #include <imgui.h>
-#include <fastgltf/parser.hpp>
 #include "VulkanWindow.h"
 #include "Renderer.h"
 #include "vma.h"
