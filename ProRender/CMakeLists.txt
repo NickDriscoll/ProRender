@@ -20,6 +20,8 @@ add_executable (
 	"${CMAKE_SOURCE_DIR}/imgui/imgui.cpp"
 )
 
+set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)
+
 #Include SDL2
 target_include_directories(ProRender PUBLIC ${SDL_INCLUDE_DIRS})
 target_link_libraries(ProRender PUBLIC ${SDL2_LIBRARIES})
