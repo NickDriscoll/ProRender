@@ -175,12 +175,16 @@ int main(int argc, char* argv[]) {
 
 	//TEST CODE FOR SLOTMAP ITERATOR
 	{
+		renderer.cameras.insert({ .position = { 42.0, 0.0, 2.0 } });
+		renderer.cameras.insert({ .position = { 55.0, 0.0, 2.0 }, .pitch = 2.0});
 		renderer.cameras.insert({ .position = { 4.0, 0.0, 2.0 } });
-		renderer.cameras.insert({ .position = { 0.0, 2.0, 2.0 } });
-		renderer.cameras.insert({ .position = { 2.0, 0.0, 2.0 } });
+		auto k = renderer.cameras.insert({ .position = { 0.0, 2.0, 2.0 } });
+		renderer.cameras.insert({ .position = { 2.22555, 0.0, 2.0 } });
+		renderer.cameras.remove(k);
 		printf("Camera count: %i\n", renderer.cameras.count());
 		for (Camera cam : renderer.cameras) {
-			printf("Camera x position: %f\n", cam.position.x);
+			float val = cam.position.x;
+			printf("Camera pitch: %f\n", cam.pitch);
 		}
 	}
 

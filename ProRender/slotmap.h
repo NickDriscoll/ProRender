@@ -12,6 +12,47 @@
 
 template<typename T>
 struct slotmap {
+    //Iterator impl for slotmap
+    struct iterator {
+        using Element = T;
+        using Pointer = Element*;
+        using Reference = Element&;
+
+        iterator(Pointer s, uint32_t* gen_bits) {
+            current = s;
+            start = s;
+            generation_bits = gen_bits;
+        }
+        Reference operator*() const { return *current; }
+        iterator& operator++() {
+            current += 1;
+            while (generation_bits[current - start - 1] & LIVE_BIT == 0) {
+                current += 1;
+            }
+            return *this;
+        }
+        iterator operator++(int) {
+            iterator tmp = this;
+            ++(*this);
+            return tmp;
+        }
+        Reference operator[](int index) { return *(start + index); }
+        Pointer operator->() { return current; }
+        bool operator==(const iterator& other) { return current == other.current; }
+        bool operator!=(const iterator& other) { return current != other.current; }
+        auto operator<=>(const iterator &) const = default; // three-way comparison C++20
+
+    private:
+        Pointer current, start;
+        uint32_t* generation_bits;
+    };
+    iterator begin() {
+        return iterator(_data.data(), generation_bits.data());
+    }
+
+    iterator end() {
+        return iterator(_data.data() + largest_free_idx - 1, generation_bits.data());
+    }
 
     void alloc(uint32_t size);
     uint32_t count();
@@ -20,62 +61,6 @@ struct slotmap {
     uint64_t insert(T thing);
     bool is_live(uint32_t idx);
     void remove(uint32_t idx);
-
-    //Iterator impl for slotmap
-    //Mainly taken from the following because wow do I not understand the iterator rules
-    //https://stackoverflow.com/questions/72405122/creating-an-iterator-with-c20-concepts-for-custom-container
-    // struct iterator {
-    //     using element_type = T;
-    //     using pointer = element_type*;
-    //     using reference = element_type&;
-
-    //     iterator() {
-    //         current = nullptr;
-    //         start = nullptr;
-    //         sentinel = nullptr;
-    //     }
-    //     iterator(pointer p, pointer s) {
-    //         current = p;
-    //         start = p;
-    //         sentinel = s;
-    //     }
-    //     pointer begin() { return start; }
-    //     pointer end() { return sentinel; }
-    //     reference operator*() const { return *current; }
-    //     pointer operator++() {
-    //         pointer tmp = *this;
-    //         pointer cand = tmp;
-    //         do {
-
-    //         } while (false);
-
-    //         return tmp;
-    //     }
-    //     auto operator<=>(const iterator &) const = default; // three-way comparison C++20
-
-    // private:
-    //     pointer current, start, sentinel;
-
-    // };
-
-    // auto begin() {
-
-    //     return it.begin();
-    // }
-    // auto end() { return it.end(); }
-
-    T* begin() {
-        if (_count == 0) return _data.data();
-
-        uint32_t i = 0;
-        while (generation_bits[i] & LIVE_BIT == 0) i++;
-
-        return _data.data() + i;
-    }
-
-    T* end() {
-        return _data.data() + largest_free_idx;
-    }
 
 private:
     std::vector<T> _data = {};
