@@ -169,9 +169,20 @@ int main(int argc, char* argv[]) {
 	}
 
     //Create main camera
-    uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 0.0, 0.0, 2.0 } });
+    uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 1.0, 0.0, 2.0 } });
 	bool camera_control = false;
 	int32_t mouse_saved_x, mouse_saved_y;
+
+	//TEST CODE FOR SLOTMAP ITERATOR
+	{
+		renderer.cameras.insert({ .position = { 4.0, 0.0, 2.0 } });
+		renderer.cameras.insert({ .position = { 0.0, 2.0, 2.0 } });
+		renderer.cameras.insert({ .position = { 2.0, 0.0, 2.0 } });
+		printf("Camera count: %i\n", renderer.cameras.count());
+		for (Camera cam : renderer.cameras) {
+			printf("Camera x position: %f\n", cam.position.x);
+		}
+	}
 
 	//Load simple 3D plane
 	uint64_t plane_image_batch_id;

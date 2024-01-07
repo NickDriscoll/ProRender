@@ -21,11 +21,68 @@ struct slotmap {
     bool is_live(uint32_t idx);
     void remove(uint32_t idx);
 
+    //Iterator impl for slotmap
+    //Mainly taken from the following because wow do I not understand the iterator rules
+    //https://stackoverflow.com/questions/72405122/creating-an-iterator-with-c20-concepts-for-custom-container
+    // struct iterator {
+    //     using element_type = T;
+    //     using pointer = element_type*;
+    //     using reference = element_type&;
+
+    //     iterator() {
+    //         current = nullptr;
+    //         start = nullptr;
+    //         sentinel = nullptr;
+    //     }
+    //     iterator(pointer p, pointer s) {
+    //         current = p;
+    //         start = p;
+    //         sentinel = s;
+    //     }
+    //     pointer begin() { return start; }
+    //     pointer end() { return sentinel; }
+    //     reference operator*() const { return *current; }
+    //     pointer operator++() {
+    //         pointer tmp = *this;
+    //         pointer cand = tmp;
+    //         do {
+
+    //         } while (false);
+
+    //         return tmp;
+    //     }
+    //     auto operator<=>(const iterator &) const = default; // three-way comparison C++20
+
+    // private:
+    //     pointer current, start, sentinel;
+
+    // };
+
+    // auto begin() {
+
+    //     return it.begin();
+    // }
+    // auto end() { return it.end(); }
+
+    T* begin() {
+        if (_count == 0) return _data.data();
+
+        uint32_t i = 0;
+        while (generation_bits[i] & LIVE_BIT == 0) i++;
+
+        return _data.data() + i;
+    }
+
+    T* end() {
+        return _data.data() + largest_free_idx;
+    }
+
 private:
     std::vector<T> _data = {};
     std::vector<uint32_t> generation_bits = {};
     std::stack<uint32_t, std::vector<uint32_t>> free_indices;
     uint32_t _count = 0;
+    uint32_t largest_free_idx = 0;
 };
 
 #ifdef SLOTMAP_IMPLEMENTATION
@@ -69,6 +126,7 @@ template<typename T>
 uint64_t slotmap<T>::insert(T thing) {
     uint32_t free_idx = free_indices.top();
     free_indices.pop();
+    if (free_idx >= largest_free_idx) largest_free_idx += 1;
     _data[free_idx] = thing;
     generation_bits[free_idx] |= LIVE_BIT;
     uint32_t generation = generation_bits[free_idx];
@@ -84,6 +142,14 @@ bool slotmap<T>::is_live(uint32_t idx) {
 
 template<typename T>
 void slotmap<T>::remove(uint32_t idx) {
+    if (largest_free_idx == idx + 1) {
+        uint32_t n = idx;
+        while (generation_bits[n] & LIVE_BIT == 0) {
+            largest_free_idx = n;
+            n -= 1;
+        }
+    }
+
     free_indices.push(idx);
     generation_bits[idx] &= ~LIVE_BIT;
     generation_bits[idx] += 1;
