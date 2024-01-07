@@ -169,17 +169,17 @@ int main(int argc, char* argv[]) {
 	}
 
     //Create main camera
-    uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 1.0, 0.0, 2.0 } });
+    uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 1.0, 0.0, 2.0 }, .pitch = 1.7 });
 	bool camera_control = false;
 	int32_t mouse_saved_x, mouse_saved_y;
 
 	//TEST CODE FOR SLOTMAP ITERATOR
 	{
-		renderer.cameras.insert({ .position = { 42.0, 0.0, 2.0 } });
-		renderer.cameras.insert({ .position = { 55.0, 0.0, 2.0 }, .pitch = 2.0});
-		renderer.cameras.insert({ .position = { 4.0, 0.0, 2.0 } });
-		auto k = renderer.cameras.insert({ .position = { 0.0, 2.0, 2.0 } });
-		renderer.cameras.insert({ .position = { 2.22555, 0.0, 2.0 } });
+		renderer.cameras.insert({ .position = { 42.0, 0.0, 2.0 }, .pitch = 33.3 });
+		renderer.cameras.insert({ .position = { 55.0, 0.0, 2.0 }, .pitch = 22.0});
+		renderer.cameras.insert({ .position = { 4.0, 0.0, 2.0 }, .pitch = 363.3 });
+		auto k = renderer.cameras.insert({ .position = { 0.0, 2.0, 2.0 }, .pitch = 533.3 });
+		renderer.cameras.insert({ .position = { 2.22555, 0.0, 2.0 }, .pitch = 444.3 });
 		renderer.cameras.remove(k);
 		printf("Camera count: %i\n", renderer.cameras.count());
 		for (Camera cam : renderer.cameras) {

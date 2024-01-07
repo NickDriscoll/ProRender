@@ -18,15 +18,16 @@ struct slotmap {
         using Pointer = Element*;
         using Reference = Element&;
 
-        iterator(Pointer s, uint32_t* gen_bits) {
+        iterator(Pointer s, uint32_t e, uint32_t* gen_bits) {
             current = s;
             start = s;
+            end_idx = e;
             generation_bits = gen_bits;
         }
         Reference operator*() const { return *current; }
         iterator& operator++() {
             current += 1;
-            while (generation_bits[current - start - 1] & LIVE_BIT == 0) {
+            while ((current != start + end_idx) && (generation_bits[current - start] & LIVE_BIT) == 0) {
                 current += 1;
             }
             return *this;
@@ -44,14 +45,15 @@ struct slotmap {
 
     private:
         Pointer current, start;
+        uint32_t end_idx;
         uint32_t* generation_bits;
     };
     iterator begin() {
-        return iterator(_data.data(), generation_bits.data());
+        return iterator(_data.data(), largest_free_idx, generation_bits.data());
     }
 
     iterator end() {
-        return iterator(_data.data() + largest_free_idx - 1, generation_bits.data());
+        return iterator(_data.data() + largest_free_idx, largest_free_idx, generation_bits.data());
     }
 
     void alloc(uint32_t size);
@@ -129,7 +131,7 @@ template<typename T>
 void slotmap<T>::remove(uint32_t idx) {
     if (largest_free_idx == idx + 1) {
         uint32_t n = idx;
-        while (generation_bits[n] & LIVE_BIT == 0) {
+        while ((generation_bits[n] & LIVE_BIT) == 0) {
             largest_free_idx = n;
             n -= 1;
         }
