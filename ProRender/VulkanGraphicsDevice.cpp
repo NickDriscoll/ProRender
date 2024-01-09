@@ -1243,17 +1243,14 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 	desc_infos.reserve(16);
 	desc_writes.reserve(16);
 
-	uint32_t seen = 0;
-	const uint32_t count = _image_upload_batches.count();
-	for (uint32_t i = 0; seen < count; i++) {
-		if (!_image_upload_batches.is_live(i)) continue;
-		seen += 1;
-		VulkanImageUploadBatch* batch = _image_upload_batches.data() + i;
-		if (batch->id > gpu_batches_processed) continue;
+	bool processed_batch = false;
+	for (VulkanImageUploadBatch batch : _image_upload_batches) {
+		if (batch.id > gpu_batches_processed) continue;
+		processed_batch = true;
 
 		//Make the transfer command buffer available again and destroy the staging buffer
-		return_transfer_command_buffer(batch->command_buffer);
-		vmaDestroyBuffer(allocator, _buffers.get(batch->staging_buffer_id)->buffer, _buffers.get(batch->staging_buffer_id)->allocation);
+		return_transfer_command_buffer(batch.command_buffer);
+		vmaDestroyBuffer(allocator, _buffers.get(batch.staging_buffer_id)->buffer, _buffers.get(batch.staging_buffer_id)->allocation);
 
 		uint32_t seen_images = 0;
 		uint32_t start_count = _pending_images.count();
@@ -1263,7 +1260,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 
 			VulkanPendingImage* pending_image = _pending_images.data() + j;
 
-			if (pending_image->batch_id == batch->id) {
+			if (pending_image->batch_id == batch.id) {
 				//Record Graphics queue acquire ownership of the image
 				{
 					VkImageMemoryBarrier2KHR barriers[] = {
@@ -1449,7 +1446,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 				//Descriptor update data
 				{
 					VulkanAvailableImage ava = {};
-					ava.batch_id = batch->id;
+					ava.batch_id = batch.id;
 					ava.vk_image = pending_image->vk_image;
 					
 					uint64_t handle = available_images.insert(ava);
@@ -1477,12 +1474,249 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 		}
 		
 		_image_uploads_completed += 1;
-		_image_upload_batches.remove(i);
 	}
+	_image_upload_batches.clear();
+
+	// uint32_t seen = 0;
+	// const uint32_t count = _image_upload_batches.count();
+	// for (uint32_t i = 0; seen < count; i++) {
+	// 	if (!_image_upload_batches.is_live(i)) continue;
+	// 	seen += 1;
+	// 	VulkanImageUploadBatch* batch = _image_upload_batches.data() + i;
+	// 	if (batch->id > gpu_batches_processed) continue;
+
+	// 	//Make the transfer command buffer available again and destroy the staging buffer
+	// 	return_transfer_command_buffer(batch->command_buffer);
+	// 	vmaDestroyBuffer(allocator, _buffers.get(batch->staging_buffer_id)->buffer, _buffers.get(batch->staging_buffer_id)->allocation);
+
+	// 	uint32_t seen_images = 0;
+	// 	uint32_t start_count = _pending_images.count();
+	// 	for (uint32_t j = 0; seen_images < start_count; j++) {
+	// 		if (!_pending_images.is_live(j)) continue;
+	// 		seen_images += 1;
+
+	// 		VulkanPendingImage* pending_image = _pending_images.data() + j;
+
+	// 		if (pending_image->batch_id == batch->id) {
+	// 			//Record Graphics queue acquire ownership of the image
+	// 			{
+	// 				VkImageMemoryBarrier2KHR barriers[] = {
+	// 					{
+	// 						.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+	// 						.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+	// 						.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+	// 						.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+	// 						.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+
+	// 						.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+	// 						.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+	// 						.srcQueueFamilyIndex = transfer_queue_family_idx,
+	// 						.dstQueueFamilyIndex = graphics_queue_family_idx,
+	// 						.image = pending_image->vk_image.image,
+	// 						.subresourceRange = {
+	// 							.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+	// 							.baseMipLevel = 0,
+	// 							.levelCount = 1,
+	// 							.baseArrayLayer = 0,
+	// 							.layerCount = 1
+	// 						}
+	// 					},
+	// 					{
+	// 						.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+	// 						.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+	// 						.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+	// 						.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+	// 						.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+
+	// 						.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+	// 						.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+	// 						.srcQueueFamilyIndex = transfer_queue_family_idx,
+	// 						.dstQueueFamilyIndex = graphics_queue_family_idx,
+	// 						.image = pending_image->vk_image.image,
+	// 						.subresourceRange = {
+	// 							.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+	// 							.baseMipLevel = 1,
+	// 							.levelCount = pending_image->vk_image.mip_levels - 1,
+	// 							.baseArrayLayer = 0,
+	// 							.layerCount = 1
+	// 						}
+	// 					}
+	// 				};
+
+	// 				VkDependencyInfoKHR info = {};
+	// 				info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	// 				info.imageMemoryBarrierCount = 2;
+	// 				info.pImageMemoryBarriers = barriers;
+
+	// 				vkCmdPipelineBarrier2KHR(render_cb, &info);
+	// 			}
+
+	// 			//Record mipmapping commands
+	// 			if (pending_image->vk_image.mip_levels > 1) {
+	// 				for (uint32_t k = 0; k < pending_image->vk_image.mip_levels - 1; k++) {
+	// 					VkImageBlit region = {
+	// 						.srcSubresource = {
+	// 							.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+	// 							.mipLevel = k,
+	// 							.baseArrayLayer = 0,
+	// 							.layerCount = 1,
+	// 						},
+	// 						.srcOffsets = {
+	// 							{
+	// 								.x = 0,
+	// 								.y = 0,
+	// 								.z = 0,
+	// 							},
+	// 							{
+	// 								.x = static_cast<int32_t>(pending_image->vk_image.width >> k),
+	// 								.y = static_cast<int32_t>(pending_image->vk_image.height >> k),
+	// 								.z = 1,
+	// 							}
+	// 						},
+	// 						.dstSubresource = {
+	// 							.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+	// 							.mipLevel = k + 1,
+	// 							.baseArrayLayer = 0,
+	// 							.layerCount = 1
+	// 						},
+	// 						.dstOffsets = {
+	// 							{
+	// 								.x = 0,
+	// 								.y = 0,
+	// 								.z = 0,
+	// 							},
+	// 							{
+	// 								.x = static_cast<int32_t>(pending_image->vk_image.width >> (k + 1)),
+	// 								.y = static_cast<int32_t>(pending_image->vk_image.height >> (k + 1)),
+	// 								.z = 1,
+	// 							}
+	// 						},
+	// 					};
+
+	// 					vkCmdBlitImage(
+	// 						render_cb,
+	// 						pending_image->vk_image.image,
+	// 						VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+	// 						pending_image->vk_image.image,
+	// 						VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+	// 						1,
+	// 						&region,
+	// 						VK_FILTER_LINEAR
+	// 					);
+
+	// 					{
+	// 						VkImageMemoryBarrier2KHR barriers[] = {
+	// 							{
+	// 								.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+	// 								.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+	// 								.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+	// 								.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+	// 								.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
+	// 								.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+	// 								.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+	// 								.image = pending_image->vk_image.image,
+	// 								.subresourceRange = {
+	// 									.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+	// 									.baseMipLevel = k,
+	// 									.levelCount = 1,
+	// 									.baseArrayLayer = 0,
+	// 									.layerCount = 1,
+	// 								}
+	// 							},
+	// 							{
+	// 								.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+	// 								.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+	// 								.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+	// 								.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+	// 								.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
+	// 								.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+	// 								.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+	// 								.image = pending_image->vk_image.image,
+	// 								.subresourceRange = {
+	// 									.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+	// 									.baseMipLevel = k + 1,
+	// 									.levelCount = 1,
+	// 									.baseArrayLayer = 0,
+	// 									.layerCount = 1,
+	// 								}
+	// 							}
+	// 						};
+	// 						VkDependencyInfoKHR info = {
+	// 							.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+	// 							.imageMemoryBarrierCount = 2,
+	// 							.pImageMemoryBarriers = barriers
+	// 						};
+	// 						vkCmdPipelineBarrier2KHR(render_cb, &info);
+	// 					}
+	// 				}
+
+	// 				//Final barrier
+	// 				{
+	// 					VkImageMemoryBarrier2KHR barriers[] = {
+	// 						{
+	// 							.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+	// 							.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+	// 							.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+	// 							.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+	// 							.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
+	// 							.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+	// 							.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+	// 							.image = pending_image->vk_image.image,
+	// 							.subresourceRange = {
+	// 								.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+	// 								.baseMipLevel = pending_image->vk_image.mip_levels - 1,
+	// 								.levelCount = 1,
+	// 								.baseArrayLayer = 0,
+	// 								.layerCount = 1,
+	// 							}
+	// 						}
+	// 					};
+	// 					VkDependencyInfoKHR info = {
+	// 						.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+	// 						.imageMemoryBarrierCount = 1,
+	// 						.pImageMemoryBarriers = barriers
+	// 					};
+	// 					vkCmdPipelineBarrier2KHR(render_cb, &info);
+	// 				}
+	// 			}
+
+	// 			//Descriptor update data
+	// 			{
+	// 				VulkanAvailableImage ava = {};
+	// 				ava.batch_id = batch->id;
+	// 				ava.vk_image = pending_image->vk_image;
+					
+	// 				uint64_t handle = available_images.insert(ava);
+	// 				_pending_images.remove(j);
+
+	// 				uint32_t descriptor_index = EXTRACT_IDX(handle);
+
+	// 				VkDescriptorImageInfo info = {
+	// 					.imageView = ava.vk_image.image_view,
+	// 					.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+	// 				};
+	// 				desc_infos.push_back(info);
+	// 				VkWriteDescriptorSet write = {
+	// 					.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+	// 					.dstSet = descriptor_set,
+	// 					.dstBinding = 0,
+	// 					.dstArrayElement = descriptor_index,
+	// 					.descriptorCount = 1,
+	// 					.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+	// 					.pImageInfo = &desc_infos[desc_infos.size() - 1]
+	// 				};
+	// 				desc_writes.push_back(write);
+	// 			}
+	// 		}
+	// 	}
+		
+	// 	_image_uploads_completed += 1;
+	// 	_image_upload_batches.remove(i);
+	// }
 	_pending_image_mutex.unlock();
 	_image_upload_mutex.unlock();
 	
-	if (seen > 0)
+	if (processed_batch)
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(desc_writes.size()), desc_writes.data(), 0, nullptr);
 }
 

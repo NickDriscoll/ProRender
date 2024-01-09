@@ -80,6 +80,7 @@ int main(int argc, char* argv[]) {
 		uint64_t tex_index = 0;
 		uint32_t seen = 0;
 		for (uint64_t j = 0; seen < vgd.available_images.count(); j++) {
+		//for (VulkanAvailableImage image : vgd.available_images) {
 			if (!vgd.available_images.is_live((uint32_t)j)) continue;
 			seen += 1;
 
@@ -169,31 +170,31 @@ int main(int argc, char* argv[]) {
 	}
 
     //Create main camera
-    uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 1.0, 0.0, 2.0 }, .pitch = 1.7 });
+	uint64_t dumb_camera = renderer.cameras.insert({ .position = { 6.0, 0.0, 6.0 }, .pitch = 16.3 });
+    uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 1.0, 0.0, 2.0 }, .pitch = 1.3 });
 	bool camera_control = false;
 	int32_t mouse_saved_x, mouse_saved_y;
 
 	//TEST CODE FOR SLOTMAP ITERATOR
 	{
 		renderer.cameras.insert({ .position = { 42.0, 0.0, 2.0 }, .pitch = 33.3 });
-		renderer.cameras.insert({ .position = { 55.0, 0.0, 2.0 }, .pitch = 22.0});
+		auto r = renderer.cameras.insert({ .position = { 55.0, 0.0, 2.0 }, .pitch = 22.0});
 		renderer.cameras.insert({ .position = { 4.0, 0.0, 2.0 }, .pitch = 363.3 });
 		auto k = renderer.cameras.insert({ .position = { 0.0, 2.0, 2.0 }, .pitch = 533.3 });
 		renderer.cameras.insert({ .position = { 2.22555, 0.0, 2.0 }, .pitch = 444.3 });
 		renderer.cameras.remove(k);
+		renderer.cameras.remove(r);
+		renderer.cameras.remove(dumb_camera);
 		printf("Camera count: %i\n", renderer.cameras.count());
 		for (Camera cam : renderer.cameras) {
 			float val = cam.position.x;
-			printf("Camera pitch: %f\n", cam.pitch);
+			printf("Camera position: %f\n", cam.position[0]);
 		}
 	}
 
 	//Load simple 3D plane
 	uint64_t plane_image_batch_id;
 	uint32_t plane_image_idx = 0xFFFFFFFF;
-	// BufferView plane_positions;
-	// BufferView plane_uvs;
-	// BufferView plane_indices;
 	uint64_t plane_key;
 	{
 		//Load plane texture
@@ -219,9 +220,6 @@ int main(int argc, char* argv[]) {
 			0, 1, 2,
 			1, 3, 2
 		};
-		// plane_positions = renderer.push_vertex_positions(std::span(plane_pos));
-		// plane_uvs = renderer.push_vertex_uvs(std::span(plane_uv));
-		// plane_indices = renderer.push_indices16(std::span(inds));
 
 		plane_key = renderer.push_vertex_positions(std::span(plane_pos));
 		renderer.push_vertex_uvs(plane_key, std::span(plane_uv));
@@ -405,18 +403,17 @@ int main(int argc, char* argv[]) {
 		}
 
 		//Update GPU camera data
+		std::vector<uint32_t> cam_idx_map;
+		cam_idx_map.reserve(renderer.cameras.count());
 		{
 			std::vector<GPUCamera> g_cameras;
 			g_cameras.reserve(renderer.cameras.count());
 
-			uint32_t seen = 0;
-			for (uint32_t i = 0; seen < renderer.cameras.count(); i++) {
-				if (!renderer.cameras.is_live(i)) continue;
-				seen += 1;
-				Camera* camera = renderer.cameras.data() + i;
+			for (auto it = renderer.cameras.begin(); it != renderer.cameras.end(); ++it) {
+				Camera camera = *it;
 
 				GPUCamera gcam;
-				gcam.view_matrix = camera->make_view_matrix();
+				gcam.view_matrix = camera.make_view_matrix();
 
 			    //Transformation applied after view transform to correct axes to match Vulkan clip-space
 				//(x-right, y-forward, z-up) -> (x-right, y-down, z-forward)
@@ -441,6 +438,7 @@ int main(int argc, char* argv[]) {
 				gcam.projection_matrix = mul(gcam.projection_matrix, c_matrix);
 
 				g_cameras.push_back(gcam);
+				cam_idx_map.push_back(it.underlying_index());
 			}
 
 			//Write camera data to GPU buffer in one contiguous push
@@ -568,6 +566,17 @@ int main(int argc, char* argv[]) {
 
 			//Draw hardcoded plane
 			{
+				//Find GPU index of main viewport camera
+				uint32_t main_cam_idx;
+				{
+					for (uint32_t i = 0; i < cam_idx_map.size(); ++i) {
+						if (cam_idx_map[i] == EXTRACT_IDX(main_viewport_camera)) {
+							main_cam_idx = i;
+							break;
+						}
+					}
+				}
+
 				uint32_t image_idx = renderer.imgui_atlas_idx;
 				if (plane_image_idx != 0xFFFFFFFF)
 					image_idx = plane_image_idx;
@@ -579,7 +588,7 @@ int main(int argc, char* argv[]) {
 				uint32_t pcs[] = {
 					plane_positions->start / 4,
 					plane_uvs->start / 2,
-					EXTRACT_IDX(main_viewport_camera),
+					main_cam_idx,
 					image_idx,
 					renderer.standard_sampler_idx
 				};

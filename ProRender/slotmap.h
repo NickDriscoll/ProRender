@@ -18,8 +18,8 @@ struct slotmap {
         using Pointer = Element*;
         using Reference = Element&;
 
-        iterator(Pointer s, uint32_t e, uint32_t* gen_bits) {
-            current = s;
+        iterator(Pointer c, Pointer s, uint32_t e, uint32_t* gen_bits) {
+            current = c;
             start = s;
             end_idx = e;
             generation_bits = gen_bits;
@@ -43,21 +43,31 @@ struct slotmap {
         bool operator!=(const iterator& other) { return current != other.current; }
         auto operator<=>(const iterator &) const = default; // three-way comparison C++20
 
+        uint32_t underlying_index() {
+            return current - start;
+        }
+
     private:
         Pointer current, start;
         uint32_t end_idx;
         uint32_t* generation_bits;
     };
     iterator begin() {
-        return iterator(_data.data(), largest_free_idx, generation_bits.data());
+        if (_count == 0) return iterator(_data.data(), _data.data(), largest_free_idx, generation_bits.data());
+        T* current = _data.data();
+        while ((generation_bits[current - _data.data()] & LIVE_BIT) == 0) {
+            current += 1;
+        }
+        return iterator(current, _data.data(), largest_free_idx, generation_bits.data());
     }
 
     iterator end() {
-        return iterator(_data.data() + largest_free_idx, largest_free_idx, generation_bits.data());
+        return iterator(_data.data() + largest_free_idx, _data.data(), largest_free_idx, generation_bits.data());
     }
 
     void alloc(uint32_t size);
     uint32_t count();
+    void clear();
     T* data();
     T* get(uint64_t key);
     uint64_t insert(T thing);
@@ -91,6 +101,26 @@ void slotmap<T>::alloc(uint32_t size) {
 template<typename T>
 uint32_t slotmap<T>::count() {
     return _count;
+}
+
+template<typename T>
+void slotmap<T>::clear() {
+    _count = 0;
+    largest_free_idx = 0;
+    size_t size = _data.capacity();
+    _data.clear();
+    _data.resize(size);
+    generation_bits.clear();
+    generation_bits.resize(size);
+    
+    std::vector<uint32_t> free_inds;
+    free_inds.resize(size);
+    //TODO: There has to be a better way!
+    for (uint32_t i = 0; i < size; i++) {
+        free_inds[i] = size - i - 1;
+    }
+    
+    free_indices = std::stack(free_inds);
 }
 
 template<typename T>
