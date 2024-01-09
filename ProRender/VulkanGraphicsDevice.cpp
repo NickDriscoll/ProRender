@@ -419,70 +419,36 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 		}
 		fclose(f);
 	}
-	
-	for (uint32_t i = 0; i < _image_upload_batches.count(); i++) {
-		static uint32_t seen = 0;
-		if (!_image_upload_batches.is_live(i)) continue;
-		seen += 1;
 
-		VulkanImageUploadBatch* im = _image_upload_batches.data() + i;
-
-		auto buffer = _buffers.get(im->staging_buffer_id);
+	for (VulkanImageUploadBatch& im : _image_upload_batches) {
+		auto buffer = _buffers.get(im.staging_buffer_id);
 		vmaDestroyBuffer(allocator, buffer->buffer, buffer->allocation);
 	}
-	
-	for (uint32_t i = 0; i < available_images.count(); i++) {
-		static uint32_t seen = 0;
-		if (!available_images.is_live(i)) continue;
-		seen += 1;
 
-		VulkanAvailableImage* im = available_images.data() + i;
-
-		vkDestroyImageView(device, im->vk_image.image_view, alloc_callbacks);
-		vmaDestroyImage(allocator, im->vk_image.image, im->vk_image.image_allocation);
-	}
-	
-	for (uint32_t i = 0; i < _pending_images.count(); i++) {
-		static uint32_t seen = 0;
-		if (!_pending_images.is_live(i)) continue;
-		seen += 1;
-
-		VulkanPendingImage* im = _pending_images.data() + i;
-
-		vkDestroyImageView(device, im->vk_image.image_view, alloc_callbacks);
-		vmaDestroyImage(allocator, im->vk_image.image, im->vk_image.image_allocation);
+	for (VulkanAvailableImage& im : available_images) {
+		vkDestroyImageView(device, im.vk_image.image_view, alloc_callbacks);
+		vmaDestroyImage(allocator, im.vk_image.image, im.vk_image.image_allocation);
 	}
 
-	uint32_t rp_seen = 0;
-	for (uint32_t i = 0; rp_seen < _render_passes.count(); i++) {
-		if (!_render_passes.is_live(i)) continue;
-		rp_seen += 1;
-
-		vkDestroyRenderPass(device, _render_passes.data()[i], alloc_callbacks);
+	for (VulkanPendingImage& im : _pending_images) {
+		vkDestroyImageView(device, im.vk_image.image_view, alloc_callbacks);
+		vmaDestroyImage(allocator, im.vk_image.image, im.vk_image.image_allocation);
 	}
 
-	uint32_t gp_seen = 0;
-	for (uint32_t i = 0; gp_seen < _graphics_pipelines.count(); i++) {
-		if (!_graphics_pipelines.is_live(i)) continue;
-		gp_seen += 1;
-
-		vkDestroyPipeline(device, _graphics_pipelines.data()[i].pipeline, alloc_callbacks);
+	for (VkRenderPass& pass : _render_passes) {
+		vkDestroyRenderPass(device, pass, alloc_callbacks);
 	}
 
-	uint32_t pl_seen = 0;
-	for (uint32_t i = 0; pl_seen < _pipeline_layouts.count(); i++) {
-		if (!_pipeline_layouts.is_live(i)) continue;
-		pl_seen += 1;
-
-		vkDestroyPipelineLayout(device, _pipeline_layouts.data()[i], alloc_callbacks);
+	for (VulkanGraphicsPipeline& p : _graphics_pipelines) {
+		vkDestroyPipeline(device, p.pipeline, alloc_callbacks);
 	}
 
-	uint32_t dsl_seen = 0;
-	for (uint32_t i = 0; dsl_seen < _descriptor_set_layouts.count(); i++) {
-		if (!_descriptor_set_layouts.is_live(i)) continue;
-		dsl_seen += 1;
+	for (VkPipelineLayout& p : _pipeline_layouts) {
+		vkDestroyPipelineLayout(device, p, alloc_callbacks);
+	}
 
-		vkDestroyDescriptorSetLayout(device, _descriptor_set_layouts.data()[i], alloc_callbacks);
+	for (VkDescriptorSetLayout& p : _descriptor_set_layouts) {
+		vkDestroyDescriptorSetLayout(device, p, alloc_callbacks);
 	}
 
 	//Wait for the image upload thread
@@ -1244,7 +1210,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 	desc_writes.reserve(16);
 
 	bool processed_batch = false;
-	for (VulkanImageUploadBatch batch : _image_upload_batches) {
+	for (VulkanImageUploadBatch& batch : _image_upload_batches) {
 		if (batch.id > gpu_batches_processed) continue;
 		processed_batch = true;
 
@@ -1252,15 +1218,11 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 		return_transfer_command_buffer(batch.command_buffer);
 		vmaDestroyBuffer(allocator, _buffers.get(batch.staging_buffer_id)->buffer, _buffers.get(batch.staging_buffer_id)->allocation);
 
-		uint32_t seen_images = 0;
 		uint32_t start_count = _pending_images.count();
-		for (uint32_t j = 0; seen_images < start_count; j++) {
-			if (!_pending_images.is_live(j)) continue;
-			seen_images += 1;
+		for (auto it = _pending_images.begin(); it != _pending_images.end(); ++it) {
+			VulkanPendingImage& pending_image = *it;
 
-			VulkanPendingImage* pending_image = _pending_images.data() + j;
-
-			if (pending_image->batch_id == batch.id) {
+			if (pending_image.batch_id == batch.id) {
 				//Record Graphics queue acquire ownership of the image
 				{
 					VkImageMemoryBarrier2KHR barriers[] = {
@@ -1275,7 +1237,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 							.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 							.srcQueueFamilyIndex = transfer_queue_family_idx,
 							.dstQueueFamilyIndex = graphics_queue_family_idx,
-							.image = pending_image->vk_image.image,
+							.image = pending_image.vk_image.image,
 							.subresourceRange = {
 								.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 								.baseMipLevel = 0,
@@ -1295,11 +1257,11 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 							.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 							.srcQueueFamilyIndex = transfer_queue_family_idx,
 							.dstQueueFamilyIndex = graphics_queue_family_idx,
-							.image = pending_image->vk_image.image,
+							.image = pending_image.vk_image.image,
 							.subresourceRange = {
 								.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 								.baseMipLevel = 1,
-								.levelCount = pending_image->vk_image.mip_levels - 1,
+								.levelCount = pending_image.vk_image.mip_levels - 1,
 								.baseArrayLayer = 0,
 								.layerCount = 1
 							}
@@ -1315,8 +1277,8 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 				}
 
 				//Record mipmapping commands
-				if (pending_image->vk_image.mip_levels > 1) {
-					for (uint32_t k = 0; k < pending_image->vk_image.mip_levels - 1; k++) {
+				if (pending_image.vk_image.mip_levels > 1) {
+					for (uint32_t k = 0; k < pending_image.vk_image.mip_levels - 1; k++) {
 						VkImageBlit region = {
 							.srcSubresource = {
 								.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -1331,8 +1293,8 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 									.z = 0,
 								},
 								{
-									.x = static_cast<int32_t>(pending_image->vk_image.width >> k),
-									.y = static_cast<int32_t>(pending_image->vk_image.height >> k),
+									.x = static_cast<int32_t>(pending_image.vk_image.width >> k),
+									.y = static_cast<int32_t>(pending_image.vk_image.height >> k),
 									.z = 1,
 								}
 							},
@@ -1349,8 +1311,8 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 									.z = 0,
 								},
 								{
-									.x = static_cast<int32_t>(pending_image->vk_image.width >> (k + 1)),
-									.y = static_cast<int32_t>(pending_image->vk_image.height >> (k + 1)),
+									.x = static_cast<int32_t>(pending_image.vk_image.width >> (k + 1)),
+									.y = static_cast<int32_t>(pending_image.vk_image.height >> (k + 1)),
 									.z = 1,
 								}
 							},
@@ -1358,9 +1320,9 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 
 						vkCmdBlitImage(
 							render_cb,
-							pending_image->vk_image.image,
+							pending_image.vk_image.image,
 							VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-							pending_image->vk_image.image,
+							pending_image.vk_image.image,
 							VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 							1,
 							&region,
@@ -1377,7 +1339,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 									.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
 									.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 									.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-									.image = pending_image->vk_image.image,
+									.image = pending_image.vk_image.image,
 									.subresourceRange = {
 										.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 										.baseMipLevel = k,
@@ -1394,7 +1356,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 									.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
 									.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 									.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-									.image = pending_image->vk_image.image,
+									.image = pending_image.vk_image.image,
 									.subresourceRange = {
 										.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 										.baseMipLevel = k + 1,
@@ -1424,10 +1386,10 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 								.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
 								.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 								.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-								.image = pending_image->vk_image.image,
+								.image = pending_image.vk_image.image,
 								.subresourceRange = {
 									.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-									.baseMipLevel = pending_image->vk_image.mip_levels - 1,
+									.baseMipLevel = pending_image.vk_image.mip_levels - 1,
 									.levelCount = 1,
 									.baseArrayLayer = 0,
 									.layerCount = 1,
@@ -1447,10 +1409,10 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 				{
 					VulkanAvailableImage ava = {};
 					ava.batch_id = batch.id;
-					ava.vk_image = pending_image->vk_image;
+					ava.vk_image = pending_image.vk_image;
 					
 					uint64_t handle = available_images.insert(ava);
-					_pending_images.remove(j);
+					_pending_images.remove(it.underlying_index());
 
 					uint32_t descriptor_index = EXTRACT_IDX(handle);
 
@@ -1477,242 +1439,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 	}
 	_image_upload_batches.clear();
 
-	// uint32_t seen = 0;
-	// const uint32_t count = _image_upload_batches.count();
-	// for (uint32_t i = 0; seen < count; i++) {
-	// 	if (!_image_upload_batches.is_live(i)) continue;
-	// 	seen += 1;
-	// 	VulkanImageUploadBatch* batch = _image_upload_batches.data() + i;
-	// 	if (batch->id > gpu_batches_processed) continue;
-
-	// 	//Make the transfer command buffer available again and destroy the staging buffer
-	// 	return_transfer_command_buffer(batch->command_buffer);
-	// 	vmaDestroyBuffer(allocator, _buffers.get(batch->staging_buffer_id)->buffer, _buffers.get(batch->staging_buffer_id)->allocation);
-
-	// 	uint32_t seen_images = 0;
-	// 	uint32_t start_count = _pending_images.count();
-	// 	for (uint32_t j = 0; seen_images < start_count; j++) {
-	// 		if (!_pending_images.is_live(j)) continue;
-	// 		seen_images += 1;
-
-	// 		VulkanPendingImage* pending_image = _pending_images.data() + j;
-
-	// 		if (pending_image->batch_id == batch->id) {
-	// 			//Record Graphics queue acquire ownership of the image
-	// 			{
-	// 				VkImageMemoryBarrier2KHR barriers[] = {
-	// 					{
-	// 						.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-	// 						.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-	// 						.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-	// 						.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-	// 						.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-
-	// 						.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-	// 						.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-	// 						.srcQueueFamilyIndex = transfer_queue_family_idx,
-	// 						.dstQueueFamilyIndex = graphics_queue_family_idx,
-	// 						.image = pending_image->vk_image.image,
-	// 						.subresourceRange = {
-	// 							.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-	// 							.baseMipLevel = 0,
-	// 							.levelCount = 1,
-	// 							.baseArrayLayer = 0,
-	// 							.layerCount = 1
-	// 						}
-	// 					},
-	// 					{
-	// 						.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-	// 						.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-	// 						.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-	// 						.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-	// 						.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-
-	// 						.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-	// 						.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-	// 						.srcQueueFamilyIndex = transfer_queue_family_idx,
-	// 						.dstQueueFamilyIndex = graphics_queue_family_idx,
-	// 						.image = pending_image->vk_image.image,
-	// 						.subresourceRange = {
-	// 							.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-	// 							.baseMipLevel = 1,
-	// 							.levelCount = pending_image->vk_image.mip_levels - 1,
-	// 							.baseArrayLayer = 0,
-	// 							.layerCount = 1
-	// 						}
-	// 					}
-	// 				};
-
-	// 				VkDependencyInfoKHR info = {};
-	// 				info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-	// 				info.imageMemoryBarrierCount = 2;
-	// 				info.pImageMemoryBarriers = barriers;
-
-	// 				vkCmdPipelineBarrier2KHR(render_cb, &info);
-	// 			}
-
-	// 			//Record mipmapping commands
-	// 			if (pending_image->vk_image.mip_levels > 1) {
-	// 				for (uint32_t k = 0; k < pending_image->vk_image.mip_levels - 1; k++) {
-	// 					VkImageBlit region = {
-	// 						.srcSubresource = {
-	// 							.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-	// 							.mipLevel = k,
-	// 							.baseArrayLayer = 0,
-	// 							.layerCount = 1,
-	// 						},
-	// 						.srcOffsets = {
-	// 							{
-	// 								.x = 0,
-	// 								.y = 0,
-	// 								.z = 0,
-	// 							},
-	// 							{
-	// 								.x = static_cast<int32_t>(pending_image->vk_image.width >> k),
-	// 								.y = static_cast<int32_t>(pending_image->vk_image.height >> k),
-	// 								.z = 1,
-	// 							}
-	// 						},
-	// 						.dstSubresource = {
-	// 							.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-	// 							.mipLevel = k + 1,
-	// 							.baseArrayLayer = 0,
-	// 							.layerCount = 1
-	// 						},
-	// 						.dstOffsets = {
-	// 							{
-	// 								.x = 0,
-	// 								.y = 0,
-	// 								.z = 0,
-	// 							},
-	// 							{
-	// 								.x = static_cast<int32_t>(pending_image->vk_image.width >> (k + 1)),
-	// 								.y = static_cast<int32_t>(pending_image->vk_image.height >> (k + 1)),
-	// 								.z = 1,
-	// 							}
-	// 						},
-	// 					};
-
-	// 					vkCmdBlitImage(
-	// 						render_cb,
-	// 						pending_image->vk_image.image,
-	// 						VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-	// 						pending_image->vk_image.image,
-	// 						VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-	// 						1,
-	// 						&region,
-	// 						VK_FILTER_LINEAR
-	// 					);
-
-	// 					{
-	// 						VkImageMemoryBarrier2KHR barriers[] = {
-	// 							{
-	// 								.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-	// 								.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-	// 								.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-	// 								.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-	// 								.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
-	// 								.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-	// 								.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-	// 								.image = pending_image->vk_image.image,
-	// 								.subresourceRange = {
-	// 									.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-	// 									.baseMipLevel = k,
-	// 									.levelCount = 1,
-	// 									.baseArrayLayer = 0,
-	// 									.layerCount = 1,
-	// 								}
-	// 							},
-	// 							{
-	// 								.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-	// 								.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-	// 								.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-	// 								.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-	// 								.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
-	// 								.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-	// 								.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-	// 								.image = pending_image->vk_image.image,
-	// 								.subresourceRange = {
-	// 									.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-	// 									.baseMipLevel = k + 1,
-	// 									.levelCount = 1,
-	// 									.baseArrayLayer = 0,
-	// 									.layerCount = 1,
-	// 								}
-	// 							}
-	// 						};
-	// 						VkDependencyInfoKHR info = {
-	// 							.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
-	// 							.imageMemoryBarrierCount = 2,
-	// 							.pImageMemoryBarriers = barriers
-	// 						};
-	// 						vkCmdPipelineBarrier2KHR(render_cb, &info);
-	// 					}
-	// 				}
-
-	// 				//Final barrier
-	// 				{
-	// 					VkImageMemoryBarrier2KHR barriers[] = {
-	// 						{
-	// 							.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-	// 							.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-	// 							.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-	// 							.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-	// 							.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR,
-	// 							.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-	// 							.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-	// 							.image = pending_image->vk_image.image,
-	// 							.subresourceRange = {
-	// 								.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-	// 								.baseMipLevel = pending_image->vk_image.mip_levels - 1,
-	// 								.levelCount = 1,
-	// 								.baseArrayLayer = 0,
-	// 								.layerCount = 1,
-	// 							}
-	// 						}
-	// 					};
-	// 					VkDependencyInfoKHR info = {
-	// 						.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
-	// 						.imageMemoryBarrierCount = 1,
-	// 						.pImageMemoryBarriers = barriers
-	// 					};
-	// 					vkCmdPipelineBarrier2KHR(render_cb, &info);
-	// 				}
-	// 			}
-
-	// 			//Descriptor update data
-	// 			{
-	// 				VulkanAvailableImage ava = {};
-	// 				ava.batch_id = batch->id;
-	// 				ava.vk_image = pending_image->vk_image;
-					
-	// 				uint64_t handle = available_images.insert(ava);
-	// 				_pending_images.remove(j);
-
-	// 				uint32_t descriptor_index = EXTRACT_IDX(handle);
-
-	// 				VkDescriptorImageInfo info = {
-	// 					.imageView = ava.vk_image.image_view,
-	// 					.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-	// 				};
-	// 				desc_infos.push_back(info);
-	// 				VkWriteDescriptorSet write = {
-	// 					.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-	// 					.dstSet = descriptor_set,
-	// 					.dstBinding = 0,
-	// 					.dstArrayElement = descriptor_index,
-	// 					.descriptorCount = 1,
-	// 					.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-	// 					.pImageInfo = &desc_infos[desc_infos.size() - 1]
-	// 				};
-	// 				desc_writes.push_back(write);
-	// 			}
-	// 		}
-	// 	}
-		
-	// 	_image_uploads_completed += 1;
-	// 	_image_upload_batches.remove(i);
-	// }
+	//Release relevant locks
 	_pending_image_mutex.unlock();
 	_image_upload_mutex.unlock();
 	

@@ -78,15 +78,10 @@ int main(int argc, char* argv[]) {
 		}
 	
 		uint64_t tex_index = 0;
-		uint32_t seen = 0;
-		for (uint64_t j = 0; seen < vgd.available_images.count(); j++) {
-		//for (VulkanAvailableImage image : vgd.available_images) {
-			if (!vgd.available_images.is_live((uint32_t)j)) continue;
-			seen += 1;
-
-			VulkanAvailableImage* image = vgd.available_images.data() + j;
-			if (batch_id == image->batch_id) {
-				tex_index = j;
+		for (auto it = vgd.available_images.begin(); it != vgd.available_images.end(); ++it) {
+			VulkanAvailableImage image = *it;
+			if (batch_id == image.batch_id) {
+				tex_index = it.underlying_index();
 				break;
 			}
 		}
@@ -171,7 +166,7 @@ int main(int argc, char* argv[]) {
 
     //Create main camera
 	uint64_t dumb_camera = renderer.cameras.insert({ .position = { 6.0, 0.0, 6.0 }, .pitch = 16.3 });
-    uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 1.0, 0.0, 2.0 }, .pitch = 1.3 });
+    uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 1.0, -2.0, 5.0 }, .pitch = 1.3 });
 	bool camera_control = false;
 	int32_t mouse_saved_x, mouse_saved_y;
 
@@ -486,14 +481,11 @@ int main(int argc, char* argv[]) {
 				static bool iheartstaticbools = false;
 				if (!iheartstaticbools && plane_image_batch_id <= upload_batches_completed) {
 					iheartstaticbools = true;
-					uint32_t seen = 0;
-					for (uint32_t j = 0; seen < vgd.available_images.count(); j++) {
-						if (!vgd.available_images.is_live(j)) continue;
-						seen += 1;
-						VulkanAvailableImage* image = vgd.available_images.data() + j;
-						if (plane_image_batch_id == image->batch_id) {
-							printf("Found plane image at index %i\n", j);
-							plane_image_idx = j;
+					for (auto it = vgd.available_images.begin(); it != vgd.available_images.end(); ++it) {
+						VulkanAvailableImage& image = *it;
+						if (plane_image_batch_id == image.batch_id) {
+							printf("Found plane image at index %i\n", it.underlying_index());
+							plane_image_idx = it.underlying_index();
 						}
 					}
 				}

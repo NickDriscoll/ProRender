@@ -71,7 +71,6 @@ struct slotmap {
     T* data();
     T* get(uint64_t key);
     uint64_t insert(T thing);
-    bool is_live(uint32_t idx);
     void remove(uint32_t idx);
 
 private:
@@ -149,12 +148,6 @@ uint64_t slotmap<T>::insert(T thing) {
     uint32_t generation = generation_bits[free_idx];
     _count += 1;
     return (static_cast<uint64_t>(generation) << 32) | static_cast<uint64_t>(free_idx);
-}
-
-template<typename T>
-bool slotmap<T>::is_live(uint32_t idx) {
-    if (_data.size() == 0) return false;
-    return generation_bits[idx] & LIVE_BIT;
 }
 
 template<typename T>

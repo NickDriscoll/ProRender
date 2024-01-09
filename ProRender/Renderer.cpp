@@ -640,14 +640,9 @@ uint64_t Renderer::push_vertex_uvs(uint64_t position_key, std::span<float> data)
 BufferView* Renderer::get_vertex_uvs(uint64_t position_key) {
 
     BufferView* result = nullptr;
-    uint32_t seen = 0;
-    for (uint32_t i = 0; seen < _uv_buffers.count(); i++) {
-        if (!_uv_buffers.is_live(i)) continue;
-        seen += 1;
-
-        ModelAttribute* att = _uv_buffers.data() + i;
-        if (att->position_key == position_key) {
-            result = &att->view;
+    for (ModelAttribute& att : _uv_buffers) {
+        if (att.position_key == position_key) {
+            result = &att.view;
             break;
         }
     }
@@ -678,14 +673,9 @@ uint64_t Renderer::push_indices16(uint64_t position_key, std::span<uint16_t> dat
 BufferView* Renderer::get_indices16(uint64_t position_key) {
 
     BufferView* result = nullptr;
-    uint32_t seen = 0;
-    for (uint32_t i = 0; seen < _index16_buffers.count(); i++) {
-        if (!_index16_buffers.is_live(i)) continue;
-        seen += 1;
-
-        ModelAttribute* att = _index16_buffers.data() + i;
-        if (att->position_key == position_key) {
-            result = &att->view;
+    for (ModelAttribute& att : _index16_buffers) {
+        if (att.position_key == position_key) {
+            result = &att.view;
             break;
         }
     }
