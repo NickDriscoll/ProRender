@@ -38,6 +38,7 @@ target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/imgui")
 
 #Include fastgltf
 target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/fastgltf/include")
+target_link_libraries(ProRender PUBLIC fastgltf)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)
@@ -58,6 +59,11 @@ add_custom_command(
 	TARGET ProRender POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E make_directory
 			"${CMAKE_CURRENT_BINARY_DIR}/bin/images")
+
+add_custom_command(
+	TARGET ProRender POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E make_directory
+			"${CMAKE_CURRENT_BINARY_DIR}/bin/models")
 
 #Compile HLSL vertex shaders
 #message("Current source dir: ${CMAKE_CURRENT_SOURCE_DIR}")
@@ -85,7 +91,7 @@ foreach(file ${files})
 endforeach()
 
 
-file(GLOB files "${CMAKE_SOURCE_DIR}/images/*")
+file(GLOB files "${CMAKE_SOURCE_DIR}/data/images/*")
 foreach(file ${files})
 	#message(INFO "frag shader ${file}")
 	cmake_path(GET file FILENAME filename)
@@ -95,6 +101,18 @@ foreach(file ${files})
 		COMMAND ${CMAKE_COMMAND} -E copy
 				${file}
 				${CMAKE_CURRENT_BINARY_DIR}/bin/images/)
+endforeach()
+
+file(GLOB files "${CMAKE_SOURCE_DIR}/data/models/*")
+foreach(file ${files})
+	#message(INFO "frag shader ${file}")
+	cmake_path(GET file FILENAME filename)
+	add_custom_command(
+		TARGET ProRender
+		POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy
+				${file}
+				${CMAKE_CURRENT_BINARY_DIR}/bin/models/)
 endforeach()
 
 #Copy SDL2.dll to output directory

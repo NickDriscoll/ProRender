@@ -165,27 +165,9 @@ int main(int argc, char* argv[]) {
 	}
 
     //Create main camera
-	uint64_t dumb_camera = renderer.cameras.insert({ .position = { 6.0, 0.0, 6.0 }, .pitch = 16.3 });
-    uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 1.0, -2.0, 5.0 }, .pitch = 1.3 });
+	uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 1.0, -2.0, 5.0 }, .pitch = 1.3 });
 	bool camera_control = false;
 	int32_t mouse_saved_x, mouse_saved_y;
-
-	//TEST CODE FOR SLOTMAP ITERATOR
-	{
-		renderer.cameras.insert({ .position = { 42.0, 0.0, 2.0 }, .pitch = 33.3 });
-		auto r = renderer.cameras.insert({ .position = { 55.0, 0.0, 2.0 }, .pitch = 22.0});
-		renderer.cameras.insert({ .position = { 4.0, 0.0, 2.0 }, .pitch = 363.3 });
-		auto k = renderer.cameras.insert({ .position = { 0.0, 2.0, 2.0 }, .pitch = 533.3 });
-		renderer.cameras.insert({ .position = { 2.22555, 0.0, 2.0 }, .pitch = 444.3 });
-		renderer.cameras.remove(k);
-		renderer.cameras.remove(r);
-		renderer.cameras.remove(dumb_camera);
-		printf("Camera count: %i\n", renderer.cameras.count());
-		for (Camera cam : renderer.cameras) {
-			float val = cam.position.x;
-			printf("Camera position: %f\n", cam.position[0]);
-		}
-	}
 
 	//Load simple 3D plane
 	uint64_t plane_image_batch_id;
@@ -220,6 +202,28 @@ int main(int argc, char* argv[]) {
 		renderer.push_vertex_uvs(plane_key, std::span(plane_uv));
 		renderer.push_indices16(plane_key, std::span(inds));
 	}
+	app_timer.print("Loaded plane");
+	app_timer.start();
+
+	//Load something from a glTF
+	{
+		std::filesystem::path glb_path = "models/BoomBox.glb";
+		fastgltf::Parser parser;
+		fastgltf::GltfDataBuffer data;
+		data.loadFromFile(glb_path);
+		fastgltf::Expected<fastgltf::Asset> asset = parser.loadBinaryGLTF(&data, glb_path.parent_path());
+
+		printf("Printing \"%s\" node names...\n", glb_path.string().c_str());
+		for (fastgltf::Node& node : asset->nodes) {
+			printf("%s\n", node.name.c_str());
+
+			if (node.meshIndex.has_value()) {
+				
+			}
+		}
+	}
+	app_timer.print("Loaded glTF");
+	app_timer.start();
 
 	init_timer.print("App init");
 
