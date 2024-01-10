@@ -152,18 +152,20 @@ uint64_t slotmap<T>::insert(T thing) {
 
 template<typename T>
 void slotmap<T>::remove(uint32_t idx) {
-    if (largest_free_idx == idx + 1) {
-        uint32_t n = idx;
-        while ((generation_bits[n] & LIVE_BIT) == 0) {
-            largest_free_idx = n;
-            n -= 1;
-        }
-    }
-
     free_indices.push(idx);
     generation_bits[idx] &= ~LIVE_BIT;
     generation_bits[idx] += 1;
     _count -= 1;
+
+    //Recalculate largest free index
+    if (largest_free_idx == idx + 1) {
+        uint32_t n = idx;
+        while ((generation_bits[n] & LIVE_BIT) == 0) {
+            largest_free_idx = n;
+            if (n == 0) break;
+            n -= 1;
+        }
+    }
 }
 
 #endif

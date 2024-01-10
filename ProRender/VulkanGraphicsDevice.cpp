@@ -1209,6 +1209,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 	desc_infos.reserve(16);
 	desc_writes.reserve(16);
 
+	std::vector<uint32_t> to_delete;
 	bool processed_batch = false;
 	for (VulkanImageUploadBatch& batch : _image_upload_batches) {
 		if (batch.id > gpu_batches_processed) continue;
@@ -1412,7 +1413,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 					ava.vk_image = pending_image.vk_image;
 					
 					uint64_t handle = available_images.insert(ava);
-					_pending_images.remove(it.underlying_index());
+					to_delete.push_back(it.underlying_index());
 
 					uint32_t descriptor_index = EXTRACT_IDX(handle);
 
@@ -1438,6 +1439,11 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 		_image_uploads_completed += 1;
 	}
 	_image_upload_batches.clear();
+
+	//Remove completed pending images
+	for (uint32_t& idx : to_delete) {
+		_pending_images.remove(idx);
+	}
 
 	//Release relevant locks
 	_pending_image_mutex.unlock();

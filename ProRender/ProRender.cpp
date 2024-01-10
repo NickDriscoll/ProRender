@@ -7,8 +7,8 @@ int main(int argc, char* argv[]) {
 	Timer app_timer = Timer("Main function");
 
 	Configuration my_config = {
-		.window_width = 1200,
-		.window_height = 900	
+		.window_width = 1600,
+		.window_height = 1000	
 	};
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);	//Initialize SDL
