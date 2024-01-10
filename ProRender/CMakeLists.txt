@@ -13,6 +13,8 @@ add_executable (
 	"Renderer.cpp"
 	"header_libs.cpp"
 
+	"tinyfiledialogs.c"
+
 	"${CMAKE_SOURCE_DIR}/imgui/imgui_demo.cpp"
 	"${CMAKE_SOURCE_DIR}/imgui/imgui_draw.cpp"
 	"${CMAKE_SOURCE_DIR}/imgui/imgui_tables.cpp"

@@ -1,4 +1,5 @@
 ﻿#include "ProRender.h"
+#include "tinyfiledialogs.h"
 
 using namespace hlslpp;
 
@@ -207,18 +208,24 @@ int main(int argc, char* argv[]) {
 
 	//Load something from a glTF
 	{
+		using namespace fastgltf;
+
 		std::filesystem::path glb_path = "models/BoomBox.glb";
-		fastgltf::Parser parser;
-		fastgltf::GltfDataBuffer data;
+		Parser parser;
+		GltfDataBuffer data;
 		data.loadFromFile(glb_path);
-		fastgltf::Expected<fastgltf::Asset> asset = parser.loadBinaryGLTF(&data, glb_path.parent_path());
+		Expected<Asset> asset = parser.loadBinaryGLTF(&data, glb_path.parent_path());
 
 		printf("Printing \"%s\" node names...\n", glb_path.string().c_str());
-		for (fastgltf::Node& node : asset->nodes) {
+		for (Node& node : asset->nodes) {
 			printf("%s\n", node.name.c_str());
 
 			if (node.meshIndex.has_value()) {
-				
+				Mesh& node_mesh = asset->meshes[node.meshIndex.value()];
+
+				for (Primitive& prim : node_mesh.primitives) {
+
+				}
 			}
 		}
 	}
@@ -758,6 +765,12 @@ int main(int argc, char* argv[]) {
 						break;
 				}
 			}
+		}
+
+		static bool donethis = false;
+		if (!donethis) {
+			tinyfd_messageBox("Ding!", "We just submitted the first buffer of work to the graphics queue! Wow!", "ok", "info", 1);
+			donethis = true;
 		}
 
 		//End-of-frame bookkeeping
