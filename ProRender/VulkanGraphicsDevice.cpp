@@ -1,4 +1,5 @@
 #include "VulkanGraphicsDevice.h"
+#include "tinyfiledialogs.h"
 
 VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	Timer timer = Timer("VGD initialization");
