@@ -217,7 +217,7 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd, uint64_t swapchain_renderpass) {
                     .maxLod = VK_LOD_CLAMP_NONE,
                 };
                 _samplers.push_back(vgd->create_sampler(info));
-                imgui_sampler_idx = 1;
+                point_sampler_idx = 1;
             }
 
             std::vector<VulkanDescriptorLayoutBinding> bindings;
@@ -366,23 +366,6 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd, uint64_t swapchain_renderpass) {
         index_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, alloc_info);
     }
 
-    //Allocate memory for ImGUI vertex data
-    //TODO: probabaly shouldn't be in renderer init
-    {
-        VkDeviceSize buffer_size = 1024 * 1024;
-
-        VmaAllocationCreateInfo alloc_info = {};
-        alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-        alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
-        alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-        alloc_info.priority = 1.0;
-
-        imgui_position_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
-        imgui_uv_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
-        imgui_color_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
-        imgui_index_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, alloc_info);
-    }
-
     //Create buffer for per-frame uniform data
     {
         VmaAllocationCreateInfo alloc_info = {};
@@ -423,57 +406,6 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd, uint64_t swapchain_renderpass) {
             .pBufferInfo = &uniform_buffer_info
         };
         descriptor_writes.push_back(uniform_write);
-        
-        VkDescriptorBufferInfo im_pos_buffer_info = {
-            .buffer = vgd->get_buffer(imgui_position_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
-        
-        VkWriteDescriptorSet im_pos_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 3,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &im_pos_buffer_info
-        };
-        descriptor_writes.push_back(im_pos_write);
-        
-        VkDescriptorBufferInfo im_uv_buffer_info = {
-            .buffer = vgd->get_buffer(imgui_uv_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
-        
-        VkWriteDescriptorSet im_uv_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 4,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &im_uv_buffer_info
-        };
-        descriptor_writes.push_back(im_uv_write);
-        
-        VkDescriptorBufferInfo im_col_buffer_info = {
-            .buffer = vgd->get_buffer(imgui_color_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
-        
-        VkWriteDescriptorSet im_col_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 5,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &im_col_buffer_info
-        };
-        descriptor_writes.push_back(im_col_write);
         
         VkDescriptorBufferInfo vert_pos_buffer_info = {
             .buffer = vgd->get_buffer(vertex_position_buffer)->buffer,
@@ -692,10 +624,10 @@ Renderer::~Renderer() {
 	vkDestroySemaphore(vgd->device, graphics_timeline_semaphore, vgd->alloc_callbacks);
 
 	vkDestroyDescriptorPool(vgd->device, descriptor_pool, vgd->alloc_callbacks);
-    vgd->destroy_buffer(imgui_position_buffer);
-    vgd->destroy_buffer(imgui_uv_buffer);
-    vgd->destroy_buffer(imgui_color_buffer);
-    vgd->destroy_buffer(imgui_index_buffer);
+    // vgd->destroy_buffer(imgui_position_buffer);
+    // vgd->destroy_buffer(imgui_uv_buffer);
+    // vgd->destroy_buffer(imgui_color_buffer);
+    // vgd->destroy_buffer(imgui_index_buffer);
     vgd->destroy_buffer(camera_buffer);
     vgd->destroy_buffer(frame_uniforms_buffer);
     vgd->destroy_buffer(vertex_position_buffer);

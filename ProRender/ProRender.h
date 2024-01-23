@@ -24,7 +24,6 @@
 #include <fastgltf/parser.hpp>
 #include "volk.h"
 #include "stb_image.h"
-#include <imgui.h>
 #include "VulkanWindow.h"
 #include "Renderer.h"
 #include "vma.h"

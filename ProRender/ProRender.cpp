@@ -1,4 +1,5 @@
 ﻿#include "ProRender.h"
+#include "ImguiRenderer.h"
 
 using namespace hlslpp;
 
@@ -43,126 +44,16 @@ int main(int argc, char* argv[]) {
     );
 
 	//Initialize Dear ImGui
-	{
-		IMGUI_CHECKVERSION();
-		ImGui::CreateContext();
-    	ImGuiIO& io = ImGui::GetIO();
-		io.DisplaySize = ImVec2((float)my_config.window_width, (float)my_config.window_height);
-
-		//Build and upload font atlas
-		uint8_t* tex_pixels = nullptr;
-		int tex_w, tex_h;
-		io.Fonts->GetTexDataAsRGBA32(&tex_pixels, &tex_w, &tex_h);
-		RawImage im = {
-			.width = (uint32_t)tex_w,
-			.height = (uint32_t)tex_h,
-			.data = tex_pixels
-		};
-
-		std::vector<RawImage> images = std::vector<RawImage>{
-			im
-		};
-		std::vector<VkFormat> formats = std::vector<VkFormat>{
-			VK_FORMAT_R8G8B8A8_UNORM
-		};
-		uint64_t batch_id = vgd.load_raw_images(images, formats);
-
-		VkSemaphoreWaitInfo info = {};
-		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-		info.semaphoreCount = 1;
-		info.pSemaphores = &vgd.image_upload_semaphore;
-		info.pValues = &batch_id;
-		if (vkWaitSemaphores(vgd.device, &info, U64_MAX) != VK_SUCCESS) {
-			printf("Waiting for graphics timeline semaphore failed.\n");
-			exit(-1);
-		}
-	
-		uint64_t tex_index = 0;
-		for (auto it = vgd.available_images.begin(); it != vgd.available_images.end(); ++it) {
-			VulkanAvailableImage image = *it;
-			if (batch_id == image.batch_id) {
-				tex_index = it.underlying_index();
-				break;
-			}
-		}
-
-		renderer.imgui_atlas_idx = tex_index;
-		io.Fonts->SetTexID((void*)tex_index);
-	}
+	ImguiRenderer imgui_renderer = ImguiRenderer(
+		&vgd,
+		renderer.point_sampler_idx,
+		ImVec2(window.x_resolution, window.y_resolution),
+		renderer.pipeline_layout_id,
+		window.swapchain_renderpass,
+		renderer.descriptor_set
+	);
 	app_timer.print("Dear ImGUI Initialization");
 	app_timer.start();
-
-	//Create Dear ImGUI pipeline
-	uint64_t imgui_pipeline;
-	{
-		VulkanInputAssemblyState ia_states[] = {
-			{},
-			{}
-		};
-
-		VulkanTesselationState tess_states[] = {
-			{},
-			{}
-		};
-
-		VulkanViewportState vs_states[] = {
-			{},
-			{}
-		};
-
-		VulkanRasterizationState rast_states[] = {
-			{
-				.cullMode = VK_CULL_MODE_NONE
-			},
-			{}
-		};
-
-		VulkanMultisampleState ms_states[] = {
-			{},
-			{}
-		};
-
-		VulkanDepthStencilState ds_states[] = {
-			{
-				.depthTestEnable = VK_FALSE
-			},
-			{
-				.depthTestEnable = VK_FALSE
-			}
-		};
-
-		VulkanColorBlendAttachmentState blend_attachment_state = {};
-		VulkanColorBlendState blend_states[] = {
-			{
-				.attachmentCount = 1,
-				.pAttachments = &blend_attachment_state
-			},
-			{
-				.attachmentCount = 1,
-				.pAttachments = &blend_attachment_state
-			}
-		};
-
-		const char* shaders[] = { "shaders/imgui.vert.spv", "shaders/imgui.frag.spv" };
-
-		uint64_t pipelines[] = {0};
-		vgd.create_graphics_pipelines(
-			renderer.pipeline_layout_id,
-			window.swapchain_renderpass,
-			shaders,
-			ia_states,
-			tess_states,
-			vs_states,
-			rast_states,
-			ms_states,
-			ds_states,
-			blend_states,
-			pipelines,
-			1
-		);
-
-		imgui_pipeline = pipelines[0];
-	}
 
     //Create main camera
 	uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 1.0, -2.0, 5.0 }, .pitch = 1.3 });
@@ -176,7 +67,7 @@ int main(int argc, char* argv[]) {
 	{
 		//Load plane texture
 		{
-			std::vector<const char*> names = { "images/stressed_miyamoto.png" };
+			std::vector<const char*> names = { "images/stressed-miyamoto.jpg" };
 			std::vector<VkFormat> formats = { VK_FORMAT_R8G8B8A8_SRGB };
 			plane_image_batch_id = vgd.load_image_files(names, formats);
 		}
@@ -213,12 +104,14 @@ int main(int argc, char* argv[]) {
 		data.loadFromFile(glb_path);
 		fastgltf::Expected<fastgltf::Asset> asset = parser.loadBinaryGLTF(&data, glb_path.parent_path());
 
-		printf("Printing \"%s\" node names...\n", glb_path.string().c_str());
+		printf("Printing node names in \"%s\" ...\n", glb_path.string().c_str());
 		for (fastgltf::Node& node : asset->nodes) {
-			printf("%s\n", node.name.c_str());
+			printf("\t%s\n", node.name.c_str());
 
 			if (node.meshIndex.has_value()) {
-				
+				size_t mesh_idx = node.meshIndex.value();
+				fastgltf::Mesh& mesh = asset->meshes[mesh_idx];
+
 			}
 		}
 	}
@@ -391,7 +284,7 @@ int main(int argc, char* argv[]) {
 
 		//Dear ImGUI update part
 		{
-			ImGui::ShowDemoWindow(nullptr);
+			ImGui::ShowDemoWindow();
 		}
 
 		//Update per-frame uniforms
@@ -573,7 +466,7 @@ int main(int argc, char* argv[]) {
 					}
 				}
 
-				uint32_t image_idx = renderer.imgui_atlas_idx;
+				uint32_t image_idx = imgui_renderer.get_atlas_idx();
 				if (plane_image_idx != 0xFFFFFFFF)
 					image_idx = plane_image_idx;
 
@@ -593,105 +486,8 @@ int main(int argc, char* argv[]) {
 				vkCmdDrawIndexed(frame_cb, plane_indices->length, 1, plane_indices->start, 0, 0);
 			}
 
-			//Upload ImGUI triangle data and record ImGUI draw commands
-			{
-				uint32_t frame_slot = current_frame % FRAMES_IN_FLIGHT;
-				uint32_t last_frame_slot = frame_slot == 0 ? FRAMES_IN_FLIGHT - 1 : frame_slot - 1;
-				ImguiFrame& current_frame = renderer.imgui_frames[frame_slot];
-				ImguiFrame& last_frame = renderer.imgui_frames[last_frame_slot];
-
-				ImGui::Render();
-				ImDrawData* draw_data = ImGui::GetDrawData();
-
-				//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2
-				uint32_t current_vertex_offset = 0;
-				if (last_frame.vertex_start < draw_data->TotalVtxCount) {
-					current_vertex_offset = last_frame.vertex_start + last_frame.vertex_size;
-				}
-				current_frame.vertex_start = current_vertex_offset;
-				current_frame.vertex_size = draw_data->TotalVtxCount;
-
-				uint32_t current_index_offset = 0;
-				if (last_frame.index_start < draw_data->TotalIdxCount) {
-					current_index_offset = last_frame.index_start + last_frame.index_size;
-				}
-				current_frame.index_start = current_index_offset;
-				current_frame.index_size = draw_data->TotalIdxCount;
-
-				VulkanBuffer* gpu_imgui_positions = vgd.get_buffer(renderer.imgui_position_buffer);
-				VulkanBuffer* gpu_imgui_uvs = vgd.get_buffer(renderer.imgui_uv_buffer);
-				VulkanBuffer* gpu_imgui_colors = vgd.get_buffer(renderer.imgui_color_buffer);
-				VulkanBuffer* gpu_imgui_indices = vgd.get_buffer(renderer.imgui_index_buffer);
-				
-				uint8_t* gpu_pos_ptr = std::bit_cast<uint8_t*>(gpu_imgui_positions->alloc_info.pMappedData);
-				uint8_t* gpu_uv_ptr = std::bit_cast<uint8_t*>(gpu_imgui_uvs->alloc_info.pMappedData);
-				uint8_t* gpu_col_ptr = std::bit_cast<uint8_t*>(gpu_imgui_colors->alloc_info.pMappedData);
-				uint8_t* gpu_idx_ptr = std::bit_cast<uint8_t*>(gpu_imgui_indices->alloc_info.pMappedData);
-
-				//Record once-per-frame binding of index buffer and graphics pipeline
-				vkCmdBindIndexBuffer(frame_cb, gpu_imgui_indices->buffer, current_index_offset * sizeof(ImDrawIdx), VK_INDEX_TYPE_UINT16);
-				vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(imgui_pipeline)->pipeline);
-
-				uint32_t pcs[] = { renderer.imgui_atlas_idx, renderer.imgui_sampler_idx };
-				vkCmdPushConstants(frame_cb, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 8, pcs);
-
-				//Create intermediate buffers for Imgui vertex attributes
-				std::vector<uint8_t> imgui_positions;
-				imgui_positions.resize(draw_data->TotalVtxCount * sizeof(float) * 2);
-				std::vector<uint8_t> imgui_uvs;
-				imgui_uvs.resize(draw_data->TotalVtxCount * sizeof(float) * 2);
-				std::vector<uint8_t> imgui_colors;
-				imgui_colors.resize(draw_data->TotalVtxCount * sizeof(uint32_t));
-
-				uint32_t vtx_offset = 0;
-				uint32_t idx_offset = 0;
-				for (int32_t i = 0; i < draw_data->CmdListsCount; i++) {
-					ImDrawList* draw_list = draw_data->CmdLists[i];
-
-					//Copy vertex data into respective buffers
-					for (int32_t j = 0; j < draw_list->VtxBuffer.Size; j++) {
-						ImDrawVert* vert = draw_list->VtxBuffer.Data + j;
-						uint32_t vector_offset = (j + vtx_offset) * 2 * sizeof(float);
-						uint32_t int_offset = (j + vtx_offset) * sizeof(uint32_t);
-						memcpy(imgui_positions.data() + vector_offset, &vert->pos, 2 * sizeof(float));
-						memcpy(imgui_uvs.data() + vector_offset, &vert->uv, 2 * sizeof(float));
-						memcpy(imgui_colors.data() + int_offset, &vert->col, sizeof(uint32_t));
-					}
-
-					//Copy index data
-					size_t copy_size = draw_list->IdxBuffer.Size * sizeof(ImDrawIdx);
-					size_t copy_offset = (idx_offset + current_index_offset) * sizeof(ImDrawIdx);
-					memcpy(gpu_idx_ptr + copy_offset, draw_list->IdxBuffer.Data, copy_size);
-
-					//Record draw commands
-					for (int32_t j = 0; j < draw_list->CmdBuffer.Size; j++){
-						ImDrawCmd& draw_command = draw_list->CmdBuffer[j];
-
-						VkRect2D scissor = {
-							.offset = {
-								.x = (int32_t)draw_command.ClipRect.x,
-								.y = (int32_t)draw_command.ClipRect.y
-							},
-							.extent = {
-								.width = (uint32_t)draw_command.ClipRect.z - (uint32_t)draw_command.ClipRect.x,
-								.height = (uint32_t)draw_command.ClipRect.w - (uint32_t)draw_command.ClipRect.y
-							}
-						};
-						vkCmdSetScissor(frame_cb, 0, 1, &scissor);
-
-						vkCmdDrawIndexed(frame_cb, draw_command.ElemCount, 1, draw_command.IdxOffset + idx_offset, draw_command.VtxOffset + current_vertex_offset + vtx_offset, 0);
-					}
-					vtx_offset += draw_list->VtxBuffer.Size;
-					idx_offset += draw_list->IdxBuffer.Size;
-				}
-
-				//Finally copy the intermediate vertex buffers to the real ones on the GPU
-				uint32_t vector_offset = current_vertex_offset * 2 * sizeof(float);
-				uint32_t int_offset = current_vertex_offset * sizeof(uint32_t);
-				memcpy(gpu_pos_ptr + vector_offset, imgui_positions.data(), imgui_positions.size());
-				memcpy(gpu_uv_ptr + vector_offset, imgui_uvs.data(), imgui_uvs.size());
-				memcpy(gpu_col_ptr + int_offset, imgui_colors.data(), imgui_colors.size());
-			}
+			//Record imgui drawing commands into this frame's command buffer
+			imgui_renderer.draw(frame_cb, current_frame);
 
 			vkCmdEndRenderPass(frame_cb);
 			vkEndCommandBuffer(frame_cb);

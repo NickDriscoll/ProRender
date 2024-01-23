@@ -11,6 +11,7 @@ add_executable (
 	"VulkanGraphicsDevice.cpp"
 	"VulkanWindow.cpp"
 	"Renderer.cpp"
+	"ImguiRenderer.cpp"
 	"header_libs.cpp"
 
 	"${CMAKE_SOURCE_DIR}/imgui/imgui_demo.cpp"
