@@ -10,6 +10,8 @@
 
 #define SLOTMAP_IMPLEMENTATION  //TODO: Figure out how to remove this
 
+
+
 template<typename T>
 struct slotmap {
     //Iterator impl for slotmap
@@ -22,12 +24,12 @@ struct slotmap {
             current = c;
             start = s;
             end_idx = e;
-            generation_bits = gen_bits;
+            _generation_bits = gen_bits;
         }
         Reference operator*() const { return *current; }
         iterator& operator++() {
             current += 1;
-            while ((current != start + end_idx) && (generation_bits[current - start] & LIVE_BIT) == 0) {
+            while ((current != start + end_idx) && (_generation_bits[current - start] & LIVE_BIT) == 0) {
                 current += 1;
             }
             return *this;
@@ -43,14 +45,18 @@ struct slotmap {
         bool operator!=(const iterator& other) { return current != other.current; }
         auto operator<=>(const iterator &) const = default; // three-way comparison C++20
 
-        uint32_t underlying_index() {
+        uint32_t slot_index() {
             return current - start;
+        }
+
+        uint32_t generation_bits() {
+            return _generation_bits[current - start];
         }
 
     private:
         Pointer current, start;
         uint32_t end_idx;
-        uint32_t* generation_bits;
+        uint32_t* _generation_bits;
     };
     iterator begin() {
         if (_count == 0) return iterator(_data.data(), _data.data(), largest_free_idx, generation_bits.data());

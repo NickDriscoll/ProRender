@@ -1414,7 +1414,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 					ava.vk_image = pending_image.vk_image;
 					
 					uint64_t handle = available_images.insert(ava);
-					to_delete.push_back(it.underlying_index());
+					to_delete.push_back(it.slot_index());
 
 					uint32_t descriptor_index = EXTRACT_IDX(handle);
 
@@ -1434,10 +1434,10 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 					};
 					desc_writes.push_back(write);
 				}
+				_image_uploads_completed += 1;
 			}
 		}
 		
-		_image_uploads_completed += 1;
 	}
 	_image_upload_batches.clear();
 

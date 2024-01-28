@@ -2,8 +2,6 @@
 #include "ImguiRenderer.h"
 #include "tinyfiledialogs.h"
 
-using namespace hlslpp;
-
 int main(int argc, char* argv[]) {
 	Timer init_timer = Timer("Init");
 	Timer app_timer = Timer("Main function");
@@ -37,7 +35,7 @@ int main(int argc, char* argv[]) {
 
 	//Initialize the renderer
 	Renderer renderer(&vgd, window.swapchain_renderpass);
-    renderer.frame_uniforms.clip_from_screen = float4x4(
+    renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
         2.0f / (float)window.x_resolution, 0.0f, 0.0f, -1.0f,
         0.0f, 2.0f / (float)window.y_resolution, 0.0f, -1.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
@@ -74,7 +72,7 @@ int main(int argc, char* argv[]) {
 		}
 
 		float plane_pos[] = {
-			-10.0, -10.0, 0.0, 1.0,
+			-10.0, -10.0, 6.0, 1.0,
 			10.0, -10.0, 0.0, 1.0,
 			-10.0, 10.0, 0.0, 1.0,
 			10.0, 10.0, 0.0, 1.0
@@ -108,12 +106,12 @@ int main(int argc, char* argv[]) {
 		Expected<Asset> asset = parser.loadBinaryGLTF(&data, glb_path.parent_path());
 
 		printf("Printing node names in \"%s\" ...\n", glb_path.string().c_str());
-		for (fastgltf::Node& node : asset->nodes) {
+		for (Node& node : asset->nodes) {
 			printf("\t%s\n", node.name.c_str());
 
 			if (node.meshIndex.has_value()) {
 				size_t mesh_idx = node.meshIndex.value();
-				fastgltf::Mesh& mesh = asset->meshes[mesh_idx];
+				Mesh& mesh = asset->meshes[mesh_idx];
 
 			}
 		}
@@ -160,7 +158,7 @@ int main(int argc, char* argv[]) {
 					case SDL_WINDOWEVENT_SIZE_CHANGED:
 						window.resize(vgd);
 						io.DisplaySize = ImVec2((float)window.x_resolution, (float)window.y_resolution);
-						renderer.frame_uniforms.clip_from_screen = float4x4(
+						renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
 							2.0f / (float)window.x_resolution, 0.0f, 0.0f, -1.0f,
 							0.0f, 2.0f / (float)window.y_resolution, 0.0f, -1.0f,
 							0.0f, 0.0f, 1.0f, 0.0f,
@@ -255,6 +253,8 @@ int main(int argc, char* argv[]) {
 
 		//Move camera
 		{
+			using namespace hlslpp;
+
 			Camera* main_cam = renderer.cameras.get(main_viewport_camera);
 			if (camera_control) {
 				const float SENSITIVITY = 0.001;
@@ -287,7 +287,65 @@ int main(int argc, char* argv[]) {
 
 		//Dear ImGUI update part
 		{
-			ImGui::ShowDemoWindow();
+			static bool show_demo = true;
+			if (show_demo)
+				ImGui::ShowDemoWindow(&show_demo);
+
+			ImGuiWindowFlags window_flags = 0;
+			ImGui::Begin("Texture inspector", nullptr, window_flags);
+			
+			static int dimension_max = 300;
+			ImGui::SliderInt("Display width", &dimension_max, 1, 1500);
+			ImGui::Separator();
+
+			for (auto it = vgd.available_images.begin(); it != vgd.available_images.end(); ++it) {
+				VulkanAvailableImage& image = *it;
+
+				ImGui::Text("From batch #%i", image.batch_id);
+
+				ImVec2 dims = ImVec2(image.vk_image.width, image.vk_image.height);
+				ImGui::BulletText("Width = %i", (uint32_t)dims.x);
+				ImGui::BulletText("Height = %i", (uint32_t)dims.y);
+
+				float aspect_ratio = dims.x / dims.y;
+				dims.x = min(dims.x, dimension_max);
+				dims.y = dims.x / aspect_ratio;
+				
+            	ImVec2 pos = ImGui::GetCursorScreenPos();
+				ImVec2 uv_min = ImVec2(0.0, 0.0);
+				ImVec2 uv_max = ImVec2(1.0, 1.0);
+				ImVec4 tint_col = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+				ImVec4 border_col = ImGui::GetStyleColorVec4(ImGuiCol_Border);
+				ImGui::Image((ImTextureID)it.slot_index(), dims, uv_min, uv_max, tint_col, border_col);
+
+				if (ImGui::BeginItemTooltip()) {
+					ImGuiIO& io = ImGui::GetIO();
+
+					float region_sz = 32.0f;
+					float region_x = io.MousePos.x - pos.x - region_sz * 0.5f;
+					float region_y = io.MousePos.y - pos.y - region_sz * 0.5f;
+					float zoom = 4.0f;
+					if (region_x < 0.0f) { region_x = 0.0f; }
+					else if (region_x > dims.x - region_sz) { region_x = dims.x - region_sz; }
+					if (region_y < 0.0f) { region_y = 0.0f; }
+					else if (region_y > dims.y - region_sz) { region_y = dims.y - region_sz; }
+					ImGui::Text("Min: (%.2f, %.2f)", region_x, region_y);
+					ImGui::Text("Max: (%.2f, %.2f)", region_x + region_sz, region_y + region_sz);
+					ImVec2 uv0 = ImVec2((region_x) / dims.x, (region_y) / dims.y);
+					ImVec2 uv1 = ImVec2((region_x + region_sz) / dims.x, (region_y + region_sz) / dims.y);
+					ImGui::Image((ImTextureID)it.slot_index(), ImVec2(region_sz * zoom, region_sz * zoom), uv0, uv1, tint_col, border_col);
+					ImGui::EndTooltip();
+				}
+
+				ImGui::Button("Delete", ImVec2(32, 32));
+				ImGui::Separator();
+			}
+			ImGui::End();
+		}
+
+		//Process resource deletion queue(s)
+		{
+
 		}
 
 		//Update per-frame uniforms
@@ -301,6 +359,8 @@ int main(int argc, char* argv[]) {
 		std::vector<uint32_t> cam_idx_map;
 		cam_idx_map.reserve(renderer.cameras.count());
 		{
+			using namespace hlslpp;
+
 			std::vector<GPUCamera> g_cameras;
 			g_cameras.reserve(renderer.cameras.count());
 
@@ -333,7 +393,7 @@ int main(int argc, char* argv[]) {
 				gcam.projection_matrix = mul(gcam.projection_matrix, c_matrix);
 
 				g_cameras.push_back(gcam);
-				cam_idx_map.push_back(it.underlying_index());
+				cam_idx_map.push_back(it.slot_index());
 			}
 
 			//Write camera data to GPU buffer in one contiguous push
@@ -378,15 +438,25 @@ int main(int argc, char* argv[]) {
 
 			//Check for plane image
 			{
-				static bool iheartstaticbools = false;
-				if (!iheartstaticbools && plane_image_batch_id <= upload_batches_completed) {
-					iheartstaticbools = true;
+				static bool know_plane_image = false;
+				static uint32_t gen_bits = 0;
+				if (!know_plane_image && plane_image_batch_id <= upload_batches_completed) {
+					know_plane_image = true;
 					for (auto it = vgd.available_images.begin(); it != vgd.available_images.end(); ++it) {
 						VulkanAvailableImage& image = *it;
 						if (plane_image_batch_id == image.batch_id) {
-							printf("Found plane image at index %i\n", it.underlying_index());
-							plane_image_idx = it.underlying_index();
+							printf("Found plane image at index %i\n", it.slot_index());
+							plane_image_idx = it.slot_index();
+							gen_bits = it.generation_bits();
 						}
+					}
+				}
+
+				if (know_plane_image) {
+					uint64_t key = (static_cast<uint64_t>(gen_bits) << 32) | plane_image_idx;
+					if (!vgd.available_images.get(key)) {
+						know_plane_image = false;
+						plane_image_idx = imgui_renderer.get_atlas_idx();
 					}
 				}
 			}
@@ -557,12 +627,6 @@ int main(int argc, char* argv[]) {
 						break;
 				}
 			}
-		}
-
-		static bool donethis = false;
-		if (!donethis) {
-			tinyfd_messageBox("Ding!", "We just submitted the first buffer of work to the graphics queue! Wow!", "ok", "info", 1);
-			donethis = true;
 		}
 
 		//End-of-frame bookkeeping

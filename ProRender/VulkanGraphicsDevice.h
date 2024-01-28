@@ -183,6 +183,7 @@ private:
 	slotmap<VulkanImageUploadBatch> _image_upload_batches;
 	std::mutex _image_upload_mutex;
 
+	std::queue<uint64_t, std::deque<uint64_t>> _image_deletion_queue;
 
 	slotmap<VkDescriptorSetLayout> _descriptor_set_layouts;
 	slotmap<VkPipelineLayout> _pipeline_layouts;

@@ -50,7 +50,7 @@ ImguiRenderer::ImguiRenderer(
 		for (auto it = vgd->available_images.begin(); it != vgd->available_images.end(); ++it) {
 			VulkanAvailableImage image = *it;
 			if (batch_id == image.batch_id) {
-				tex_index = it.underlying_index();
+				tex_index = it.slot_index();
 				break;
 			}
 		}
@@ -253,8 +253,7 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 	vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd->get_graphics_pipeline(graphics_pipeline)->pipeline);
 
 	uint32_t pcs[] = { atlas_idx, sampler_idx };
-	vkCmdPushConstants(frame_cb, *vgd->get_pipeline_layout(graphics_pipeline_layout), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 8, pcs);
-
+	
 	//Create intermediate buffers for Imgui vertex attributes
 	std::vector<uint8_t> imgui_positions;
 	imgui_positions.resize(draw_data->TotalVtxCount * sizeof(float) * 2);
@@ -298,6 +297,9 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 				}
 			};
 			vkCmdSetScissor(frame_cb, 0, 1, &scissor);
+			
+			pcs[0] = (uint32_t)draw_command.TextureId;
+			vkCmdPushConstants(frame_cb, *vgd->get_pipeline_layout(graphics_pipeline_layout), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 8, pcs);
 
 			vkCmdDrawIndexed(frame_cb, draw_command.ElemCount, 1, draw_command.IdxOffset + idx_offset, draw_command.VtxOffset + current_vertex_offset + vtx_offset, 0);
 		}
