@@ -337,7 +337,12 @@ int main(int argc, char* argv[]) {
 					ImGui::EndTooltip();
 				}
 
-				ImGui::Button("Delete", ImVec2(32, 32));
+				ImGui::PushID(it.slot_index());
+				if (ImGui::Button("Delete", ImVec2(0, 32))) {
+					uint64_t key = (static_cast<uint64_t>(it.generation_bits()) << 32) | it.slot_index();
+					vgd.destroy_image(key);
+				}
+				ImGui::PopID();
 				ImGui::Separator();
 			}
 			ImGui::End();
@@ -345,7 +350,22 @@ int main(int argc, char* argv[]) {
 
 		//Process resource deletion queue(s)
 		{
+			uint32_t deleted_count = 0;
+			for (ImageDeletion& d : vgd._image_deletion_queue) {
+				if (d.frames_til == 0) {
+					vkDestroyImageView(vgd.device, d.image_view, vgd.alloc_callbacks);
+					vmaDestroyImage(vgd.allocator, d.image, d.image_allocation);
+					vgd.available_images.remove(d.idx);
+					deleted_count += 1;
+				} else {
+					d.frames_til -= 1;
+				}
+			}
 
+			while (deleted_count > 0) {
+				vgd._image_deletion_queue.pop_back();
+				deleted_count -= 1;
+			}
 		}
 
 		//Update per-frame uniforms

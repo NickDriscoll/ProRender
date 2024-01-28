@@ -1458,6 +1458,20 @@ uint64_t VulkanGraphicsDevice::get_completed_image_uploads() {
 	return _image_uploads_completed;
 }
 
+void VulkanGraphicsDevice::destroy_image(uint64_t key) {
+	VulkanAvailableImage* im = available_images.get(key);
+	if (im) {
+		ImageDeletion d = {
+			.idx = EXTRACT_IDX(key),
+			.frames_til = FRAMES_IN_FLIGHT,
+			.image = im->vk_image.image,
+			.image_view = im->vk_image.image_view,
+			.image_allocation = im->vk_image.image_allocation
+		};
+		_image_deletion_queue.emplace_front(d);
+	}
+}
+
 VkSemaphore VulkanGraphicsDevice::create_timeline_semaphore(uint64_t initial_value) {
 	VkSemaphoreTypeCreateInfo type_info = {};
 	type_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;

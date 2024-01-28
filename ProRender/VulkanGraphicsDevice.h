@@ -51,6 +51,14 @@ struct VulkanImage {
 	VmaAllocation image_allocation;
 };
 
+struct ImageDeletion {
+	uint32_t idx;
+	uint32_t frames_til;
+	VkImage image;
+	VkImageView image_view;
+	VmaAllocation image_allocation;
+};
+
 struct RawImage {
 	uint32_t width;
 	uint32_t height;
@@ -148,6 +156,7 @@ struct VulkanGraphicsDevice {
 	);
 	void tick_image_uploads(VkCommandBuffer render_cb, VkDescriptorSet descriptor_set);
 	uint64_t get_completed_image_uploads();
+	void destroy_image(uint64_t key);
 
 	VkSemaphore create_timeline_semaphore(uint64_t initial_value);
 	uint64_t check_timeline_semaphore(VkSemaphore semaphore);
@@ -162,13 +171,13 @@ struct VulkanGraphicsDevice {
 	VulkanGraphicsDevice();
 	~VulkanGraphicsDevice();
 
+	std::deque<ImageDeletion> _image_deletion_queue;
 private:
 	void load_images_impl();
 	void submit_image_upload_batch(uint64_t id, const std::vector<RawImage>& raw_images, const std::vector<VkFormat>& image_formats);
 
 	slotmap<VulkanBuffer> _buffers;
 
-	
 	//State related to image uploading system
 	bool _image_upload_running = true;
 	uint64_t _image_uploads_requested = 0;
@@ -183,13 +192,11 @@ private:
 	slotmap<VulkanImageUploadBatch> _image_upload_batches;
 	std::mutex _image_upload_mutex;
 
-	std::queue<uint64_t, std::deque<uint64_t>> _image_deletion_queue;
 
 	slotmap<VkDescriptorSetLayout> _descriptor_set_layouts;
 	slotmap<VkPipelineLayout> _pipeline_layouts;
 	slotmap<VkRenderPass> _render_passes;
 	slotmap<VulkanGraphicsPipeline> _graphics_pipelines;
-	//std::vector<VkSampler> _immutable_samplers;
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _graphics_command_buffers;
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _transfer_command_buffers;
 };
