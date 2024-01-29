@@ -479,8 +479,8 @@ void VulkanGraphicsDevice::return_transfer_command_buffer(VkCommandBuffer cb) {
 }
 
 void VulkanGraphicsDevice::create_graphics_pipelines(
-	uint64_t pipeline_layout_handle,
-	uint64_t render_pass_handle,
+	Key<VkPipelineLayout> pipeline_layout_handle,
+	Key<VkRenderPass> render_pass_handle,
 	const char** shaderfiles,
 	VulkanInputAssemblyState* ia_state,
 	VulkanTesselationState* tess_state,
@@ -489,7 +489,7 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 	VulkanMultisampleState* ms_state,
 	VulkanDepthStencilState* ds_state,
 	VulkanColorBlendState* blend_state,
-	uint64_t* out_pipelines_handles,
+	Key<VulkanGraphicsPipeline>* out_pipelines_handles,
 	uint32_t pipeline_count
 ) {
 	//Non-varying pipeline elements
@@ -704,7 +704,7 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 	}
 }
 
-uint64_t VulkanGraphicsDevice::create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VmaAllocationCreateInfo& allocation_info) {
+Key<VulkanBuffer> VulkanGraphicsDevice::create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VmaAllocationCreateInfo& allocation_info) {
 	VkBufferCreateInfo buffer_info = {};
 	buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	buffer_info.size = size;
@@ -733,11 +733,11 @@ uint64_t VulkanGraphicsDevice::create_buffer(VkDeviceSize size, VkBufferUsageFla
 	return _buffers.insert(buffer);
 }
 
-VulkanBuffer* VulkanGraphicsDevice::get_buffer(uint64_t key) {
+VulkanBuffer* VulkanGraphicsDevice::get_buffer(Key<VulkanBuffer> key) {
 	return _buffers.get(key);
 }
 
-void VulkanGraphicsDevice::destroy_buffer(uint64_t key) {
+void VulkanGraphicsDevice::destroy_buffer(Key<VulkanBuffer> key) {
 	VulkanBuffer* b = _buffers.get(key);
 	vmaDestroyBuffer(allocator, b->buffer, b->allocation);
 }
@@ -751,7 +751,7 @@ VkSampler VulkanGraphicsDevice::create_sampler(VkSamplerCreateInfo& info) {
 	return sampler;
 }
 
-uint64_t VulkanGraphicsDevice::create_descriptor_set_layout(std::vector<VulkanDescriptorLayoutBinding>& descriptor_sets) {
+Key<VkDescriptorSetLayout> VulkanGraphicsDevice::create_descriptor_set_layout(std::vector<VulkanDescriptorLayoutBinding>& descriptor_sets) {
 	VkDescriptorSetLayout ds_layout;
 	{
 		std::vector<VkDescriptorSetLayoutBinding> bindings;
@@ -798,11 +798,11 @@ uint64_t VulkanGraphicsDevice::create_descriptor_set_layout(std::vector<VulkanDe
 	return _descriptor_set_layouts.insert(ds_layout);
 }
 
-VkDescriptorSetLayout* VulkanGraphicsDevice::get_descriptor_set_layout(uint64_t id) {
+VkDescriptorSetLayout* VulkanGraphicsDevice::get_descriptor_set_layout(Key<VkDescriptorSetLayout> id) {
 	return _descriptor_set_layouts.get(id);
 }
 
-uint64_t VulkanGraphicsDevice::create_pipeline_layout(uint64_t descriptor_set_layout_id, std::vector<VkPushConstantRange>& push_constants) {
+Key<VkPipelineLayout> VulkanGraphicsDevice::create_pipeline_layout(Key<VkDescriptorSetLayout> descriptor_set_layout_id, std::vector<VkPushConstantRange>& push_constants) {
 	VkDescriptorSetLayout* layout = _descriptor_set_layouts.get(descriptor_set_layout_id);
 
 	VkPipelineLayoutCreateInfo info = {};
@@ -821,7 +821,7 @@ uint64_t VulkanGraphicsDevice::create_pipeline_layout(uint64_t descriptor_set_la
 	return _pipeline_layouts.insert(pipeline_layout);
 }
 
-VkPipelineLayout* VulkanGraphicsDevice::get_pipeline_layout(uint64_t id) {
+VkPipelineLayout* VulkanGraphicsDevice::get_pipeline_layout(Key<VkPipelineLayout> id) {
 	return _pipeline_layouts.get(id);
 }
 
@@ -1413,10 +1413,10 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 					ava.batch_id = batch.id;
 					ava.vk_image = pending_image.vk_image;
 					
-					uint64_t handle = available_images.insert(ava);
+					Key<VulkanAvailableImage> handle = available_images.insert(ava);
 					to_delete.push_back(it.slot_index());
 
-					uint32_t descriptor_index = EXTRACT_IDX(handle);
+					uint32_t descriptor_index = EXTRACT_IDX(handle.value());
 
 					VkDescriptorImageInfo info = {
 						.imageView = ava.vk_image.image_view,
@@ -1496,11 +1496,11 @@ uint64_t VulkanGraphicsDevice::check_timeline_semaphore(VkSemaphore semaphore) {
 	return value;
 }
 
-VulkanGraphicsPipeline* VulkanGraphicsDevice::get_graphics_pipeline(uint64_t handle) {
+VulkanGraphicsPipeline* VulkanGraphicsDevice::get_graphics_pipeline(Key<VulkanGraphicsPipeline> handle) {
 	return _graphics_pipelines.get(handle);
 }
 
-uint64_t VulkanGraphicsDevice::create_render_pass(VkRenderPassCreateInfo& info) {
+Key<VkRenderPass> VulkanGraphicsDevice::create_render_pass(VkRenderPassCreateInfo& info) {
 	VkRenderPass render_pass;	
 	if (vkCreateRenderPass(device, &info, alloc_callbacks, &render_pass) != VK_SUCCESS) {
 		printf("Creating render pass failed.\n");
@@ -1509,7 +1509,7 @@ uint64_t VulkanGraphicsDevice::create_render_pass(VkRenderPassCreateInfo& info) 
 	return _render_passes.insert(render_pass);
 }
 
-VkRenderPass* VulkanGraphicsDevice::get_render_pass(uint64_t key) {
+VkRenderPass* VulkanGraphicsDevice::get_render_pass(Key<VkRenderPass> key) {
 	return _render_passes.get(key);
 }
 

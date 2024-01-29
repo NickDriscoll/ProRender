@@ -20,8 +20,8 @@ struct ImguiRenderer {
 		VulkanGraphicsDevice* v,
 		uint64_t sampler,
 		ImVec2 window_size,
-		uint64_t pipeline_layout_id,
-		uint64_t renderpass,
+		Key<VkPipelineLayout> pipeline_layout_id,
+		Key<VkRenderPass> renderpass,
 		VkDescriptorSet& descriptor_set
 	);
     ~ImguiRenderer();
@@ -29,12 +29,12 @@ struct ImguiRenderer {
 private:
 	uint32_t atlas_idx;
 	uint32_t sampler_idx;
-	uint64_t position_buffer;
-	uint64_t uv_buffer;
-	uint64_t color_buffer;
-	uint64_t index_buffer;
-	uint64_t graphics_pipeline_layout;
-	uint64_t graphics_pipeline;
+	Key<VulkanBuffer> position_buffer;
+	Key<VulkanBuffer> uv_buffer;
+	Key<VulkanBuffer> color_buffer;
+	Key<VulkanBuffer> index_buffer;
+	Key<VkPipelineLayout> graphics_pipeline_layout;
+	Key<VulkanGraphicsPipeline> graphics_pipeline;
 	ImguiFrame frames[FRAMES_IN_FLIGHT] = {};
 
     VulkanGraphicsDevice* vgd;

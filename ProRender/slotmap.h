@@ -11,8 +11,18 @@
 #define SLOTMAP_IMPLEMENTATION  //TODO: Figure out how to remove this
 
 
+//Slotmap key type
+template<typename PHANTOM>
+struct Key {
+    Key() : data(0) {}
+	Key(uint64_t key) : data(key) {}
+	inline uint64_t value() { return this->data; }
+    bool operator==(const Key<PHANTOM> other) { return data == other.value(); }
+private:
+	uint64_t data;
+};
 
-template<typename T>
+template<typename T, typename Tkey = Key<T>>
 struct slotmap {
     //Iterator impl for slotmap
     struct iterator {
@@ -75,8 +85,8 @@ struct slotmap {
     uint32_t count();
     void clear();
     T* data();
-    T* get(uint64_t key);
-    uint64_t insert(T thing);
+    T* get(Tkey key);
+    Tkey insert(T thing);
     void remove(uint32_t idx);
 
 private:
@@ -88,8 +98,8 @@ private:
 };
 
 #ifdef SLOTMAP_IMPLEMENTATION
-template<typename T>
-void slotmap<T>::alloc(uint32_t size) {
+template<typename T, typename Tkey>
+void slotmap<T, Tkey>::alloc(uint32_t size) {
     assert(_data.size() == 0);
     _data.resize(size);
     generation_bits.resize(size);
@@ -103,13 +113,13 @@ void slotmap<T>::alloc(uint32_t size) {
     free_indices = std::stack(free_inds);
 }
 
-template<typename T>
-uint32_t slotmap<T>::count() {
+template<typename T, typename Tkey>
+uint32_t slotmap<T, Tkey>::count() {
     return _count;
 }
 
-template<typename T>
-void slotmap<T>::clear() {
+template<typename T, typename Tkey>
+void slotmap<T, Tkey>::clear() {
     _count = 0;
     largest_free_idx = 0;
     size_t size = _data.capacity();
@@ -128,15 +138,15 @@ void slotmap<T>::clear() {
     free_indices = std::stack(free_inds);
 }
 
-template<typename T>
-T* slotmap<T>::data() {
+template<typename T, typename Tkey>
+T* slotmap<T, Tkey>::data() {
     return _data.data();
 }
 
-template<typename T>
-T* slotmap<T>::get(uint64_t key) {
-    uint32_t idx = EXTRACT_IDX(key);
-    uint32_t gen = static_cast<uint32_t>(key >> 32);
+template<typename T, typename Tkey>
+T* slotmap<T, Tkey>::get(Tkey key) {
+    uint32_t idx = EXTRACT_IDX(key.value());
+    uint32_t gen = static_cast<uint32_t>(key.value() >> 32);
     T* d = nullptr;
     if (gen == generation_bits[idx]) {
         d = &_data[idx];
@@ -144,8 +154,8 @@ T* slotmap<T>::get(uint64_t key) {
     return d;
 }
 
-template<typename T>
-uint64_t slotmap<T>::insert(T thing) {
+template<typename T, typename Tkey>
+Tkey slotmap<T, Tkey>::insert(T thing) {
     uint32_t free_idx = free_indices.top();
     free_indices.pop();
     if (free_idx >= largest_free_idx) largest_free_idx += 1;
@@ -153,11 +163,12 @@ uint64_t slotmap<T>::insert(T thing) {
     generation_bits[free_idx] |= LIVE_BIT;
     uint32_t generation = generation_bits[free_idx];
     _count += 1;
-    return (static_cast<uint64_t>(generation) << 32) | static_cast<uint64_t>(free_idx);
+    uint64_t data = (static_cast<uint64_t>(generation) << 32) | static_cast<uint64_t>(free_idx);
+    return Tkey(data);
 }
 
-template<typename T>
-void slotmap<T>::remove(uint32_t idx) {
+template<typename T, typename Tkey>
+void slotmap<T, Tkey>::remove(uint32_t idx) {
     free_indices.push(idx);
     generation_bits[idx] &= ~LIVE_BIT;
     generation_bits[idx] += 1;

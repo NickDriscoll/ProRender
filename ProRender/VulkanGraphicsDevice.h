@@ -77,7 +77,7 @@ struct VulkanAvailableImage {
 
 struct VulkanImageUploadBatch {
 	uint64_t id;
-	uint64_t staging_buffer_id;
+	Key<VulkanBuffer> staging_buffer_id;
 	VkCommandBuffer command_buffer;
 };
 
@@ -120,14 +120,14 @@ struct VulkanGraphicsDevice {
 	VkCommandBuffer borrow_transfer_command_buffer();
 	void return_transfer_command_buffer(VkCommandBuffer cb);
 
-	uint64_t create_descriptor_set_layout(std::vector<VulkanDescriptorLayoutBinding>& descriptor_sets);
-	VkDescriptorSetLayout* get_descriptor_set_layout(uint64_t id);
-	uint64_t create_pipeline_layout(uint64_t descriptor_set_layout_id, std::vector<VkPushConstantRange>& push_constants);
-	VkPipelineLayout* get_pipeline_layout(uint64_t id);
+	Key<VkDescriptorSetLayout> create_descriptor_set_layout(std::vector<VulkanDescriptorLayoutBinding>& descriptor_sets);
+	VkDescriptorSetLayout* get_descriptor_set_layout(Key<VkDescriptorSetLayout> id);
+	Key<VkPipelineLayout> create_pipeline_layout(Key<VkDescriptorSetLayout> descriptor_set_layout_id, std::vector<VkPushConstantRange>& push_constants);
+	VkPipelineLayout* get_pipeline_layout(Key<VkPipelineLayout> id);
 
 	void create_graphics_pipelines(
-		uint64_t pipeline_layout_handle,
-		uint64_t render_pass_handle,
+		Key<VkPipelineLayout> pipeline_layout_handle,
+		Key<VkRenderPass> render_pass_handle,
 		const char** shaderfiles,
 		VulkanInputAssemblyState* ia_state,
 		VulkanTesselationState* tess_state,
@@ -136,13 +136,14 @@ struct VulkanGraphicsDevice {
 		VulkanMultisampleState* ms_state,
 		VulkanDepthStencilState* ds_state,
 		VulkanColorBlendState* blend_state,
-		uint64_t* out_pipelines_handles,
+		Key<VulkanGraphicsPipeline>* out_pipelines_handles,
 		uint32_t pipeline_count
 	);
+	VulkanGraphicsPipeline* get_graphics_pipeline(Key<VulkanGraphicsPipeline> key);
 
-	uint64_t create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VmaAllocationCreateInfo& allocation_info);
-	VulkanBuffer* get_buffer(uint64_t key);
-	void destroy_buffer(uint64_t key);
+	Key<VulkanBuffer> create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VmaAllocationCreateInfo& allocation_info);
+	VulkanBuffer* get_buffer(Key<VulkanBuffer> key);
+	void destroy_buffer(Key<VulkanBuffer> key);
 
 	VkSampler create_sampler(VkSamplerCreateInfo& info);
 
@@ -161,10 +162,9 @@ struct VulkanGraphicsDevice {
 	VkSemaphore create_timeline_semaphore(uint64_t initial_value);
 	uint64_t check_timeline_semaphore(VkSemaphore semaphore);
 
-	uint64_t create_render_pass(VkRenderPassCreateInfo& info);
+	Key<VkRenderPass> create_render_pass(VkRenderPassCreateInfo& info);
 
-	VkRenderPass* get_render_pass(uint64_t key);
-	VulkanGraphicsPipeline* get_graphics_pipeline(uint64_t key);
+	VkRenderPass* get_render_pass(Key<VkRenderPass> key);
 
 	VkShaderModule load_shader_module(const char* path);
 

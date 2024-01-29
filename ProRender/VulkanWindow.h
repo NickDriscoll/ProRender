@@ -19,7 +19,7 @@ struct VulkanWindow {
 	VkSwapchainKHR swapchain;
 	VkSemaphore acquire_semaphore;
 	VkSemaphore present_semaphore;
-	uint64_t swapchain_renderpass;
+	Key<VkRenderPass> swapchain_renderpass;
 	std::vector<VkImage> swapchain_images;
 	std::vector<VkImageView> swapchain_image_views;
 	std::vector<VkFramebuffer> swapchain_framebuffers;

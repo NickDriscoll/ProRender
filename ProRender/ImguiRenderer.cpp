@@ -4,8 +4,8 @@ ImguiRenderer::ImguiRenderer(
 	VulkanGraphicsDevice* v,
 	uint64_t sampler,
 	ImVec2 window_size,
-	uint64_t pipeline_layout_id,
-	uint64_t renderpass,
+	Key<VkPipelineLayout> pipeline_layout_id,
+	Key<VkRenderPass> renderpass,
 	VkDescriptorSet& descriptor_set
 ) {
     vgd = v;

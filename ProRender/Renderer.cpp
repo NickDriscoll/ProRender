@@ -175,7 +175,7 @@ hlslpp::float4x4 Camera::make_view_matrix() {
 	return mul(mul(pitch_matrix, yaw_matrix), trans_matrix);
 }
 
-Renderer::Renderer(VulkanGraphicsDevice* vgd, uint64_t swapchain_renderpass) {
+Renderer::Renderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swapchain_renderpass) {
 
     cameras.alloc(MAX_CAMERAS);
     _position_buffers.alloc(MAX_VERTEX_ATTRIBS);
@@ -503,7 +503,7 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd, uint64_t swapchain_renderpass) {
 
 		const char* shaders[] = { "shaders/ps1.vert.spv", "shaders/ps1.frag.spv" };
 
-		uint64_t pipelines[] = {0};
+		Key<VulkanGraphicsPipeline> pipelines[] = {0};
 		vgd->create_graphics_pipelines(
 			pipeline_layout_id,
 			swapchain_renderpass,
@@ -529,7 +529,7 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd, uint64_t swapchain_renderpass) {
     this->vgd = vgd;
 }
 
-uint64_t Renderer::push_vertex_positions(std::span<float> data) {
+Key<BufferView> Renderer::push_vertex_positions(std::span<float> data) {
     VulkanBuffer* buffer = vgd->get_buffer(vertex_position_buffer);
     float* ptr = (float*)buffer->alloc_info.pMappedData;
     ptr += vertex_position_offset;
@@ -544,11 +544,11 @@ uint64_t Renderer::push_vertex_positions(std::span<float> data) {
     return _position_buffers.insert(b);
 }
 
-BufferView* Renderer::get_vertex_positions(uint64_t key) {
+BufferView* Renderer::get_vertex_positions(Key<BufferView> key) {
     return _position_buffers.get(key);
 }
 
-uint64_t Renderer::push_vertex_uvs(uint64_t position_key, std::span<float> data) {
+Key<ModelAttribute> Renderer::push_vertex_uvs(Key<BufferView> position_key, std::span<float> data) {
     VulkanBuffer* buffer = vgd->get_buffer(vertex_uv_buffer);
     float* ptr = (float*)buffer->alloc_info.pMappedData;
     ptr += vertex_uv_offset;
@@ -569,11 +569,11 @@ uint64_t Renderer::push_vertex_uvs(uint64_t position_key, std::span<float> data)
 }
 
 //TODO: Just kind of accepting the O(n) lookup because of hand-waving about cache
-BufferView* Renderer::get_vertex_uvs(uint64_t position_key) {
+BufferView* Renderer::get_vertex_uvs(Key<BufferView> position_key) {
 
     BufferView* result = nullptr;
     for (ModelAttribute& att : _uv_buffers) {
-        if (att.position_key == position_key) {
+        if (att.position_key.value() == position_key.value()) {
             result = &att.view;
             break;
         }
@@ -582,7 +582,7 @@ BufferView* Renderer::get_vertex_uvs(uint64_t position_key) {
     return result;
 }
 
-uint64_t Renderer::push_indices16(uint64_t position_key, std::span<uint16_t> data) {
+Key<ModelAttribute> Renderer::push_indices16(Key<BufferView> position_key, std::span<uint16_t> data) {
     VulkanBuffer* buffer = vgd->get_buffer(index_buffer);
     uint16_t* ptr = (uint16_t*)buffer->alloc_info.pMappedData;
     ptr += index_buffer_offset;
@@ -602,11 +602,11 @@ uint64_t Renderer::push_indices16(uint64_t position_key, std::span<uint16_t> dat
     return _index16_buffers.insert(a);
 }
 
-BufferView* Renderer::get_indices16(uint64_t position_key) {
+BufferView* Renderer::get_indices16(Key<BufferView> position_key) {
 
     BufferView* result = nullptr;
     for (ModelAttribute& att : _index16_buffers) {
-        if (att.position_key == position_key) {
+        if (att.position_key.value() == position_key.value()) {
             result = &att.view;
             break;
         }
@@ -624,10 +624,6 @@ Renderer::~Renderer() {
 	vkDestroySemaphore(vgd->device, graphics_timeline_semaphore, vgd->alloc_callbacks);
 
 	vkDestroyDescriptorPool(vgd->device, descriptor_pool, vgd->alloc_callbacks);
-    // vgd->destroy_buffer(imgui_position_buffer);
-    // vgd->destroy_buffer(imgui_uv_buffer);
-    // vgd->destroy_buffer(imgui_color_buffer);
-    // vgd->destroy_buffer(imgui_index_buffer);
     vgd->destroy_buffer(camera_buffer);
     vgd->destroy_buffer(frame_uniforms_buffer);
     vgd->destroy_buffer(vertex_position_buffer);

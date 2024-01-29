@@ -55,14 +55,14 @@ int main(int argc, char* argv[]) {
 	app_timer.start();
 
     //Create main camera
-	uint64_t main_viewport_camera = renderer.cameras.insert({ .position = { 1.0, -2.0, 5.0 }, .pitch = 1.3 });
+	Key<Camera> main_viewport_camera = renderer.cameras.insert({ .position = { 1.0, -2.0, 5.0 }, .pitch = 1.3 });
 	bool camera_control = false;
 	int32_t mouse_saved_x, mouse_saved_y;
 
 	//Load simple 3D plane
 	uint64_t plane_image_batch_id;
 	uint32_t plane_image_idx = 0xFFFFFFFF;
-	uint64_t plane_key;
+	Key<BufferView> plane_key;
 	{
 		//Load plane texture
 		{
@@ -72,7 +72,7 @@ int main(int argc, char* argv[]) {
 		}
 
 		float plane_pos[] = {
-			-10.0, -10.0, 6.0, 1.0,
+			-10.0, -10.0, 0.0, 1.0,
 			10.0, -10.0, 0.0, 1.0,
 			-10.0, 10.0, 0.0, 1.0,
 			10.0, 10.0, 0.0, 1.0
@@ -552,7 +552,7 @@ int main(int argc, char* argv[]) {
 				uint32_t main_cam_idx;
 				{
 					for (uint32_t i = 0; i < cam_idx_map.size(); ++i) {
-						if (cam_idx_map[i] == EXTRACT_IDX(main_viewport_camera)) {
+						if (cam_idx_map[i] == EXTRACT_IDX(main_viewport_camera.value())) {
 							main_cam_idx = i;
 							break;
 						}
