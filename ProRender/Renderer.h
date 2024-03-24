@@ -31,7 +31,7 @@ struct BufferView {
 	uint32_t length;
 };
 
-struct ModelAttribute {
+struct MeshAttribute {
 	Key<BufferView> position_key;
 	BufferView view;
 };
@@ -62,13 +62,13 @@ struct Renderer {
 
 	Key<BufferView> push_vertex_positions(std::span<float> data);
 	BufferView* get_vertex_positions(Key<BufferView> key);
-	Key<ModelAttribute> push_vertex_uvs(Key<BufferView> position_key, std::span<float> data);
+	Key<MeshAttribute> push_vertex_uvs(Key<BufferView> position_key, std::span<float> data);
 	BufferView* get_vertex_uvs(Key<BufferView> key);
 
 	uint32_t index_buffer_offset = 0;
 	Key<VulkanBuffer> index_buffer;
 
-	Key<ModelAttribute> push_indices16(Key<BufferView> position_key, std::span<uint16_t> data);
+	Key<MeshAttribute> push_indices16(Key<BufferView> position_key, std::span<uint16_t> data);
 	BufferView* get_indices16(Key<BufferView> position_key);
 	
 	uint64_t standard_sampler_idx;
@@ -81,8 +81,8 @@ struct Renderer {
 
 private:
 	slotmap<BufferView> _position_buffers;
-	slotmap<ModelAttribute> _uv_buffers;
-	slotmap<ModelAttribute> _index16_buffers;
+	slotmap<MeshAttribute> _uv_buffers;
+	slotmap<MeshAttribute> _index16_buffers;
 	std::vector<VkSampler> _samplers;
 
 	VulkanGraphicsDevice* vgd;		//Very dangerous and dubiously recommended

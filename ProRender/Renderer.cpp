@@ -548,7 +548,7 @@ BufferView* Renderer::get_vertex_positions(Key<BufferView> key) {
     return _position_buffers.get(key);
 }
 
-Key<ModelAttribute> Renderer::push_vertex_uvs(Key<BufferView> position_key, std::span<float> data) {
+Key<MeshAttribute> Renderer::push_vertex_uvs(Key<BufferView> position_key, std::span<float> data) {
     VulkanBuffer* buffer = vgd->get_buffer(vertex_uv_buffer);
     float* ptr = (float*)buffer->alloc_info.pMappedData;
     ptr += vertex_uv_offset;
@@ -561,7 +561,7 @@ Key<ModelAttribute> Renderer::push_vertex_uvs(Key<BufferView> position_key, std:
 
     vertex_uv_offset += data.size();
 
-    ModelAttribute a = {
+    MeshAttribute a = {
         .position_key = position_key,
         .view = b
     };
@@ -572,7 +572,7 @@ Key<ModelAttribute> Renderer::push_vertex_uvs(Key<BufferView> position_key, std:
 BufferView* Renderer::get_vertex_uvs(Key<BufferView> position_key) {
 
     BufferView* result = nullptr;
-    for (ModelAttribute& att : _uv_buffers) {
+    for (MeshAttribute& att : _uv_buffers) {
         if (att.position_key.value() == position_key.value()) {
             result = &att.view;
             break;
@@ -582,7 +582,7 @@ BufferView* Renderer::get_vertex_uvs(Key<BufferView> position_key) {
     return result;
 }
 
-Key<ModelAttribute> Renderer::push_indices16(Key<BufferView> position_key, std::span<uint16_t> data) {
+Key<MeshAttribute> Renderer::push_indices16(Key<BufferView> position_key, std::span<uint16_t> data) {
     VulkanBuffer* buffer = vgd->get_buffer(index_buffer);
     uint16_t* ptr = (uint16_t*)buffer->alloc_info.pMappedData;
     ptr += index_buffer_offset;
@@ -595,7 +595,7 @@ Key<ModelAttribute> Renderer::push_indices16(Key<BufferView> position_key, std::
 
     index_buffer_offset += data.size();
 
-    ModelAttribute a = {
+    MeshAttribute a = {
         .position_key = position_key,
         .view = b
     };
@@ -605,7 +605,7 @@ Key<ModelAttribute> Renderer::push_indices16(Key<BufferView> position_key, std::
 BufferView* Renderer::get_indices16(Key<BufferView> position_key) {
 
     BufferView* result = nullptr;
-    for (ModelAttribute& att : _index16_buffers) {
+    for (MeshAttribute& att : _index16_buffers) {
         if (att.position_key.value() == position_key.value()) {
             result = &att.view;
             break;
