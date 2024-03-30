@@ -2,7 +2,7 @@
 
 ImguiRenderer::ImguiRenderer(
 	VulkanGraphicsDevice* v,
-	uint64_t sampler,
+	uint32_t sampler,
 	ImVec2 window_size,
 	Key<VkPipelineLayout> pipeline_layout_id,
 	Key<VkRenderPass> renderpass,
@@ -46,7 +46,7 @@ ImguiRenderer::ImguiRenderer(
 			exit(-1);
 		}
 	
-		uint64_t tex_index = 0;
+		uint32_t tex_index = 0;
 		for (auto it = vgd->available_images.begin(); it != vgd->available_images.end(); ++it) {
 			VulkanAvailableImage image = *it;
 			if (batch_id == image.batch_id) {
@@ -56,7 +56,7 @@ ImguiRenderer::ImguiRenderer(
 		}
 
 		atlas_idx = tex_index;
-		io.Fonts->SetTexID((void*)tex_index);
+		io.Fonts->SetTexID((ImTextureID)(uint64_t)tex_index);
 	}
 
     //Allocate memory for ImGUI vertex data
@@ -225,14 +225,14 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 
 	//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2
 	uint32_t current_vertex_offset = 0;
-	if (last_frame.vertex_start < draw_data->TotalVtxCount) {
+	if (last_frame.vertex_start < (uint32_t)draw_data->TotalVtxCount) {
 		current_vertex_offset = last_frame.vertex_start + last_frame.vertex_size;
 	}
 	current_frame.vertex_start = current_vertex_offset;
 	current_frame.vertex_size = draw_data->TotalVtxCount;
 
 	uint32_t current_index_offset = 0;
-	if (last_frame.index_start < draw_data->TotalIdxCount) {
+	if (last_frame.index_start < (uint32_t)draw_data->TotalIdxCount) {
 		current_index_offset = last_frame.index_start + last_frame.index_size;
 	}
 	current_frame.index_start = current_index_offset;

@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
 	ImguiRenderer imgui_renderer = ImguiRenderer(
 		&vgd,
 		renderer.point_sampler_idx,
-		ImVec2(window.x_resolution, window.y_resolution),
+		ImVec2((float)window.x_resolution, (float)window.y_resolution),
 		renderer.pipeline_layout_id,
 		window.swapchain_renderpass,
 		renderer.descriptor_set
@@ -58,9 +58,9 @@ int main(int argc, char* argv[]) {
 	app_timer.start();
 
     //Create main camera
-	Key<Camera> main_viewport_camera = renderer.cameras.insert({ .position = { 1.0, -2.0, 5.0 }, .pitch = 1.3 });
+	Key<Camera> main_viewport_camera = renderer.cameras.insert({ .position = { 1.0f, -2.0f, 5.0f }, .pitch = 1.3f });
 	bool camera_control = false;
-	int32_t mouse_saved_x, mouse_saved_y;
+	float mouse_saved_x, mouse_saved_y;
 
 	//Load simple 3D plane
 	uint64_t plane_image_batch_id;
@@ -99,28 +99,28 @@ int main(int argc, char* argv[]) {
 	app_timer.start();
 
 	//Load something from a glTF
-	// {
-	// 	using namespace fastgltf;
+	{
+		using namespace fastgltf;
 
-	// 	std::filesystem::path glb_path = "models/BoomBox.glb";
-	// 	Parser parser;
-	// 	GltfDataBuffer data;
-	// 	data.loadFromFile(glb_path);
-	// 	Expected<Asset> asset = parser.loadBinaryGLTF(&data, glb_path.parent_path());
+		std::filesystem::path glb_path = "models/BoomBox.glb";
+		Parser parser;
+		GltfDataBuffer data;
+		data.loadFromFile(glb_path);
+		Expected<Asset> asset = parser.loadGltfBinary(&data, glb_path.parent_path());
 
-	// 	printf("Printing node names in \"%s\" ...\n", glb_path.string().c_str());
-	// 	for (Node& node : asset->nodes) {
-	// 		printf("\t%s\n", node.name.c_str());
+		printf("Printing node names in \"%s\" ...\n", glb_path.string().c_str());
+		for (Node& node : asset->nodes) {
+			printf("\t%s\n", node.name.c_str());
 
-	// 		if (node.meshIndex.has_value()) {
-	// 			size_t mesh_idx = node.meshIndex.value();
-	// 			Mesh& mesh = asset->meshes[mesh_idx];
+			if (node.meshIndex.has_value()) {
+				size_t mesh_idx = node.meshIndex.value();
+				Mesh& mesh = asset->meshes[mesh_idx];
 
-	// 		}
-	// 	}
-	// }
-	// app_timer.print("Loaded glTF");
-	// app_timer.start();
+			}
+		}
+	}
+	app_timer.print("Loaded glTF");
+	app_timer.start();
 
 	init_timer.print("App init");
 
@@ -256,14 +256,14 @@ int main(int argc, char* argv[]) {
 
 			Camera* main_cam = renderer.cameras.get(main_viewport_camera);
 			if (camera_control) {
-				const float SENSITIVITY = 0.001;
+				const float SENSITIVITY = 0.001f;
 				main_cam->yaw += mouse_motion_x * SENSITIVITY;
 				main_cam->pitch += mouse_motion_y * SENSITIVITY;
 
-				while (main_cam->yaw < -2.0 * M_PI) main_cam->yaw += 2.0 * M_PI;
-				while (main_cam->yaw > 2.0 * M_PI) main_cam->yaw -= 2.0 * M_PI;
-				if (main_cam->pitch < -M_PI / 2.0) main_cam->pitch = -M_PI / 2.0;
-				if (main_cam->pitch > M_PI / 2.0) main_cam->pitch = M_PI / 2.0;
+				while (main_cam->yaw < -2.0f * M_PI) main_cam->yaw += (float)(2.0 * M_PI);
+				while (main_cam->yaw > 2.0f * M_PI) main_cam->yaw -= (float)(2.0 * M_PI);
+				if (main_cam->pitch < -M_PI / 2.0f) main_cam->pitch = (float)(-M_PI / 2.0);
+				if (main_cam->pitch > M_PI / 2.0f) main_cam->pitch = (float)(M_PI / 2.0);
 			}
 
 			float4x4 view_matrix = main_cam->make_view_matrix();
@@ -302,7 +302,7 @@ int main(int argc, char* argv[]) {
 
 				ImGui::Text("From batch #%i", image.batch_id);
 
-				ImVec2 dims = ImVec2(image.vk_image.width, image.vk_image.height);
+				ImVec2 dims = ImVec2((float)image.vk_image.width, (float)image.vk_image.height);
 				ImGui::BulletText("Width = %i", (uint32_t)dims.x);
 				ImGui::BulletText("Height = %i", (uint32_t)dims.y);
 
@@ -315,7 +315,7 @@ int main(int argc, char* argv[]) {
 				ImVec2 uv_max = ImVec2(1.0, 1.0);
 				ImVec4 tint_col = ImGui::GetStyleColorVec4(ImGuiCol_Text);
 				ImVec4 border_col = ImGui::GetStyleColorVec4(ImGuiCol_Border);
-				ImGui::Image((ImTextureID)it.slot_index(), dims, uv_min, uv_max, tint_col, border_col);
+				ImGui::Image((ImTextureID)(uint64_t)it.slot_index(), dims, uv_min, uv_max, tint_col, border_col);
 
 				if (ImGui::BeginItemTooltip()) {
 					ImGuiIO& io = ImGui::GetIO();
@@ -332,7 +332,7 @@ int main(int argc, char* argv[]) {
 					ImGui::Text("Max: (%.2f, %.2f)", region_x + region_sz, region_y + region_sz);
 					ImVec2 uv0 = ImVec2((region_x) / dims.x, (region_y) / dims.y);
 					ImVec2 uv1 = ImVec2((region_x + region_sz) / dims.x, (region_y + region_sz) / dims.y);
-					ImGui::Image((ImTextureID)it.slot_index(), ImVec2(region_sz * zoom, region_sz * zoom), uv0, uv1, tint_col, border_col);
+					ImGui::Image((ImTextureID)(uint64_t)it.slot_index(), ImVec2(region_sz * zoom, region_sz * zoom), uv0, uv1, tint_col, border_col);
 					ImGui::EndTooltip();
 				}
 
@@ -399,15 +399,15 @@ int main(int argc, char* argv[]) {
 				);
 
 				float aspect = (float)window.x_resolution / (float)window.y_resolution;
-				float desired_fov = M_PI / 2.0f;
-				float nearplane = 0.1;
-				float farplane = 1000.0;
+				float desired_fov = (float)(M_PI / 2.0);
+				float nearplane = 0.1f;
+				float farplane = 1000.0f;
 				float tan_fovy = tanf(desired_fov / 2.0f);
 				gcam.projection_matrix = float4x4(
-					1.0 / (tan_fovy * aspect), 0.0, 0.0, 0.0,
-					0.0, 1.0 / tan_fovy, 0.0, 0.0,
-					0.0, 0.0, nearplane / (nearplane - farplane), (nearplane * farplane) / (farplane - nearplane),
-					0.0, 0.0, 1.0, 0.0
+					1.0f / (tan_fovy * aspect), 0.0f, 0.0f, 0.0f,
+					0.0f, 1.0f / tan_fovy, 0.0f, 0.0f,
+					0.0f, 0.0f, nearplane / (nearplane - farplane), (nearplane * farplane) / (farplane - nearplane),
+					0.0f, 0.0f, 1.0f, 0.0f
 				);
 				gcam.projection_matrix = mul(gcam.projection_matrix, c_matrix);
 

@@ -809,7 +809,7 @@ Key<VkPipelineLayout> VulkanGraphicsDevice::create_pipeline_layout(Key<VkDescrip
 	info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	info.setLayoutCount = 1;
 	info.pSetLayouts = layout;
-	info.pushConstantRangeCount = push_constants.size();
+	info.pushConstantRangeCount = (uint32_t)push_constants.size();
 	info.pPushConstantRanges = push_constants.data();
 
 	VkPipelineLayout pipeline_layout;

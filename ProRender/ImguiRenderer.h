@@ -18,7 +18,7 @@ struct ImguiRenderer {
 
     ImguiRenderer(
 		VulkanGraphicsDevice* v,
-		uint64_t sampler,
+		uint32_t sampler,
 		ImVec2 window_size,
 		Key<VkPipelineLayout> pipeline_layout_id,
 		Key<VkRenderPass> renderpass,

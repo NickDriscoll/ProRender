@@ -71,8 +71,8 @@ struct Renderer {
 	Key<MeshAttribute> push_indices16(Key<BufferView> position_key, std::span<uint16_t> data);
 	BufferView* get_indices16(Key<BufferView> position_key);
 	
-	uint64_t standard_sampler_idx;
-	uint64_t point_sampler_idx;
+	uint32_t standard_sampler_idx;
+	uint32_t point_sampler_idx;
 
 	void record_ps1_draw();
 

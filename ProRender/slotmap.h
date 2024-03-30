@@ -56,7 +56,7 @@ struct slotmap {
         auto operator<=>(const iterator &) const = default; // three-way comparison C++20
 
         uint32_t slot_index() {
-            return current - start;
+            return (uint32_t)(current - start);
         }
 
         uint32_t generation_bits() {
@@ -132,7 +132,7 @@ void slotmap<T, Tkey>::clear() {
     free_inds.resize(size);
     //TODO: There has to be a better way!
     for (uint32_t i = 0; i < size; i++) {
-        free_inds[i] = size - i - 1;
+        free_inds[i] = (uint32_t)size - i - 1;
     }
     
     free_indices = std::stack(free_inds);

@@ -540,7 +540,7 @@ Key<BufferView> Renderer::push_vertex_positions(std::span<float> data) {
         .length = (uint32_t)data.size()
     };
 
-    vertex_position_offset += data.size();
+    vertex_position_offset += (uint32_t)data.size();
     return _position_buffers.insert(b);
 }
 
@@ -559,7 +559,7 @@ Key<MeshAttribute> Renderer::push_vertex_uvs(Key<BufferView> position_key, std::
         .length = (uint32_t)data.size()
     };
 
-    vertex_uv_offset += data.size();
+    vertex_uv_offset += (uint32_t)data.size();
 
     MeshAttribute a = {
         .position_key = position_key,
@@ -593,7 +593,7 @@ Key<MeshAttribute> Renderer::push_indices16(Key<BufferView> position_key, std::s
         .length = (uint32_t) data.size()
     };
 
-    index_buffer_offset += data.size();
+    index_buffer_offset += (uint32_t)data.size();
 
     MeshAttribute a = {
         .position_key = position_key,
