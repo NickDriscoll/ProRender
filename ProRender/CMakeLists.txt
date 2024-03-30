@@ -34,7 +34,7 @@ target_include_directories(ProRender PUBLIC ${Vulkan_INCLUDE_DIRS})
 target_link_libraries(ProRender PUBLIC ${Vulkan_LIBRARIES})
 
 #Include hlslpp
-target_include_directories(ProRender PUBLIC "${HLSLPP_INCLUDE_DIRS}")
+target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/external/hlslpp/include")
 
 #Include Dear ImGUI
 target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/external/imgui")
