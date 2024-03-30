@@ -14,7 +14,7 @@ add_executable (
 	"ImguiRenderer.cpp"
 	"header_libs.cpp"
 
-	"tinyfiledialogs.c"
+	"${CMAKE_SOURCE_DIR}/external/tinyfiledialogs.c"
 
 	"${CMAKE_SOURCE_DIR}/external/imgui/imgui_demo.cpp"
 	"${CMAKE_SOURCE_DIR}/external/imgui/imgui_draw.cpp"
@@ -28,7 +28,7 @@ set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)
 #Include SDL2
 target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/external/SDL/include")
 #target_link_libraries(ProRender PUBLIC ${SDL2_LIBRARIES})
-target_link_libraries(ProRender PUBLIC SDL3-static)
+target_link_libraries(ProRender PUBLIC SDL3-shared)
 
 #Include Vulkan
 target_include_directories(ProRender PUBLIC ${Vulkan_INCLUDE_DIRS})
@@ -43,6 +43,9 @@ target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/external/imgui"
 #Include fastgltf
 target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/external/fastgltf/include")
 target_link_libraries(ProRender PUBLIC fastgltf)
+
+#Include the headers that sit directly in external
+target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/external")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)
