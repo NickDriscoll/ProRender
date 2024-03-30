@@ -18,10 +18,13 @@
 #include <thread>
 #include <math.h>
 #include <hlsl++.h>
-#include "SDL.h"
-#include "SDL_main.h"
-#include "SDL_vulkan.h"
-#include <fastgltf/parser.hpp>
+//#include "SDL.h"
+#include <SDL3/SDL.h>
+//#include "SDL_main.h"
+#include <SDL3/SDL_main.h>
+//#include "SDL_vulkan.h"
+#include <SDL3/SDL_vulkan.h>
+#include <fastgltf/core.hpp>
 #include "volk.h"
 #include "stb_image.h"
 #include "VulkanWindow.h"

@@ -12,11 +12,13 @@ endif()
 project ("ProRender")
 
 # 1. Look for a SDL2 package, 2. look for the SDL2 component and 3. fail if none can be found
-find_package(SDL2 REQUIRED CONFIG REQUIRED COMPONENTS SDL2)
+#find_package(SDL2 REQUIRED CONFIG REQUIRED COMPONENTS SDL2)
 
 find_package(Vulkan REQUIRED)
 
-# Include sub-projects.
-add_subdirectory ("ProRender")
+#git submodule sources
+add_subdirectory("external/fastgltf")
+add_subdirectory("external/SDL")
 
-add_subdirectory("fastgltf")
+# Include sub-projects.
+add_subdirectory ("ProRender")  #Project sources

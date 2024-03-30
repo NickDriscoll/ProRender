@@ -2,6 +2,9 @@
 #include "ImguiRenderer.h"
 #include "tinyfiledialogs.h"
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 int main(int argc, char* argv[]) {
 	Timer init_timer = Timer("Init");
 	Timer app_timer = Timer("Main function");
@@ -21,11 +24,11 @@ int main(int argc, char* argv[]) {
 	app_timer.start();
 
 	uint32_t window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
-	SDL_Window* sdl_window = SDL_CreateWindow("losing my mind", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, my_config.window_width, my_config.window_height, window_flags);
+	SDL_Window* sdl_window = SDL_CreateWindow("losing my mind", my_config.window_width, my_config.window_height, window_flags);
 	
 	//Init the vulkan window
 	VkSurfaceKHR window_surface;
-	if (SDL_Vulkan_CreateSurface(sdl_window, vgd.instance, &window_surface) == SDL_FALSE) {
+	if (SDL_Vulkan_CreateSurface(sdl_window, vgd.instance, vgd.alloc_callbacks, &window_surface) == SDL_FALSE) {
 		printf("Creating VkSurface failed.\n");
 		exit(-1);
 	}
@@ -96,28 +99,28 @@ int main(int argc, char* argv[]) {
 	app_timer.start();
 
 	//Load something from a glTF
-	{
-		using namespace fastgltf;
+	// {
+	// 	using namespace fastgltf;
 
-		std::filesystem::path glb_path = "models/BoomBox.glb";
-		Parser parser;
-		GltfDataBuffer data;
-		data.loadFromFile(glb_path);
-		Expected<Asset> asset = parser.loadBinaryGLTF(&data, glb_path.parent_path());
+	// 	std::filesystem::path glb_path = "models/BoomBox.glb";
+	// 	Parser parser;
+	// 	GltfDataBuffer data;
+	// 	data.loadFromFile(glb_path);
+	// 	Expected<Asset> asset = parser.loadBinaryGLTF(&data, glb_path.parent_path());
 
-		printf("Printing node names in \"%s\" ...\n", glb_path.string().c_str());
-		for (Node& node : asset->nodes) {
-			printf("\t%s\n", node.name.c_str());
+	// 	printf("Printing node names in \"%s\" ...\n", glb_path.string().c_str());
+	// 	for (Node& node : asset->nodes) {
+	// 		printf("\t%s\n", node.name.c_str());
 
-			if (node.meshIndex.has_value()) {
-				size_t mesh_idx = node.meshIndex.value();
-				Mesh& mesh = asset->meshes[mesh_idx];
+	// 		if (node.meshIndex.has_value()) {
+	// 			size_t mesh_idx = node.meshIndex.value();
+	// 			Mesh& mesh = asset->meshes[mesh_idx];
 
-			}
-		}
-	}
-	app_timer.print("Loaded glTF");
-	app_timer.start();
+	// 		}
+	// 	}
+	// }
+	// app_timer.print("Loaded glTF");
+	// app_timer.start();
 
 	init_timer.print("App init");
 
@@ -150,24 +153,20 @@ int main(int argc, char* argv[]) {
 			SDL_Event event;
 			while (SDL_PollEvent(&event)) {
 				switch (event.type) {
-				case SDL_QUIT:
+				case SDL_EVENT_QUIT:
 					running = false;
 					break;
-				case SDL_WINDOWEVENT:
-					switch (event.window.event) {
-					case SDL_WINDOWEVENT_SIZE_CHANGED:
-						window.resize(vgd);
-						io.DisplaySize = ImVec2((float)window.x_resolution, (float)window.y_resolution);
-						renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
-							2.0f / (float)window.x_resolution, 0.0f, 0.0f, -1.0f,
-							0.0f, 2.0f / (float)window.y_resolution, 0.0f, -1.0f,
-							0.0f, 0.0f, 1.0f, 0.0f,
-							0.0f, 0.0f, 0.0f, 1.0f
-						);
-						break;
-					}
+				case SDL_EVENT_WINDOW_RESIZED:
+					window.resize(vgd);
+					io.DisplaySize = ImVec2((float)window.x_resolution, (float)window.y_resolution);
+					renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
+						2.0f / (float)window.x_resolution, 0.0f, 0.0f, -1.0f,
+						0.0f, 2.0f / (float)window.y_resolution, 0.0f, -1.0f,
+						0.0f, 0.0f, 1.0f, 0.0f,
+						0.0f, 0.0f, 0.0f, 1.0f
+					);
 					break;
-				case SDL_KEYDOWN:
+				case SDL_EVENT_KEY_DOWN:
 					switch (event.key.keysym.sym) {
 					case SDLK_w:
 						move_forward = true;
@@ -193,7 +192,7 @@ int main(int argc, char* argv[]) {
 					io.AddKeyEvent(SDL2ToImGuiKey(event.key.keysym.sym), true);
 					io.AddInputCharacter(event.key.keysym.sym);
 					break;
-				case SDL_KEYUP:
+				case SDL_EVENT_KEY_UP:
 					switch (event.key.keysym.sym) {
 					case SDLK_w:
 						move_forward = false;
@@ -216,16 +215,16 @@ int main(int argc, char* argv[]) {
 					}
 					io.AddKeyEvent(SDL2ToImGuiKey(event.key.keysym.sym), false);
 					break;
-				case SDL_MOUSEMOTION:
+				case SDL_EVENT_MOUSE_MOTION:
 					mouse_motion_x += (float)event.motion.xrel;
 					mouse_motion_y += (float)event.motion.yrel;
 					if (!camera_control)
 						io.AddMousePosEvent((float)event.motion.x, (float)event.motion.y);
 					break;
-				case SDL_MOUSEBUTTONDOWN:
+				case SDL_EVENT_MOUSE_BUTTON_DOWN:
 					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), true);
 					break;
-				case SDL_MOUSEBUTTONUP:
+				case SDL_EVENT_MOUSE_BUTTON_UP:
 					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), false);
 					
 					if (!io.WantCaptureMouse && event.button.button == SDL_BUTTON_RIGHT) {
@@ -239,8 +238,8 @@ int main(int argc, char* argv[]) {
 						}
 					}
 					break;
-				case SDL_MOUSEWHEEL:
-					io.AddMouseWheelEvent(event.wheel.preciseX, event.wheel.preciseY);
+				case SDL_EVENT_MOUSE_WHEEL:
+					io.AddMouseWheelEvent(event.wheel.x, event.wheel.y);
 					break;
 				}
 			}

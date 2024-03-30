@@ -16,18 +16,19 @@ add_executable (
 
 	"tinyfiledialogs.c"
 
-	"${CMAKE_SOURCE_DIR}/imgui/imgui_demo.cpp"
-	"${CMAKE_SOURCE_DIR}/imgui/imgui_draw.cpp"
-	"${CMAKE_SOURCE_DIR}/imgui/imgui_tables.cpp"
-	"${CMAKE_SOURCE_DIR}/imgui/imgui_widgets.cpp"
-	"${CMAKE_SOURCE_DIR}/imgui/imgui.cpp"
+	"${CMAKE_SOURCE_DIR}/external/imgui/imgui_demo.cpp"
+	"${CMAKE_SOURCE_DIR}/external/imgui/imgui_draw.cpp"
+	"${CMAKE_SOURCE_DIR}/external/imgui/imgui_tables.cpp"
+	"${CMAKE_SOURCE_DIR}/external/imgui/imgui_widgets.cpp"
+	"${CMAKE_SOURCE_DIR}/external/imgui/imgui.cpp"
 )
 
 set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)
 
 #Include SDL2
-target_include_directories(ProRender PUBLIC ${SDL_INCLUDE_DIRS})
-target_link_libraries(ProRender PUBLIC ${SDL2_LIBRARIES})
+target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/external/SDL/include")
+#target_link_libraries(ProRender PUBLIC ${SDL2_LIBRARIES})
+target_link_libraries(ProRender PUBLIC SDL3-static)
 
 #Include Vulkan
 target_include_directories(ProRender PUBLIC ${Vulkan_INCLUDE_DIRS})
@@ -37,10 +38,10 @@ target_link_libraries(ProRender PUBLIC ${Vulkan_LIBRARIES})
 target_include_directories(ProRender PUBLIC "${HLSLPP_INCLUDE_DIRS}")
 
 #Include Dear ImGUI
-target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/imgui")
+target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/external/imgui")
 
 #Include fastgltf
-target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/fastgltf/include")
+target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/external/fastgltf/include")
 target_link_libraries(ProRender PUBLIC fastgltf)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
