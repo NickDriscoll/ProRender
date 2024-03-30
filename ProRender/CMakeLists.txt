@@ -27,8 +27,7 @@ set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)
 
 #Include SDL2
 target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/external/SDL/include")
-#target_link_libraries(ProRender PUBLIC ${SDL2_LIBRARIES})
-target_link_libraries(ProRender PUBLIC SDL3-shared)
+target_link_libraries(ProRender PUBLIC SDL3-static)
 
 #Include Vulkan
 target_include_directories(ProRender PUBLIC ${Vulkan_INCLUDE_DIRS})
@@ -121,13 +120,6 @@ foreach(file ${files})
 				${file}
 				${CMAKE_CURRENT_BINARY_DIR}/bin/models/)
 endforeach()
-
-#Copy SDL2.dll to output directory
-add_custom_command(
-	TARGET ProRender POST_BUILD
-	COMMAND ${CMAKE_COMMAND} -E copy
-			${CMAKE_SOURCE_DIR}/redist/SDL2.dll
-			${CMAKE_CURRENT_BINARY_DIR}/bin/SDL2.dll)
 
 #TODO: Figure out how to make this work on windows and linux simultaneously
 add_custom_command(
