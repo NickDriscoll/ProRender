@@ -421,10 +421,9 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 		fclose(f);
 	}
 
-	for (VulkanImageUploadBatch& im : _image_upload_batches) {
-		auto buffer = _buffers.get(im.staging_buffer_id);
-		vmaDestroyBuffer(allocator, buffer->buffer, buffer->allocation);
-	}
+	//TODO: It doesn't make sense why I had to do this
+	for (uint32_t i = 0; i < FRAMES_IN_FLIGHT + 1; i++)
+		service_deletion_queues();
 
 	for (VulkanAvailableImage& im : available_images) {
 		vkDestroyImageView(device, im.vk_image.image_view, alloc_callbacks);
@@ -739,7 +738,15 @@ VulkanBuffer* VulkanGraphicsDevice::get_buffer(Key<VulkanBuffer> key) {
 
 void VulkanGraphicsDevice::destroy_buffer(Key<VulkanBuffer> key) {
 	VulkanBuffer* b = _buffers.get(key);
-	vmaDestroyBuffer(allocator, b->buffer, b->allocation);
+	if (b) {
+		BufferDeletion d = {
+			.idx = EXTRACT_IDX(key.value()),
+			.frames_til = FRAMES_IN_FLIGHT,
+			.buffer = b->buffer,
+			.allocation = b->allocation
+		};
+		_buffer_deletion_queue.emplace_front(d);
+	}
 }
 
 VkSampler VulkanGraphicsDevice::create_sampler(VkSamplerCreateInfo& info) {
@@ -1458,17 +1465,58 @@ uint64_t VulkanGraphicsDevice::get_completed_image_uploads() {
 	return _image_uploads_completed;
 }
 
-void VulkanGraphicsDevice::destroy_image(uint64_t key) {
+void VulkanGraphicsDevice::destroy_image(Key<VulkanAvailableImage> key) {
 	VulkanAvailableImage* im = available_images.get(key);
 	if (im) {
 		ImageDeletion d = {
-			.idx = EXTRACT_IDX(key),
+			.idx = EXTRACT_IDX(key.value()),
 			.frames_til = FRAMES_IN_FLIGHT,
 			.image = im->vk_image.image,
 			.image_view = im->vk_image.image_view,
 			.image_allocation = im->vk_image.image_allocation
 		};
 		_image_deletion_queue.emplace_front(d);
+	}
+}
+
+void VulkanGraphicsDevice::service_deletion_queues() {
+	//Service buffer queue
+	{
+		uint32_t deleted_count = 0;
+		for (BufferDeletion& d : _buffer_deletion_queue) {
+			if (d.frames_til == 0) {
+				vmaDestroyBuffer(allocator, d.buffer, d.allocation);
+				_buffers.remove(d.idx);
+				deleted_count += 1;
+			} else {
+				d.frames_til -= 1;
+			}
+		}
+
+		while (deleted_count > 0) {
+			_buffer_deletion_queue.pop_back();
+			deleted_count -= 1;
+		}
+	}
+
+	//Service image queue
+	{
+		uint32_t deleted_count = 0;
+		for (ImageDeletion& d : _image_deletion_queue) {
+			if (d.frames_til == 0) {
+				vkDestroyImageView(device, d.image_view, alloc_callbacks);
+				vmaDestroyImage(allocator, d.image, d.image_allocation);
+				available_images.remove(d.idx);
+				deleted_count += 1;
+			} else {
+				d.frames_til -= 1;
+			}
+		}
+
+		while (deleted_count > 0) {
+			_image_deletion_queue.pop_back();
+			deleted_count -= 1;
+		}
 	}
 }
 

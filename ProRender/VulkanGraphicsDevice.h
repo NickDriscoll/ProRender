@@ -51,6 +51,13 @@ struct VulkanImage {
 	VmaAllocation image_allocation;
 };
 
+struct BufferDeletion {
+	uint32_t idx;
+	uint32_t frames_til;
+	VkBuffer buffer;
+	VmaAllocation allocation;
+};
+
 struct ImageDeletion {
 	uint32_t idx;
 	uint32_t frames_til;
@@ -157,7 +164,7 @@ struct VulkanGraphicsDevice {
 	);
 	void tick_image_uploads(VkCommandBuffer render_cb, VkDescriptorSet descriptor_set);
 	uint64_t get_completed_image_uploads();
-	void destroy_image(uint64_t key);
+	void destroy_image(Key<VulkanAvailableImage> key);
 
 	VkSemaphore create_timeline_semaphore(uint64_t initial_value);
 	uint64_t check_timeline_semaphore(VkSemaphore semaphore);
@@ -168,15 +175,17 @@ struct VulkanGraphicsDevice {
 
 	VkShaderModule load_shader_module(const char* path);
 
+	void service_deletion_queues();
+
 	VulkanGraphicsDevice();
 	~VulkanGraphicsDevice();
 
-	std::deque<ImageDeletion> _image_deletion_queue;
 private:
 	void load_images_impl();
 	void submit_image_upload_batch(uint64_t id, const std::vector<RawImage>& raw_images, const std::vector<VkFormat>& image_formats);
 
 	slotmap<VulkanBuffer> _buffers;
+	std::deque<BufferDeletion> _buffer_deletion_queue;
 
 	//State related to image uploading system
 	bool _image_upload_running = true;
@@ -191,6 +200,7 @@ private:
 	std::mutex _pending_image_mutex;
 	slotmap<VulkanImageUploadBatch> _image_upload_batches;
 	std::mutex _image_upload_mutex;
+	std::deque<ImageDeletion> _image_deletion_queue;
 
 
 	slotmap<VkDescriptorSetLayout> _descriptor_set_layouts;
