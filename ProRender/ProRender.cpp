@@ -1,6 +1,7 @@
 ﻿#include "ProRender.h"
 #include "ImguiRenderer.h"
 #include "tinyfiledialogs.h"
+#include <algorithm>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -9,9 +10,11 @@ int main(int argc, char* argv[]) {
 	Timer init_timer = Timer("Init");
 	Timer app_timer = Timer("Main function");
 
+	//User config structure
+
 	Configuration my_config = {
-		.window_width = 1600,
-		.window_height = 1000	
+		.window_width = 1280,
+		.window_height = 720	
 	};
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);	//Initialize SDL
@@ -307,7 +310,7 @@ int main(int argc, char* argv[]) {
 				ImGui::BulletText("Height = %i", (uint32_t)dims.y);
 
 				float aspect_ratio = dims.x / dims.y;
-				dims.x = min(dims.x, dimension_max);
+				dims.x = std::min(dims.x, (float)dimension_max);
 				dims.y = dims.x / aspect_ratio;
 				
             	ImVec2 pos = ImGui::GetCursorScreenPos();

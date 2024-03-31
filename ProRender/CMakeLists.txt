@@ -23,7 +23,8 @@ add_executable (
 	"${CMAKE_SOURCE_DIR}/external/imgui/imgui.cpp"
 )
 
-set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)
+#set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)
+add_compile_definitions(ImTextureID=int)
 
 #Include SDL2
 target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/external/SDL/include")
@@ -126,7 +127,7 @@ add_custom_command(
 		TARGET ProRender POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E copy
 		${CMAKE_CURRENT_BINARY_DIR}/Debug/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}	#windows
-				#${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}			#linux
+		#${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}			#linux
 				${CMAKE_CURRENT_BINARY_DIR}/bin/)
 
 

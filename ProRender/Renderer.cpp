@@ -1,6 +1,6 @@
 #include "Renderer.h"
 #include "imgui.h"
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 ImGuiKey SDL2ToImGuiKey(int keycode) {
     switch (keycode)

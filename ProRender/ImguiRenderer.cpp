@@ -1,4 +1,5 @@
 #include "ImguiRenderer.h"
+#include <bit>
 
 ImguiRenderer::ImguiRenderer(
 	VulkanGraphicsDevice* v,

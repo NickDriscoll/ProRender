@@ -1,7 +1,8 @@
 ﻿# CMakeList.txt : Top-level CMake project file, do global configuration
 # and include sub-projects here.
 #
-cmake_minimum_required (VERSION 3.18)
+cmake_minimum_required(VERSION 3.18)
+set(CMAKE_CXX_STANDARD 20)
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
@@ -9,16 +10,15 @@ if (POLICY CMP0141)
   set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
 endif()
 
-project ("ProRender")
-
-# 1. Look for a SDL2 package, 2. look for the SDL2 component and 3. fail if none can be found
-#find_package(SDL2 REQUIRED CONFIG REQUIRED COMPONENTS SDL2)
+project("ProRender")
 
 find_package(Vulkan REQUIRED)
 
-#git submodule sources
+set(SDL_STATIC TRUE)
+
+# git submodule sources
 add_subdirectory("external/fastgltf")
 add_subdirectory("external/SDL")
 
-# Include sub-projects.
-add_subdirectory ("ProRender")  #Project sources
+# This project's project sources
+add_subdirectory("ProRender")
