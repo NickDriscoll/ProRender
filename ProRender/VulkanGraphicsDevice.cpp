@@ -1217,11 +1217,15 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 	desc_infos.reserve(16);
 	desc_writes.reserve(16);
 
-	std::vector<uint32_t> to_delete;
-	bool processed_batch = false;
-	for (VulkanImageUploadBatch& batch : _image_upload_batches) {
+	std::vector<uint32_t> images_to_delete;
+	std::vector<uint32_t> batches_to_delete;
+	//bool processed_batch = false;
+	//for (VulkanImageUploadBatch& batch : _image_upload_batches) {
+	for (auto it = _image_upload_batches.begin(); it != _image_upload_batches.end(); ++it) {
+		VulkanImageUploadBatch& batch = *it;
 		if (batch.id > gpu_batches_processed) continue;
-		processed_batch = true;
+		//processed_batch = true;
+		batches_to_delete.push_back(it.slot_index());
 
 		//Make the transfer command buffer available again and destroy the staging buffer
 		return_transfer_command_buffer(batch.command_buffer);
@@ -1421,7 +1425,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 					ava.vk_image = pending_image.vk_image;
 					
 					Key<VulkanAvailableImage> handle = available_images.insert(ava);
-					to_delete.push_back(it.slot_index());
+					images_to_delete.push_back(it.slot_index());
 
 					uint32_t descriptor_index = EXTRACT_IDX(handle.value());
 
@@ -1446,10 +1450,13 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 		}
 		
 	}
-	_image_upload_batches.clear();
+	//_image_upload_batches.clear();
+	for (uint32_t idx : batches_to_delete) {
+		_image_upload_batches.remove(idx);
+	}
 
 	//Remove completed pending images
-	for (uint32_t& idx : to_delete) {
+	for (uint32_t& idx : images_to_delete) {
 		_pending_images.remove(idx);
 	}
 
@@ -1457,7 +1464,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 	_pending_image_mutex.unlock();
 	_image_upload_mutex.unlock();
 	
-	if (processed_batch)
+	if (batches_to_delete.size() > 0)
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(desc_writes.size()), desc_writes.data(), 0, nullptr);
 }
 
