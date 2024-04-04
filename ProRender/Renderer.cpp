@@ -552,7 +552,7 @@ Key<MeshAttribute> Renderer::push_vertex_uvs(Key<BufferView> position_key, std::
     VulkanBuffer* buffer = vgd->get_buffer(vertex_uv_buffer);
     float* ptr = (float*)buffer->alloc_info.pMappedData;
     ptr += vertex_uv_offset;
-    memcpy(buffer->alloc_info.pMappedData, data.data(), data.size_bytes());
+    memcpy(ptr, data.data(), data.size_bytes());
 
     BufferView b = {
         .start = vertex_uv_offset,
