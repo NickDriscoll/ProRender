@@ -17,8 +17,8 @@ struct VulkanWindow {
 	VkPresentModeKHR preferred_present_mode;
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapchain;
-	VkSemaphore acquire_semaphore;
-	VkSemaphore present_semaphore;
+	VkSemaphore acquire_semaphores[FRAMES_IN_FLIGHT];
+	VkSemaphore present_semaphores[FRAMES_IN_FLIGHT];
 	Key<VkRenderPass> swapchain_renderpass;
 	std::vector<VkImage> swapchain_images;
 	std::vector<VkImageView> swapchain_image_views;

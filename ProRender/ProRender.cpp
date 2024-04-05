@@ -409,13 +409,6 @@ int main(int argc, char* argv[]) {
 
 		//Draw
 		{
-			//Acquire swapchain image for this frame
-			//We want to do this as soon as possible
-			uint32_t acquired_image_idx;
-			vkAcquireNextImageKHR(vgd.device, window.swapchain, U64_MAX, window.acquire_semaphore, VK_NULL_HANDLE, &acquired_image_idx);
-
-			VkCommandBuffer frame_cb = vgd.command_buffers[current_frame % FRAMES_IN_FLIGHT];
-			
 			//Wait for command buffer to finish execution before trying to record to it
 			if (current_frame >= FRAMES_IN_FLIGHT) {
 				uint64_t wait_value = current_frame - FRAMES_IN_FLIGHT + 1;
@@ -430,6 +423,16 @@ int main(int argc, char* argv[]) {
 					exit(-1);
 				}
 			}
+			
+			uint64_t in_flight_frame = current_frame % FRAMES_IN_FLIGHT;
+
+			//Acquire swapchain image for this frame
+			//We want to do this as soon as possible
+			uint32_t acquired_image_idx;
+			vkAcquireNextImageKHR(vgd.device, window.swapchain, U64_MAX, window.acquire_semaphores[in_flight_frame], VK_NULL_HANDLE, &acquired_image_idx);
+
+			VkCommandBuffer frame_cb = vgd.command_buffers[in_flight_frame];
+			
 
 			VkCommandBufferBeginInfo begin_info = {
 				.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -586,8 +589,8 @@ int main(int argc, char* argv[]) {
 				VkPipelineStageFlags wait_flags[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
 
 				VkSubmitInfo info = {};
-				VkSemaphore signal_semaphores[] = { renderer.graphics_timeline_semaphore, window.present_semaphore };
-				VkSemaphore wait_semaphores[] = {window.acquire_semaphore, vgd.image_upload_semaphore};
+				VkSemaphore signal_semaphores[] = { renderer.graphics_timeline_semaphore, window.present_semaphores[in_flight_frame] };
+				VkSemaphore wait_semaphores[] = {window.acquire_semaphores[in_flight_frame], vgd.image_upload_semaphore};
 				info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 				info.pNext = &ts_info;
 				info.waitSemaphoreCount = 2;
@@ -609,7 +612,7 @@ int main(int argc, char* argv[]) {
 				VkPresentInfoKHR info = {};
 				info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 				info.waitSemaphoreCount = 1;
-				info.pWaitSemaphores = &window.present_semaphore;
+				info.pWaitSemaphores = &window.present_semaphores[in_flight_frame];
 				info.swapchainCount = 1;
 				info.pSwapchains = &window.swapchain;
 				info.pImageIndices = &acquired_image_idx;

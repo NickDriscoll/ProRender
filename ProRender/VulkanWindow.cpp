@@ -179,20 +179,20 @@ VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 	}
 
 	//Create the acquire semaphore
-	{
+	for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
 		VkSemaphoreCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		if (vkCreateSemaphore(vgd.device, &info, vgd.alloc_callbacks, &acquire_semaphore) != VK_SUCCESS) {
+		if (vkCreateSemaphore(vgd.device, &info, vgd.alloc_callbacks, &acquire_semaphores[i]) != VK_SUCCESS) {
 			printf("Creating swapchain acquire semaphore failed.\n");
 			exit(-1);
 		}
 	}
 
 	//Create the present semaphore
-	{
+	for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
 		VkSemaphoreCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		if (vkCreateSemaphore(vgd.device, &info, vgd.alloc_callbacks, &present_semaphore) != VK_SUCCESS) {
+		if (vkCreateSemaphore(vgd.device, &info, vgd.alloc_callbacks, &present_semaphores[i]) != VK_SUCCESS) {
 			printf("Creating swapchain acquire semaphore failed.\n");
 			exit(-1);
 		}
@@ -200,8 +200,11 @@ VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 }
 
 VulkanWindow::~VulkanWindow() {
-	vkDestroySemaphore(device, acquire_semaphore, alloc_callbacks);
-	vkDestroySemaphore(device, present_semaphore, alloc_callbacks);
+	for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
+		vkDestroySemaphore(device, acquire_semaphores[i], alloc_callbacks);
+		vkDestroySemaphore(device, present_semaphores[i], alloc_callbacks);
+	}
+
 	for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
 		vkDestroyFramebuffer(device, swapchain_framebuffers[i], alloc_callbacks);
 	}
