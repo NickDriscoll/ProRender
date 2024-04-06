@@ -1108,6 +1108,7 @@ void VulkanGraphicsDevice::submit_image_upload_batch(uint64_t id, const std::vec
 		pending_image.vk_image.width = raw_images[i].width;
 		pending_image.vk_image.height = raw_images[i].height;
 		pending_image.vk_image.depth = 1;
+		pending_image.original_idx = i;
 
 		_pending_image_mutex.lock();
 		_pending_images.insert(pending_image);
@@ -1119,32 +1120,32 @@ uint64_t VulkanGraphicsDevice::load_raw_images(
 	const std::vector<RawImage> raw_images,
 	const std::vector<VkFormat> image_formats
 ) {
-	_image_uploads_requested += 1;
+	_image_batches_requested += 1;
 	_raw_image_mutex.lock();
 	_raw_image_batch_queue.push({
-		.id = _image_uploads_requested,
+		.id = _image_batches_requested,
 		.raw_images = std::move(raw_images),
 		.image_formats = std::move(image_formats)
 	});
 	_raw_image_mutex.unlock();
 
-	return _image_uploads_requested;
+	return _image_batches_requested;
 }
 
 uint64_t VulkanGraphicsDevice::load_image_files(
 	const std::vector<const char*> filenames,
 	const std::vector<VkFormat> image_formats
 ) {
-	_image_uploads_requested += 1;
+	_image_batches_requested += 1;
 	_file_batch_mutex.lock();
 	_image_file_batch_queue.push({
-		.id = _image_uploads_requested,
+		.id = _image_batches_requested,
 		.filenames = std::move(filenames),
 		.image_formats = std::move(image_formats)
 	});
 	_file_batch_mutex.unlock();
 
-	return _image_uploads_requested;
+	return _image_batches_requested;
 }
 
 //Main function for image loading thread
@@ -1422,6 +1423,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 				{
 					VulkanAvailableImage ava = {};
 					ava.batch_id = batch.id;
+					ava.original_idx = pending_image.original_idx;
 					ava.vk_image = pending_image.vk_image;
 					
 					Key<VulkanAvailableImage> handle = available_images.insert(ava);
@@ -1445,9 +1447,9 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 					};
 					desc_writes.push_back(write);
 				}
-				_image_uploads_completed += 1;
 			}
 		}
+		_image_batches_completed += 1;
 		
 	}
 	//_image_upload_batches.clear();
@@ -1469,7 +1471,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 }
 
 uint64_t VulkanGraphicsDevice::get_completed_image_uploads() {
-	return _image_uploads_completed;
+	return _image_batches_completed;
 }
 
 void VulkanGraphicsDevice::destroy_image(Key<VulkanAvailableImage> key) {

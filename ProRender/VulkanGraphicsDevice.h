@@ -74,11 +74,13 @@ struct RawImage {
 
 struct VulkanPendingImage {
 	uint64_t batch_id;
+	uint32_t original_idx;
 	VulkanImage vk_image;
 };
 
 struct VulkanAvailableImage {
 	uint64_t batch_id;
+	uint32_t original_idx;
 	VulkanImage vk_image;
 };
 
@@ -189,8 +191,8 @@ private:
 
 	//State related to image uploading system
 	bool _image_upload_running = true;
-	uint64_t _image_uploads_requested = 0;
-	uint64_t _image_uploads_completed = 0;
+	uint64_t _image_batches_requested = 0;
+	uint64_t _image_batches_completed = 0;
 	std::queue<RawImageBatchParameters, std::deque<RawImageBatchParameters>> _raw_image_batch_queue;
 	std::mutex _raw_image_mutex;
 	std::queue<FileImageBatchParameters, std::deque<FileImageBatchParameters>> _image_file_batch_queue;

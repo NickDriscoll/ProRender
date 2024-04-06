@@ -77,8 +77,14 @@ int main(int argc, char* argv[]) {
 	{
 		//Load plane texture
 		{
-			std::vector<const char*> names = { "images/stressed-miyamoto.jpg" };
-			std::vector<VkFormat> formats = { VK_FORMAT_R8G8B8A8_SRGB };
+			std::vector<const char*> names = {
+				"images/stressed-miyamoto.jpg",
+				"images/birds-allowed.png"
+			};
+			std::vector<VkFormat> formats = {
+				VK_FORMAT_R8G8B8A8_SRGB,
+				VK_FORMAT_R8G8B8A8_SRGB
+			};
 			plane_image_batch_id = vgd.load_image_files(names, formats);
 		}
 
@@ -449,7 +455,6 @@ int main(int argc, char* argv[]) {
 			vkAcquireNextImageKHR(vgd.device, window.swapchain, U64_MAX, window.acquire_semaphores[in_flight_frame], VK_NULL_HANDLE, &acquired_image_idx);
 
 			VkCommandBuffer frame_cb = vgd.command_buffers[in_flight_frame];
-			
 
 			VkCommandBufferBeginInfo begin_info = {
 				.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -473,6 +478,7 @@ int main(int argc, char* argv[]) {
 							printf("Found plane image at index %i\n", it.slot_index());
 							plane_image_idx = it.slot_index();
 							gen_bits = it.generation_bits();
+							break;
 						}
 					}
 				}
