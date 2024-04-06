@@ -125,8 +125,6 @@ int main(int argc, char* argv[]) {
 	app_timer.print("Loaded glTF");
 	app_timer.start();
 
-	init_timer.print("App init");
-
 	//Freecam input variables
 	bool move_back = false;
 	bool move_forward = false;
@@ -134,6 +132,9 @@ int main(int argc, char* argv[]) {
 	bool move_right = false;
 	bool move_down = false;
 	bool move_up = false;
+	bool camera_rolling = false;
+
+	init_timer.print("App init");
 	
 	//Main loop
 	bool running = true;
@@ -144,8 +145,7 @@ int main(int argc, char* argv[]) {
 		frame_timer.start();
 		float delta_time = (float)(last_frame_took / 1000.0);
 		
-		//These variables are the paradoxically named "InputOutput" variables
-		//like the output of the input system, you see
+		//The distance the mouse has moved on each axis
 		float mouse_motion_x = 0.0;
 		float mouse_motion_y = 0.0;
 		{
@@ -189,6 +189,9 @@ int main(int argc, char* argv[]) {
 					case SDLK_e:
 						move_up = true;
 						break;
+					case SDLK_LALT:
+						camera_rolling = true;
+						break;
 					}
 
 					//Pass keystroke to imgui
@@ -214,6 +217,9 @@ int main(int argc, char* argv[]) {
 						break;
 					case SDLK_e:
 						move_up = false;
+						break;
+					case SDLK_LALT:
+						camera_rolling = false;
 						break;
 					}
 					io.AddKeyEvent(SDL2ToImGuiKey(event.key.keysym.sym), false);
@@ -260,11 +266,17 @@ int main(int argc, char* argv[]) {
 			Camera* main_cam = renderer.cameras.get(main_viewport_camera);
 			if (camera_control) {
 				const float SENSITIVITY = 0.001f;
-				main_cam->yaw += mouse_motion_x * SENSITIVITY;
-				main_cam->pitch += mouse_motion_y * SENSITIVITY;
+				if (camera_rolling) {
+					main_cam->roll += mouse_motion_x * SENSITIVITY;
+				} else {
+					main_cam->yaw += mouse_motion_x * SENSITIVITY;
+					main_cam->pitch += mouse_motion_y * SENSITIVITY;
+				}
 
 				while (main_cam->yaw < -2.0f * M_PI) main_cam->yaw += (float)(2.0 * M_PI);
 				while (main_cam->yaw > 2.0f * M_PI) main_cam->yaw -= (float)(2.0 * M_PI);
+				while (main_cam->roll < -2.0f * M_PI) main_cam->roll += (float)(2.0 * M_PI);
+				while (main_cam->roll > 2.0f * M_PI) main_cam->roll -= (float)(2.0 * M_PI);
 				if (main_cam->pitch < -M_PI / 2.0f) main_cam->pitch = (float)(-M_PI / 2.0);
 				if (main_cam->pitch > M_PI / 2.0f) main_cam->pitch = (float)(M_PI / 2.0);
 			}
@@ -469,8 +481,6 @@ int main(int argc, char* argv[]) {
 				}
 			}
 
-			vkCmdBindDescriptorSets(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), 0, 1, &renderer.descriptor_set, 0, nullptr);
-
 			//Begin render pass
 			{
 				VkRect2D area = {
@@ -527,6 +537,8 @@ int main(int argc, char* argv[]) {
 				};
 				vkCmdSetScissor(frame_cb, 0, 1, &scissor);
 			}
+
+			vkCmdBindDescriptorSets(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), 0, 1, &renderer.descriptor_set, 0, nullptr);
 
 			//Bind global index buffer
 			vkCmdBindIndexBuffer(frame_cb, vgd.get_buffer(renderer.index_buffer)->buffer, 0, VK_INDEX_TYPE_UINT16);

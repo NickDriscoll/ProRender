@@ -1,8 +1,6 @@
-﻿#pragma once
-#define _CRT_SECURE_NO_WARNINGS
-
-#ifdef _WIN32
+﻿#ifdef _WIN32
 	#define VK_USE_PLATFORM_WIN32_KHR
+	#define NOMINMAX
 #endif
 #ifdef __linux__
 	#define VK_USE_PLATFORM_XLIB_KHR
@@ -33,4 +31,8 @@ constexpr uint64_t U64_MAX = 0xFFFFFFFFFFFFFFFF;
 struct Configuration {
 	uint32_t window_width;
 	uint32_t window_height;
+};
+
+struct Ps1Prop {
+	
 };

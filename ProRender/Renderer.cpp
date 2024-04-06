@@ -165,6 +165,15 @@ hlslpp::float4x4 Camera::make_view_matrix() {
 		0.0, 0.0, 0.0, 1.0
 	);
 
+    float cosroll = cosf(roll);
+    float sinroll = sinf(roll);
+    float4x4 roll_matrix(
+        cosroll, 0.0f, sinroll, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        -sinroll, 0.0f, cosroll, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
+    );
+
 	float4x4 trans_matrix(
 		1.0f, 0.0f, 0.0f, -position.x,
 		0.0f, 1.0f, 0.0f, -position.y,
@@ -172,7 +181,9 @@ hlslpp::float4x4 Camera::make_view_matrix() {
 		0.0f, 0.0f, 0.0f, 1.0f
 	);
 
-	return mul(mul(pitch_matrix, yaw_matrix), trans_matrix);
+    float4x4 py = mul(pitch_matrix, yaw_matrix);
+    float4x4 pyr = mul(py, roll_matrix);
+    return mul(pyr, trans_matrix);
 }
 
 Renderer::Renderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swapchain_renderpass) {
