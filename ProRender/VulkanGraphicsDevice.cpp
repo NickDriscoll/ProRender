@@ -1220,12 +1220,9 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 
 	std::vector<uint32_t> pending_images_to_delete;
 	std::vector<uint32_t> batches_to_delete;
-	//bool processed_batch = false;
-	//for (VulkanImageUploadBatch& batch : _image_upload_batches) {
 	for (auto it = _image_upload_batches.begin(); it != _image_upload_batches.end(); ++it) {
 		VulkanImageUploadBatch& batch = *it;
 		if (batch.id > gpu_batches_processed) continue;
-		//processed_batch = true;
 		batches_to_delete.push_back(it.slot_index());
 
 		//Make the transfer command buffer available again and destroy the staging buffer
@@ -1452,7 +1449,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 		_image_batches_completed += 1;
 		
 	}
-	//_image_upload_batches.clear();
+	
 	for (uint32_t idx : batches_to_delete) {
 		_image_upload_batches.remove(idx);
 	}
