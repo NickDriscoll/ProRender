@@ -162,7 +162,7 @@ struct VulkanGraphicsDevice {
 		const std::vector<const char*> filenames,
 		const std::vector<VkFormat> image_formats
 	);
-	void tick_image_uploads(VkCommandBuffer render_cb, VkDescriptorSet descriptor_set);
+	void tick_image_uploads(VkCommandBuffer render_cb, VkDescriptorSet descriptor_set, uint32_t binding);
 	uint64_t get_completed_image_uploads();
 	void destroy_image(Key<VulkanAvailableImage> key);
 

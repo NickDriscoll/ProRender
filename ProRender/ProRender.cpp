@@ -27,7 +27,12 @@ int main(int argc, char* argv[]) {
 	app_timer.start();
 
 	uint32_t window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
-	SDL_Window* sdl_window = SDL_CreateWindow("losing my mind", my_config.window_width, my_config.window_height, window_flags);
+	SDL_Window* sdl_window = SDL_CreateWindow(
+		"losing my mind",
+		my_config.window_width,
+		my_config.window_height,
+		window_flags
+	);
 	
 	//Init the vulkan window
 	VkSurfaceKHR window_surface;
@@ -453,7 +458,7 @@ int main(int argc, char* argv[]) {
 			vkBeginCommandBuffer(frame_cb, &begin_info);
 
 			//Per-frame checking of pending images to see if they're ready
-			vgd.tick_image_uploads(frame_cb, renderer.descriptor_set);
+			vgd.tick_image_uploads(frame_cb, renderer.descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
 			uint64_t upload_batches_completed = vgd.get_completed_image_uploads();
 
 			//Check for plane image

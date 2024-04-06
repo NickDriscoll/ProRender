@@ -9,6 +9,18 @@
 #define MAX_CAMERAS 64
 #define MAX_VERTEX_ATTRIBS 1024
 
+enum DescriptorBindings : uint32_t {
+	SAMPLED_IMAGES = 0,
+	SAMPLERS = 1,
+	FRAME_UNIFORMS = 2,
+	IMGUI_POSITIONS = 3,
+	IMGUI_UVS = 4,
+	IMGUI_COLORS = 5,
+	VERTEX_POSITIONS = 6,
+	UVS = 7,
+	CAMERA_BUFFER = 8
+};
+
 struct FrameUniforms {
 	hlslpp::float4x4 clip_from_screen;
 };
@@ -17,6 +29,7 @@ struct Camera {
 	hlslpp::float3 position;
 	float yaw;
 	float pitch;
+	float roll;
 
 	hlslpp::float4x4 make_view_matrix();
 };
@@ -34,6 +47,14 @@ struct BufferView {
 struct MeshAttribute {
 	Key<BufferView> position_key;
 	BufferView view;
+};
+
+struct IndirectMesh {
+	Key<BufferView> position;
+};
+
+struct IndirectMaterial {
+
 };
 
 struct Renderer {
@@ -65,6 +86,7 @@ struct Renderer {
 	Key<MeshAttribute> push_vertex_uvs(Key<BufferView> position_key, std::span<float> data);
 	BufferView* get_vertex_uvs(Key<BufferView> key);
 
+	//Buffer for storing all loaded mesh indices
 	uint32_t index_buffer_offset = 0;
 	Key<VulkanBuffer> index_buffer;
 
@@ -74,7 +96,7 @@ struct Renderer {
 	uint32_t standard_sampler_idx;
 	uint32_t point_sampler_idx;
 
-	void record_ps1_draw();
+	void record_ps1_draw(IndirectMesh& mesh, IndirectMaterial& material);
 
 	Renderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swapchain_renderpass);
 	~Renderer();
@@ -87,6 +109,3 @@ private:
 
 	VulkanGraphicsDevice* vgd;		//Very dangerous and dubiously recommended
 };
-
-ImGuiKey SDL2ToImGuiKey(int keycode);
-int SDL2ToImGuiMouseButton(int button);

@@ -1200,7 +1200,7 @@ void VulkanGraphicsDevice::load_images_impl() {
 	}
 }
 
-void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescriptorSet descriptor_set) {
+void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescriptorSet descriptor_set, uint32_t binding) {
 	if (!_pending_image_mutex.try_lock())
 		return;
 
@@ -1217,7 +1217,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 	desc_infos.reserve(16);
 	desc_writes.reserve(16);
 
-	std::vector<uint32_t> images_to_delete;
+	std::vector<uint32_t> pending_images_to_delete;
 	std::vector<uint32_t> batches_to_delete;
 	//bool processed_batch = false;
 	//for (VulkanImageUploadBatch& batch : _image_upload_batches) {
@@ -1425,7 +1425,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 					ava.vk_image = pending_image.vk_image;
 					
 					Key<VulkanAvailableImage> handle = available_images.insert(ava);
-					images_to_delete.push_back(it.slot_index());
+					pending_images_to_delete.push_back(it.slot_index());
 
 					uint32_t descriptor_index = EXTRACT_IDX(handle.value());
 
@@ -1437,7 +1437,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 					VkWriteDescriptorSet write = {
 						.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 						.dstSet = descriptor_set,
-						.dstBinding = 0,
+						.dstBinding = binding,
 						.dstArrayElement = descriptor_index,
 						.descriptorCount = 1,
 						.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
@@ -1456,7 +1456,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 	}
 
 	//Remove completed pending images
-	for (uint32_t& idx : images_to_delete) {
+	for (uint32_t& idx : pending_images_to_delete) {
 		_pending_images.remove(idx);
 	}
 
