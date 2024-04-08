@@ -13,8 +13,8 @@ int main(int argc, char* argv[]) {
 	//User config structure
 
 	Configuration my_config = {
-		.window_width = 1280,
-		.window_height = 720	
+		.window_width = 1500,
+		.window_height = 1000	
 	};
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);	//Initialize SDL
@@ -45,7 +45,7 @@ int main(int argc, char* argv[]) {
 	app_timer.start();
 
 	//Initialize the renderer
-	Renderer renderer(&vgd, window.swapchain_renderpass);
+	VulkanRenderer renderer(&vgd, window.swapchain_renderpass);
     renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
         2.0f / (float)window.x_resolution, 0.0f, 0.0f, -1.0f,
         0.0f, 2.0f / (float)window.y_resolution, 0.0f, -1.0f,
@@ -72,19 +72,26 @@ int main(int argc, char* argv[]) {
 
 	//Load simple 3D plane
 	uint64_t plane_image_batch_id;
-	uint32_t plane_image_idx = 0xFFFFFFFF;
+	uint32_t plane_image_count;
 	Key<BufferView> plane_key;
+	uint32_t plane_image_idx = 0xFFFFFFFF;
+	bool know_plane_image = false;
 	{
 		//Load plane texture
 		{
 			std::vector<const char*> names = {
 				"images/stressed-miyamoto.jpg",
-				"images/birds-allowed.png"
+				"images/birds-allowed.png",
+				"images/statue.jpg",
+				"images/ao_roughness_metallic.png"
 			};
 			std::vector<VkFormat> formats = {
 				VK_FORMAT_R8G8B8A8_SRGB,
+				VK_FORMAT_R8G8B8A8_SRGB,
+				VK_FORMAT_R8G8B8A8_SRGB,
 				VK_FORMAT_R8G8B8A8_SRGB
 			};
+			plane_image_count = names.size();
 			plane_image_batch_id = vgd.load_image_files(names, formats);
 		}
 
@@ -145,6 +152,8 @@ int main(int argc, char* argv[]) {
 	bool move_up = false;
 	bool camera_rolling = false;
 
+	uint32_t which_image = 0;
+
 	init_timer.print("App init");
 	
 	//Main loop
@@ -202,6 +211,10 @@ int main(int argc, char* argv[]) {
 						break;
 					case SDLK_LALT:
 						camera_rolling = true;
+						break;
+					case SDLK_SPACE:
+						which_image = (which_image + 1) % plane_image_count;
+						know_plane_image = false;
 						break;
 					}
 
@@ -468,13 +481,12 @@ int main(int argc, char* argv[]) {
 
 			//Check for plane image
 			{
-				static bool know_plane_image = false;
 				static uint32_t gen_bits = 0;
 				if (!know_plane_image && plane_image_batch_id <= upload_batches_completed) {
 					know_plane_image = true;
 					for (auto it = vgd.available_images.begin(); it != vgd.available_images.end(); ++it) {
 						VulkanAvailableImage& image = *it;
-						if (plane_image_batch_id == image.batch_id) {
+						if (plane_image_batch_id == image.batch_id && image.original_idx == which_image) {
 							printf("Found plane image at index %i\n", it.slot_index());
 							plane_image_idx = it.slot_index();
 							gen_bits = it.generation_bits();

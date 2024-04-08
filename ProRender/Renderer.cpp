@@ -43,7 +43,7 @@ hlslpp::float4x4 Camera::make_view_matrix() {
     return mul(pyr, trans_matrix);
 }
 
-Renderer::Renderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swapchain_renderpass) {
+VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swapchain_renderpass) {
 
     cameras.alloc(MAX_CAMERAS);
     _position_buffers.alloc(MAX_VERTEX_ATTRIBS);
@@ -397,7 +397,7 @@ Renderer::Renderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swapchain_render
     this->vgd = vgd;
 }
 
-Key<BufferView> Renderer::push_vertex_positions(std::span<float> data) {
+Key<BufferView> VulkanRenderer::push_vertex_positions(std::span<float> data) {
     VulkanBuffer* buffer = vgd->get_buffer(vertex_position_buffer);
     float* ptr = (float*)buffer->alloc_info.pMappedData;
     ptr += vertex_position_offset;
@@ -412,11 +412,11 @@ Key<BufferView> Renderer::push_vertex_positions(std::span<float> data) {
     return _position_buffers.insert(b);
 }
 
-BufferView* Renderer::get_vertex_positions(Key<BufferView> key) {
+BufferView* VulkanRenderer::get_vertex_positions(Key<BufferView> key) {
     return _position_buffers.get(key);
 }
 
-Key<MeshAttribute> Renderer::push_vertex_uvs(Key<BufferView> position_key, std::span<float> data) {
+Key<MeshAttribute> VulkanRenderer::push_vertex_uvs(Key<BufferView> position_key, std::span<float> data) {
     VulkanBuffer* buffer = vgd->get_buffer(vertex_uv_buffer);
     float* ptr = (float*)buffer->alloc_info.pMappedData;
     ptr += vertex_uv_offset;
@@ -437,7 +437,7 @@ Key<MeshAttribute> Renderer::push_vertex_uvs(Key<BufferView> position_key, std::
 }
 
 //TODO: Just kind of accepting the O(n) lookup because of hand-waving about cache
-BufferView* Renderer::get_vertex_uvs(Key<BufferView> position_key) {
+BufferView* VulkanRenderer::get_vertex_uvs(Key<BufferView> position_key) {
 
     BufferView* result = nullptr;
     for (MeshAttribute& att : _uv_buffers) {
@@ -450,7 +450,7 @@ BufferView* Renderer::get_vertex_uvs(Key<BufferView> position_key) {
     return result;
 }
 
-Key<MeshAttribute> Renderer::push_indices16(Key<BufferView> position_key, std::span<uint16_t> data) {
+Key<MeshAttribute> VulkanRenderer::push_indices16(Key<BufferView> position_key, std::span<uint16_t> data) {
     VulkanBuffer* buffer = vgd->get_buffer(index_buffer);
     uint16_t* ptr = (uint16_t*)buffer->alloc_info.pMappedData;
     ptr += index_buffer_offset;
@@ -470,7 +470,7 @@ Key<MeshAttribute> Renderer::push_indices16(Key<BufferView> position_key, std::s
     return _index16_buffers.insert(a);
 }
 
-BufferView* Renderer::get_indices16(Key<BufferView> position_key) {
+BufferView* VulkanRenderer::get_indices16(Key<BufferView> position_key) {
 
     BufferView* result = nullptr;
     for (MeshAttribute& att : _index16_buffers) {
@@ -484,7 +484,7 @@ BufferView* Renderer::get_indices16(Key<BufferView> position_key) {
 
 }
 
-Renderer::~Renderer() {
+VulkanRenderer::~VulkanRenderer() {
 	for (uint32_t i = 0; i < _samplers.size(); i++) {
 		vkDestroySampler(vgd->device, _samplers[i], vgd->alloc_callbacks);
 	}

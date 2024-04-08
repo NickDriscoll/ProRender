@@ -57,7 +57,7 @@ struct IndirectMaterial {
 
 };
 
-struct Renderer {
+struct VulkanRenderer {
 	Key<VulkanGraphicsPipeline> ps1_pipeline;
 
 	VkSemaphore graphics_timeline_semaphore;
@@ -96,10 +96,10 @@ struct Renderer {
 	uint32_t standard_sampler_idx;
 	uint32_t point_sampler_idx;
 
-	void record_ps1_draw(IndirectMesh& mesh, IndirectMaterial& material);
+	void record_ps1_draw(IndirectMesh& mesh, IndirectMaterial& material, hlslpp::float4x4& world_transform);
 
-	Renderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swapchain_renderpass);
-	~Renderer();
+	VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swapchain_renderpass);
+	~VulkanRenderer();
 
 private:
 	slotmap<BufferView> _position_buffers;
