@@ -26,8 +26,6 @@
 #include "Renderer.h"
 #include "vma.h"
 
-constexpr uint64_t U64_MAX = 0xFFFFFFFFFFFFFFFF;
-
 struct Configuration {
 	uint32_t window_width;
 	uint32_t window_height;

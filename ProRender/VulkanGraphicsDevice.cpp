@@ -1124,8 +1124,8 @@ uint64_t VulkanGraphicsDevice::load_raw_images(
 	_raw_image_mutex.lock();
 	_raw_image_batch_queue.push({
 		.id = _image_batches_requested,
-		.raw_images = std::move(raw_images),
-		.image_formats = std::move(image_formats)
+		.raw_images = raw_images,
+		.image_formats = image_formats
 	});
 	_raw_image_mutex.unlock();
 
@@ -1140,8 +1140,8 @@ uint64_t VulkanGraphicsDevice::load_image_files(
 	_file_batch_mutex.lock();
 	_image_file_batch_queue.push({
 		.id = _image_batches_requested,
-		.filenames = std::move(filenames),
-		.image_formats = std::move(image_formats)
+		.filenames = filenames,
+		.image_formats = image_formats
 	});
 	_file_batch_mutex.unlock();
 

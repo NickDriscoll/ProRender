@@ -7,6 +7,7 @@
 #include "VulkanGraphicsDevice.h"
 
 #define MAX_CAMERAS 64
+#define MAX_MATERIALS 1024
 #define MAX_VERTEX_ATTRIBS 1024
 
 enum DescriptorBindings : uint32_t {
@@ -17,7 +18,7 @@ enum DescriptorBindings : uint32_t {
 	IMGUI_UVS = 4,
 	IMGUI_COLORS = 5,
 	VERTEX_POSITIONS = 6,
-	UVS = 7,
+	VERTEX_UVS = 7,
 	CAMERA_BUFFER = 8
 };
 
@@ -39,6 +40,23 @@ struct GPUCamera {
 	hlslpp::float4x4 projection_matrix;
 };
 
+struct GPUMesh{
+	uint32_t position_start;
+	uint32_t uv_start;
+};
+
+struct GPUMaterial {
+	uint32_t color_idx;
+	uint32_t sampler_idx;
+	hlslpp::float4 base_color;
+};
+
+struct GPUInstanceData {
+	hlslpp::float4x4 world_matrix;
+	uint32_t mesh_idx;
+	uint32_t material_idx;
+};
+
 struct BufferView {
 	uint32_t start;
 	uint32_t length;
@@ -49,12 +67,10 @@ struct MeshAttribute {
 	BufferView view;
 };
 
-struct IndirectMesh {
-	Key<BufferView> position;
-};
-
-struct IndirectMaterial {
-
+struct Material {
+	uint64_t batch_id;		//The batch where this material's textures come from
+	uint32_t sampler_idx;
+	hlslpp::float4 base_color;
 };
 
 struct VulkanRenderer {
@@ -92,11 +108,18 @@ struct VulkanRenderer {
 
 	Key<MeshAttribute> push_indices16(Key<BufferView> position_key, std::span<uint16_t> data);
 	BufferView* get_indices16(Key<BufferView> position_key);
+
+	//Idea is that the first image in a batch is treated as the color image
+	//and other texture types will be assigned indices later
+	Key<Material> push_material(uint64_t batch_id, hlslpp::float4& base_color);
 	
 	uint32_t standard_sampler_idx;
 	uint32_t point_sampler_idx;
 
-	void record_ps1_draw(IndirectMesh& mesh, IndirectMaterial& material, hlslpp::float4x4& world_transform);
+	void ps1_draw(Key<BufferView> mesh_key, Key<Material> material_key, std::span<hlslpp::float4x4>& world_transform);
+
+	//Called at the end of each frame to render frame's draw calls
+	void render();
 
 	VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swapchain_renderpass);
 	~VulkanRenderer();
@@ -105,7 +128,11 @@ private:
 	slotmap<BufferView> _position_buffers;
 	slotmap<MeshAttribute> _uv_buffers;
 	slotmap<MeshAttribute> _index16_buffers;
+	slotmap<Material> _materials;
 	std::vector<VkSampler> _samplers;
+	std::vector<VkDrawIndexedIndirectCommand> draw_calls;	//Reset every frame
+
+	Key<VulkanBuffer> material_buffer;
 
 	VulkanGraphicsDevice* vgd;		//Very dangerous and dubiously recommended
 };

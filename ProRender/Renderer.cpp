@@ -1,5 +1,6 @@
 #include "Renderer.h"
 #include "imgui.h"
+#include <limits>
 
 hlslpp::float4x4 Camera::make_view_matrix() {
     using namespace hlslpp;
@@ -49,6 +50,7 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
     _position_buffers.alloc(MAX_VERTEX_ATTRIBS);
     _uv_buffers.alloc(MAX_VERTEX_ATTRIBS);
     _index16_buffers.alloc(MAX_VERTEX_ATTRIBS);
+    _materials.alloc(MAX_MATERIALS);
 
     //Create bindless descriptor set
     {
@@ -252,6 +254,16 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
         alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
         alloc_info.priority = 1.0;
         camera_buffer = vgd->create_buffer(FRAMES_IN_FLIGHT * MAX_CAMERAS * sizeof(GPUCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
+    }
+
+    //Create material buffer
+    {
+        VmaAllocationCreateInfo alloc_info = {};
+        alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
+        alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        alloc_info.priority = 1.0;
+        material_buffer = vgd->create_buffer(MAX_MATERIALS * sizeof(GPUMaterial), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
     }
 
 	//Write static descriptors
@@ -484,6 +496,61 @@ BufferView* VulkanRenderer::get_indices16(Key<BufferView> position_key) {
 
 }
 
+Key<Material> VulkanRenderer::push_material(uint64_t batch_id, hlslpp::float4& base_color) {
+    Material mat {
+        .batch_id = batch_id,
+        .base_color = base_color,
+    };
+    return _materials.insert(mat);
+}
+
+void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_key, std::span<hlslpp::float4x4>& world_transforms) {
+    
+    //First, check if material's images are available
+    Material* material = _materials.get(material_key);
+    uint32_t color_idx = std::numeric_limits<uint32_t>::max();
+    uint32_t completed_batches = vgd->get_completed_image_uploads();
+    
+    //Early exit if material's image uploads haven't finished yet
+    if (material->batch_id > completed_batches) return;
+
+    for (auto it = vgd->available_images.begin(); it != vgd->available_images.end(); ++it) {
+        VulkanAvailableImage& image = *it;
+        if (image.batch_id == material->batch_id) {
+            color_idx = it.slot_index();
+        }
+    }
+    assert(color_idx != std::numeric_limits<uint32_t>::max());
+
+    //Write material data to CPU-side buffer
+    GPUMaterial gpu_mat = {
+        .color_idx = color_idx,
+        .sampler_idx = material->sampler_idx,
+        .base_color = material->base_color
+    };
+
+    //Get geometry data
+    BufferView* position_data = _position_buffers.get(mesh_key);
+    BufferView* uv_data = get_vertex_uvs(mesh_key);
+    BufferView* index_data = get_indices16(mesh_key);
+
+    VkDrawIndexedIndirectCommand command = {
+        .indexCount = index_data->length,
+        .instanceCount = 
+        .firstIndex = 
+        .vertexOffset = 
+        .firstInstance = 
+    };
+
+
+}
+
+void VulkanRenderer::render() {
+
+
+    draw_calls.clear();
+}
+
 VulkanRenderer::~VulkanRenderer() {
 	for (uint32_t i = 0; i < _samplers.size(); i++) {
 		vkDestroySampler(vgd->device, _samplers[i], vgd->alloc_callbacks);
@@ -492,6 +559,7 @@ VulkanRenderer::~VulkanRenderer() {
 	vkDestroySemaphore(vgd->device, graphics_timeline_semaphore, vgd->alloc_callbacks);
 
 	vkDestroyDescriptorPool(vgd->device, descriptor_pool, vgd->alloc_callbacks);
+    vgd->destroy_buffer(material_buffer);
     vgd->destroy_buffer(camera_buffer);
     vgd->destroy_buffer(frame_uniforms_buffer);
     vgd->destroy_buffer(vertex_position_buffer);

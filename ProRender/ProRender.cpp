@@ -13,8 +13,8 @@ int main(int argc, char* argv[]) {
 	//User config structure
 
 	Configuration my_config = {
-		.window_width = 1500,
-		.window_height = 1000	
+		.window_width = 1200,
+		.window_height = 800	
 	};
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);	//Initialize SDL
@@ -73,7 +73,8 @@ int main(int argc, char* argv[]) {
 	//Load simple 3D plane
 	uint64_t plane_image_batch_id;
 	uint32_t plane_image_count;
-	Key<BufferView> plane_key;
+	Key<BufferView> plane_mesh_key;
+	Key<Material> plane_material_key;
 	uint32_t plane_image_idx = 0xFFFFFFFF;
 	bool know_plane_image = false;
 	{
@@ -81,18 +82,16 @@ int main(int argc, char* argv[]) {
 		{
 			std::vector<const char*> names = {
 				"images/stressed-miyamoto.jpg",
-				"images/birds-allowed.png",
-				"images/statue.jpg",
-				"images/ao_roughness_metallic.png"
+				"images/birds-allowed.png"
 			};
 			std::vector<VkFormat> formats = {
-				VK_FORMAT_R8G8B8A8_SRGB,
-				VK_FORMAT_R8G8B8A8_SRGB,
 				VK_FORMAT_R8G8B8A8_SRGB,
 				VK_FORMAT_R8G8B8A8_SRGB
 			};
 			plane_image_count = names.size();
 			plane_image_batch_id = vgd.load_image_files(names, formats);
+			hlslpp::float4 base_color(1.0, 1.0, 1.0, 1.0);
+			plane_material_key = renderer.push_material(plane_image_batch_id, base_color);
 		}
 
 		float plane_pos[] = {
@@ -112,9 +111,9 @@ int main(int argc, char* argv[]) {
 			1, 3, 2
 		};
 
-		plane_key = renderer.push_vertex_positions(std::span(plane_pos));
-		renderer.push_vertex_uvs(plane_key, std::span(plane_uv));
-		renderer.push_indices16(plane_key, std::span(inds));
+		plane_mesh_key = renderer.push_vertex_positions(std::span(plane_pos));
+		renderer.push_vertex_uvs(plane_mesh_key, std::span(plane_uv));
+		renderer.push_indices16(plane_mesh_key, std::span(inds));
 	}
 	app_timer.print("Loaded plane");
 	app_timer.start();
@@ -480,7 +479,7 @@ int main(int argc, char* argv[]) {
 			uint64_t upload_batches_completed = vgd.get_completed_image_uploads();
 
 			//Check for plane image
-			{
+			/*{
 				static uint32_t gen_bits = 0;
 				if (!know_plane_image && plane_image_batch_id <= upload_batches_completed) {
 					know_plane_image = true;
@@ -502,7 +501,7 @@ int main(int argc, char* argv[]) {
 						plane_image_idx = imgui_renderer.get_atlas_idx();
 					}
 				}
-			}
+			}*/
 
 			//Begin render pass
 			{
@@ -586,9 +585,9 @@ int main(int argc, char* argv[]) {
 				if (plane_image_idx != 0xFFFFFFFF)
 					image_idx = plane_image_idx;
 
-				BufferView* plane_positions = renderer.get_vertex_positions(plane_key);
-				BufferView* plane_uvs = renderer.get_vertex_uvs(plane_key);
-				BufferView* plane_indices = renderer.get_indices16(plane_key);
+				BufferView* plane_positions = renderer.get_vertex_positions(plane_mesh_key);
+				BufferView* plane_uvs = renderer.get_vertex_uvs(plane_mesh_key);
+				BufferView* plane_indices = renderer.get_indices16(plane_mesh_key);
 
 				uint32_t pcs[] = {
 					plane_positions->start / 4,
@@ -599,7 +598,14 @@ int main(int argc, char* argv[]) {
 				};
 				vkCmdPushConstants(frame_cb, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 20, pcs);
 
-				vkCmdDrawIndexed(frame_cb, plane_indices->length, 1, plane_indices->start, 0, 0);
+				//vkCmdDrawIndexed(frame_cb, plane_indices->length, 1, plane_indices->start, 0, 0);
+				hlslpp::float4x4 tform(
+					1.0, 0.0, 0.0, 0.0,
+					0.0, 1.0, 0.0, 0.0,
+					0.0, 0.0, 1.0, 0.0,
+					0.0, 0.0, 0.0, 1.0
+				);
+				renderer.ps1_draw(plane_mesh_key, plane_material_key, tform);
 			}
 
 			//Record imgui drawing commands into this frame's command buffer
