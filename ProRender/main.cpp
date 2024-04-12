@@ -395,6 +395,22 @@ int main(int argc, char* argv[]) {
 			memcpy(uniform_buffer->alloc_info.pMappedData, &renderer.frame_uniforms, sizeof(FrameUniforms));
 		}
 
+		//Queue the static plane to be drawn
+		{
+			hlslpp::float4x4 matrix(
+				1.0, 0.0, 0.0, 0.0,
+				0.0, 1.0, 0.0, 0.0,
+				0.0, 0.0, 1.0, 0.0,
+				0.0, 0.0, 0.0, 1.0
+			);
+			InstanceData tforms[] = {
+				{
+					.world_from_model = matrix
+				}
+			};
+			renderer.ps1_draw(plane_mesh_key, plane_material_key, std::span(tforms));
+		}
+
 		//Update GPU camera data
 		std::vector<uint32_t> cam_idx_map;
 		cam_idx_map.reserve(renderer.cameras.count());
@@ -476,10 +492,10 @@ int main(int argc, char* argv[]) {
 
 			//Per-frame checking of pending images to see if they're ready
 			vgd.tick_image_uploads(frame_cb, renderer.descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
-			uint64_t upload_batches_completed = vgd.get_completed_image_uploads();
+			uint64_t upload_batches_completed = vgd.completed_image_batches();
 
 			//Check for plane image
-			/*{
+			{
 				static uint32_t gen_bits = 0;
 				if (!know_plane_image && plane_image_batch_id <= upload_batches_completed) {
 					know_plane_image = true;
@@ -501,7 +517,7 @@ int main(int argc, char* argv[]) {
 						plane_image_idx = imgui_renderer.get_atlas_idx();
 					}
 				}
-			}*/
+			}
 
 			//Begin render pass
 			{
@@ -598,15 +614,9 @@ int main(int argc, char* argv[]) {
 				};
 				vkCmdPushConstants(frame_cb, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 20, pcs);
 
-				//vkCmdDrawIndexed(frame_cb, plane_indices->length, 1, plane_indices->start, 0, 0);
-				hlslpp::float4x4 tform(
-					1.0, 0.0, 0.0, 0.0,
-					0.0, 1.0, 0.0, 0.0,
-					0.0, 0.0, 1.0, 0.0,
-					0.0, 0.0, 0.0, 1.0
-				);
-				renderer.ps1_draw(plane_mesh_key, plane_material_key, tform);
+				vkCmdDrawIndexed(frame_cb, plane_indices->length, 1, plane_indices->start, 0, 0);
 			}
+
 
 			//Record imgui drawing commands into this frame's command buffer
 			imgui_renderer.draw(frame_cb, current_frame);

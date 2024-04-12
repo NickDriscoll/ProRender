@@ -1,4 +1,5 @@
 #include <span>
+#include <unordered_map>
 #include <stdint.h>
 #include <string.h>
 #include <hlsl++.h>
@@ -8,7 +9,9 @@
 
 #define MAX_CAMERAS 64
 #define MAX_MATERIALS 1024
+#define MAX_MATERIAL_TEXTURES 16
 #define MAX_VERTEX_ATTRIBS 1024
+#define MAX_INDIRECT_DRAWS 50000
 
 enum DescriptorBindings : uint32_t {
 	SAMPLED_IMAGES = 0,
@@ -40,13 +43,13 @@ struct GPUCamera {
 	hlslpp::float4x4 projection_matrix;
 };
 
-struct GPUMesh{
+struct GPUMesh {
 	uint32_t position_start;
 	uint32_t uv_start;
 };
 
 struct GPUMaterial {
-	uint32_t color_idx;
+	uint32_t texture_indices[MAX_MATERIAL_TEXTURES] = {std::numeric_limits<uint32_t>::max()};
 	uint32_t sampler_idx;
 	hlslpp::float4 base_color;
 };
@@ -73,6 +76,10 @@ struct Material {
 	hlslpp::float4 base_color;
 };
 
+struct InstanceData {
+	hlslpp::float4x4 world_from_model;
+};
+
 struct VulkanRenderer {
 	Key<VulkanGraphicsPipeline> ps1_pipeline;
 
@@ -97,28 +104,26 @@ struct VulkanRenderer {
 	uint32_t vertex_uv_offset = 0;
 	Key<VulkanBuffer> vertex_uv_buffer;
 
-	Key<BufferView> push_vertex_positions(std::span<float> data);
-	BufferView* get_vertex_positions(Key<BufferView> key);
-	Key<MeshAttribute> push_vertex_uvs(Key<BufferView> position_key, std::span<float> data);
-	BufferView* get_vertex_uvs(Key<BufferView> key);
-
 	//Buffer for storing all loaded mesh indices
 	uint32_t index_buffer_offset = 0;
 	Key<VulkanBuffer> index_buffer;
 
+	Key<BufferView> push_vertex_positions(std::span<float> data);
+	BufferView* get_vertex_positions(Key<BufferView> key);
+	Key<MeshAttribute> push_vertex_uvs(Key<BufferView> position_key, std::span<float> data);
+	BufferView* get_vertex_uvs(Key<BufferView> key);
 	Key<MeshAttribute> push_indices16(Key<BufferView> position_key, std::span<uint16_t> data);
 	BufferView* get_indices16(Key<BufferView> position_key);
 
-	//Idea is that the first image in a batch is treated as the color image
-	//and other texture types will be assigned indices later
 	Key<Material> push_material(uint64_t batch_id, hlslpp::float4& base_color);
 	
 	uint32_t standard_sampler_idx;
 	uint32_t point_sampler_idx;
 
-	void ps1_draw(Key<BufferView> mesh_key, Key<Material> material_key, std::span<hlslpp::float4x4>& world_transform);
+	//Called during the main simulation whenever we want to draw something
+	void ps1_draw(Key<BufferView> mesh_key, Key<Material> material_key, const std::span<InstanceData>& instance_datas);
 
-	//Called at the end of each frame to render frame's draw calls
+	//Called at the end of each frame
 	void render();
 
 	VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swapchain_renderpass);
@@ -130,9 +135,18 @@ private:
 	slotmap<MeshAttribute> _index16_buffers;
 	slotmap<Material> _materials;
 	std::vector<VkSampler> _samplers;
-	std::vector<VkDrawIndexedIndirectCommand> draw_calls;	//Reset every frame
 
-	Key<VulkanBuffer> material_buffer;
+	//Draw stream state
+	Key<VulkanBuffer> _indirect_draw_buffer;
+	std::vector<VkDrawIndexedIndirectCommand> _draw_calls;	//Reset every frame
+	uint32_t _instances_so_far = 0;
+
+	//Reference to GPU buffer of GPUMaterial structs
+	Key<VulkanBuffer> _material_buffer;
+	slotmap<GPUMaterial> _gpu_materials;
+	//std::unordered_map<Key<Material>, Key<GPUMaterial>> _material_map;
+	std::unordered_map<uint64_t, uint64_t> _material_map;
+	bool _material_dirty_flag = false;
 
 	VulkanGraphicsDevice* vgd;		//Very dangerous and dubiously recommended
 };

@@ -1467,7 +1467,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(desc_writes.size()), desc_writes.data(), 0, nullptr);
 }
 
-uint64_t VulkanGraphicsDevice::get_completed_image_uploads() {
+uint64_t VulkanGraphicsDevice::completed_image_batches() {
 	return _image_batches_completed;
 }
 

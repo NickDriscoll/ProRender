@@ -165,7 +165,7 @@ struct VulkanGraphicsDevice {
 		const std::vector<VkFormat> image_formats
 	);
 	void tick_image_uploads(VkCommandBuffer render_cb, VkDescriptorSet descriptor_set, uint32_t binding);
-	uint64_t get_completed_image_uploads();
+	uint64_t completed_image_batches();
 	void destroy_image(Key<VulkanAvailableImage> key);
 
 	VkSemaphore create_timeline_semaphore(uint64_t initial_value);

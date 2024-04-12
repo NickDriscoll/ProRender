@@ -7,10 +7,10 @@ set(CMAKE_BUILD_TYPE Debug)
 # Add source to this project's executable.
 add_executable (
 	ProRender
-	"ProRender.cpp"
+	"main.cpp"
 	"VulkanGraphicsDevice.cpp"
 	"VulkanWindow.cpp"
-	"Renderer.cpp"
+	"VulkanRenderer.cpp"
 	"ImguiRenderer.cpp"
 	"header_libs.cpp"
 
@@ -126,8 +126,8 @@ endforeach()
 add_custom_command(
 		TARGET ProRender POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E copy
-		${CMAKE_CURRENT_BINARY_DIR}/Debug/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}	#windows
-		#${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}			#linux
+		#${CMAKE_CURRENT_BINARY_DIR}/Debug/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}	#windows
+		${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}			#linux
 				${CMAKE_CURRENT_BINARY_DIR}/bin/)
 
 

@@ -1,4 +1,4 @@
-#include "Renderer.h"
+#include "VulkanRenderer.h"
 #include "imgui.h"
 #include <limits>
 
@@ -51,6 +51,9 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
     _uv_buffers.alloc(MAX_VERTEX_ATTRIBS);
     _index16_buffers.alloc(MAX_VERTEX_ATTRIBS);
     _materials.alloc(MAX_MATERIALS);
+    _gpu_materials.alloc(MAX_MATERIALS);
+    
+    //_material_map = std::unordered_map<Key<Material>, Key<GPUMaterial>>(MAX_MATERIALS);
 
     //Create bindless descriptor set
     {
@@ -263,7 +266,17 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
         alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
         alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
         alloc_info.priority = 1.0;
-        material_buffer = vgd->create_buffer(MAX_MATERIALS * sizeof(GPUMaterial), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
+        _material_buffer = vgd->create_buffer(MAX_MATERIALS * sizeof(GPUMaterial), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
+    }
+
+    //Create indirect draw buffer
+    {
+        VmaAllocationCreateInfo alloc_info = {};
+        alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
+        alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        alloc_info.priority = 1.0;
+        _indirect_draw_buffer = vgd->create_buffer(MAX_INDIRECT_DRAWS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
     }
 
 	//Write static descriptors
@@ -449,6 +462,7 @@ Key<MeshAttribute> VulkanRenderer::push_vertex_uvs(Key<BufferView> position_key,
 }
 
 //TODO: Just kind of accepting the O(n) lookup because of hand-waving about cache
+//TODO: Make common function out of this and get_index16
 BufferView* VulkanRenderer::get_vertex_uvs(Key<BufferView> position_key) {
 
     BufferView* result = nullptr;
@@ -504,51 +518,73 @@ Key<Material> VulkanRenderer::push_material(uint64_t batch_id, hlslpp::float4& b
     return _materials.insert(mat);
 }
 
-void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_key, std::span<hlslpp::float4x4>& world_transforms) {
-    
-    //First, check if material's images are available
+//Records one indirect draw command into the ps1 draws queue
+void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_key, const std::span<InstanceData>& instance_datas) {
     Material* material = _materials.get(material_key);
-    uint32_t color_idx = std::numeric_limits<uint32_t>::max();
-    uint32_t completed_batches = vgd->get_completed_image_uploads();
-    
-    //Early exit if material's image uploads haven't finished yet
-    if (material->batch_id > completed_batches) return;
+    if (material->batch_id > vgd->completed_image_batches()) return;     //Early exit if material's batch hasn't completed
 
-    for (auto it = vgd->available_images.begin(); it != vgd->available_images.end(); ++it) {
-        VulkanAvailableImage& image = *it;
-        if (image.batch_id == material->batch_id) {
-            color_idx = it.slot_index();
+    //Check if this material's images have already been loaded
+    Key<GPUMaterial> gpu_mat_key;
+    if (_material_map.contains(material_key.value())) {
+        //If yes, reuse that data
+        gpu_mat_key = _material_map[material_key.value()];
+    } else {
+        //Otherwise we have to search for the image in the available images array
+        //and upload its metadata to the GPU
+        _material_dirty_flag = true;
+        
+        GPUMaterial mat;
+        mat.sampler_idx = material->sampler_idx;
+        mat.base_color = material->base_color;
+
+        for (auto it = vgd->available_images.begin(); it != vgd->available_images.end(); ++it) {
+            VulkanAvailableImage& image = *it;
+            if (image.batch_id == material->batch_id) {
+                mat.texture_indices[0] = it.slot_index();
+            }
         }
-    }
-    assert(color_idx != std::numeric_limits<uint32_t>::max());
+        assert(mat.texture_indices[0] != std::numeric_limits<uint32_t>::max());
 
-    //Write material data to CPU-side buffer
-    GPUMaterial gpu_mat = {
-        .color_idx = color_idx,
-        .sampler_idx = material->sampler_idx,
-        .base_color = material->base_color
-    };
+
+        gpu_mat_key = _gpu_materials.insert(mat);
+        _material_map.insert(std::pair(material_key.value(), gpu_mat_key.value()));
+    }
 
     //Get geometry data
     BufferView* position_data = _position_buffers.get(mesh_key);
     BufferView* uv_data = get_vertex_uvs(mesh_key);
     BufferView* index_data = get_indices16(mesh_key);
 
+
+
+    //TODO: Instance data stuff
+    uint32_t instances = (uint32_t)instance_datas.size();
+
+
     VkDrawIndexedIndirectCommand command = {
         .indexCount = index_data->length,
-        .instanceCount = 
-        .firstIndex = 
-        .vertexOffset = 
-        .firstInstance = 
+        .instanceCount = instances,
+        .firstIndex = index_data->start,
+        .vertexOffset = 0,                   //UNUSED 
+        .firstInstance = _instances_so_far
     };
-
+    _instances_so_far += instances;
+    _draw_calls.push_back(command);
 
 }
 
 void VulkanRenderer::render() {
 
 
-    draw_calls.clear();
+
+
+
+
+
+
+
+    _draw_calls.clear();
+    _instances_so_far = 0;
 }
 
 VulkanRenderer::~VulkanRenderer() {
@@ -559,7 +595,8 @@ VulkanRenderer::~VulkanRenderer() {
 	vkDestroySemaphore(vgd->device, graphics_timeline_semaphore, vgd->alloc_callbacks);
 
 	vkDestroyDescriptorPool(vgd->device, descriptor_pool, vgd->alloc_callbacks);
-    vgd->destroy_buffer(material_buffer);
+    vgd->destroy_buffer(_indirect_draw_buffer);
+    vgd->destroy_buffer(_material_buffer);
     vgd->destroy_buffer(camera_buffer);
     vgd->destroy_buffer(frame_uniforms_buffer);
     vgd->destroy_buffer(vertex_position_buffer);

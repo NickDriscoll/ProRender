@@ -23,7 +23,7 @@
 #include "volk.h"
 #include "stb_image.h"
 #include "VulkanWindow.h"
-#include "Renderer.h"
+#include "VulkanRenderer.h"
 #include "vma.h"
 
 struct Configuration {
