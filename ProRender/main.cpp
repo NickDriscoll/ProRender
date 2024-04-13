@@ -502,7 +502,6 @@ int main(int argc, char* argv[]) {
 					for (auto it = vgd.available_images.begin(); it != vgd.available_images.end(); ++it) {
 						VulkanAvailableImage& image = *it;
 						if (plane_image_batch_id == image.batch_id && image.original_idx == which_image) {
-							printf("Found plane image at index %i\n", it.slot_index());
 							plane_image_idx = it.slot_index();
 							gen_bits = it.generation_bits();
 							break;

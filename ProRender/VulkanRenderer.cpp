@@ -52,8 +52,7 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
     _index16_buffers.alloc(MAX_VERTEX_ATTRIBS);
     _materials.alloc(MAX_MATERIALS);
     _gpu_materials.alloc(MAX_MATERIALS);
-    
-    //_material_map = std::unordered_map<Key<Material>, Key<GPUMaterial>>(MAX_MATERIALS);
+    _gpu_meshes.alloc(MAX_MESHES);
 
     //Create bindless descriptor set
     {
@@ -277,6 +276,26 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
         alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
         alloc_info.priority = 1.0;
         _indirect_draw_buffer = vgd->create_buffer(MAX_INDIRECT_DRAWS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
+    }
+
+    //Create instance data buffer
+    {
+        VmaAllocationCreateInfo alloc_info = {};
+        alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
+        alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        alloc_info.priority = 1.0;
+        _instance_buffer = vgd->create_buffer(MAX_INSTANCES * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
+    }
+
+    //Create mesh data buffer
+    {
+        VmaAllocationCreateInfo alloc_info = {};
+        alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
+        alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        alloc_info.priority = 1.0;
+        _mesh_buffer = vgd->create_buffer(MAX_MESHES * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
     }
 
 	//Write static descriptors
@@ -545,22 +564,39 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
         }
         assert(mat.texture_indices[0] != std::numeric_limits<uint32_t>::max());
 
-
         gpu_mat_key = _gpu_materials.insert(mat);
         _material_map.insert(std::pair(material_key.value(), gpu_mat_key.value()));
     }
 
     //Get geometry data
-    BufferView* position_data = _position_buffers.get(mesh_key);
-    BufferView* uv_data = get_vertex_uvs(mesh_key);
     BufferView* index_data = get_indices16(mesh_key);
+    Key<GPUMesh> gpu_mesh_key;
+    if (_mesh_map.contains(mesh_key.value())) {
+        gpu_mesh_key = _mesh_map[mesh_key.value()];
+    } else {
+        _mesh_dirty_flag = true;
+        BufferView* position_data = _position_buffers.get(mesh_key);
+        BufferView* uv_data = get_vertex_uvs(mesh_key);
+        GPUMesh g_mesh = {
+            .position_start = position_data->start,
+            .uv_start = uv_data->start
+        };
+        gpu_mesh_key = _gpu_meshes.insert(g_mesh);
+        _mesh_map.insert(std::pair(mesh_key.value(), gpu_mesh_key.value()));
+    }
 
-
-
-    //TODO: Instance data stuff
+    //Record GPUInstanceData structure(s)
     uint32_t instances = (uint32_t)instance_datas.size();
+    for (InstanceData& in_data : instance_datas) {
+        GPUInstanceData g_data = {
+            .world_matrix = in_data.world_from_model,
+            .mesh_idx = EXTRACT_IDX(gpu_mesh_key.value()),
+            .material_idx = EXTRACT_IDX(gpu_mat_key.value()),
+        };
+        _gpu_instance_datas.push_back(g_data);
+    }
 
-
+    //Finally, record the actual indirect draw command
     VkDrawIndexedIndirectCommand command = {
         .indexCount = index_data->length,
         .instanceCount = instances,
@@ -584,6 +620,7 @@ void VulkanRenderer::render() {
 
 
     _draw_calls.clear();
+    _gpu_instance_datas.clear();
     _instances_so_far = 0;
 }
 
@@ -595,6 +632,8 @@ VulkanRenderer::~VulkanRenderer() {
 	vkDestroySemaphore(vgd->device, graphics_timeline_semaphore, vgd->alloc_callbacks);
 
 	vkDestroyDescriptorPool(vgd->device, descriptor_pool, vgd->alloc_callbacks);
+    vgd->destroy_buffer(_instance_buffer);
+    vgd->destroy_buffer(_mesh_buffer);
     vgd->destroy_buffer(_indirect_draw_buffer);
     vgd->destroy_buffer(_material_buffer);
     vgd->destroy_buffer(camera_buffer);

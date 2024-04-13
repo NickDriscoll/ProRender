@@ -11,7 +11,9 @@
 #define MAX_MATERIALS 1024
 #define MAX_MATERIAL_TEXTURES 16
 #define MAX_VERTEX_ATTRIBS 1024
+#define MAX_MESHES 1024*1024
 #define MAX_INDIRECT_DRAWS 50000
+#define MAX_INSTANCES 1024*1024
 
 enum DescriptorBindings : uint32_t {
 	SAMPLED_IMAGES = 0,
@@ -140,6 +142,14 @@ private:
 	Key<VulkanBuffer> _indirect_draw_buffer;
 	std::vector<VkDrawIndexedIndirectCommand> _draw_calls;	//Reset every frame
 	uint32_t _instances_so_far = 0;
+
+	Key<VulkanBuffer> _instance_buffer;
+	std::vector<GPUInstanceData> _gpu_instance_datas;
+
+	Key<VulkanBuffer> _mesh_buffer;
+	slotmap<GPUMesh> _gpu_meshes;
+	std::unordered_map<uint64_t, uint64_t> _mesh_map;
+	bool _mesh_dirty_flag = false;
 
 	//Reference to GPU buffer of GPUMaterial structs
 	Key<VulkanBuffer> _material_buffer;
