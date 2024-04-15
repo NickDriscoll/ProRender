@@ -88,6 +88,7 @@ struct slotmap {
     T* get(Tkey key);
     Tkey insert(T thing);
     void remove(uint32_t idx);
+    uint32_t size();
 
 private:
     std::vector<T> _data = {};
@@ -116,6 +117,11 @@ void slotmap<T, Tkey>::alloc(uint32_t size) {
 template<typename T, typename Tkey>
 uint32_t slotmap<T, Tkey>::count() {
     return _count;
+}
+
+template<typename T, typename Tkey>
+uint32_t slotmap<T, Tkey>::size() {
+    return _data.capacity();
 }
 
 template<typename T, typename Tkey>

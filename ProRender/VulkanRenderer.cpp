@@ -275,7 +275,7 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
         alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
         alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
         alloc_info.priority = 1.0;
-        _indirect_draw_buffer = vgd->create_buffer(MAX_INDIRECT_DRAWS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
+        _indirect_draw_buffer = vgd->create_buffer(FRAMES_IN_FLIGHT * MAX_INDIRECT_DRAWS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
     }
 
     //Create instance data buffer
@@ -285,7 +285,7 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
         alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
         alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
         alloc_info.priority = 1.0;
-        _instance_buffer = vgd->create_buffer(MAX_INSTANCES * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
+        _instance_buffer = vgd->create_buffer(FRAMES_IN_FLIGHT * MAX_INSTANCES * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
     }
 
     //Create mesh data buffer
@@ -609,8 +609,30 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
 
 }
 
+//
 void VulkanRenderer::render() {
 
+    //Upload material buffer if it changed
+    if (_material_dirty_flag) {
+        _material_dirty_flag = false;
+
+        VulkanBuffer* mat_buffer = vgd->get_buffer(_material_buffer);
+        GPUMaterial* ptr = static_cast<GPUMaterial*>(mat_buffer->alloc_info.pMappedData);
+        memcpy(ptr, _gpu_materials.data(), _gpu_materials.size());
+    }
+
+    //Upload mesh buffer if it changed
+    if (_mesh_dirty_flag) {
+        _mesh_dirty_flag = false;
+
+        VulkanBuffer* mesh_buffer = vgd->get_buffer(_mesh_buffer);
+        GPUMesh* ptr = static_cast<GPUMesh*>(mesh_buffer->alloc_info.pMappedData);
+        memcpy(ptr, _gpu_meshes.data(), _gpu_meshes.size());
+    }
+
+    //Upload instance data buffer
+
+    //Upload indirect draw buffer
 
 
 
@@ -618,7 +640,7 @@ void VulkanRenderer::render() {
 
 
 
-
+    //Reset renderer state
     _draw_calls.clear();
     _gpu_instance_datas.clear();
     _instances_so_far = 0;
