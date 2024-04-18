@@ -126,7 +126,7 @@ struct VulkanRenderer {
 	void ps1_draw(Key<BufferView> mesh_key, Key<Material> material_key, const std::span<InstanceData>& instance_datas);
 
 	//Called at the end of each frame
-	void render();
+	void render(VulkanFrameBuffer& framebuffer);
 
 	VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swapchain_renderpass);
 	~VulkanRenderer();
@@ -157,6 +157,8 @@ private:
 	//std::unordered_map<Key<Material>, Key<GPUMaterial>> _material_map;
 	std::unordered_map<uint64_t, uint64_t> _material_map;
 	bool _material_dirty_flag = false;
+
+	uint64_t _current_frame = 0; //Frame counter
 
 	VulkanGraphicsDevice* vgd;		//Very dangerous and dubiously recommended
 };

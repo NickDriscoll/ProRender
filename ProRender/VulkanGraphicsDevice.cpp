@@ -11,6 +11,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	available_images.alloc(1024 * 1024);
 	_pending_images.alloc(1024 * 1024);
 	_image_upload_batches.alloc(1024);
+	_framebuffers.alloc(1024);
 	_render_passes.alloc(32);
 	_graphics_pipelines.alloc(32);
 	_descriptor_set_layouts.alloc(64);
@@ -1552,6 +1553,19 @@ uint64_t VulkanGraphicsDevice::check_timeline_semaphore(VkSemaphore semaphore) {
 
 VulkanGraphicsPipeline* VulkanGraphicsDevice::get_graphics_pipeline(Key<VulkanGraphicsPipeline> handle) {
 	return _graphics_pipelines.get(handle);
+}
+
+Key<VkFramebuffer> VulkanGraphicsDevice::create_framebuffer(VkFramebufferCreateInfo& info) {
+	VkFramebuffer fb;
+	if (vkCreateFramebuffer(device, &info, alloc_callbacks, &fb) != VK_SUCCESS) {
+		printf("Creating framebuffer failed.\n");
+		exit(-1);
+	}
+	return _framebuffers.insert(fb);
+}
+
+VkFramebuffer* VulkanGraphicsDevice::get_framebuffer(Key<VkFramebuffer> key) {
+	return _framebuffers.get(key);
 }
 
 Key<VkRenderPass> VulkanGraphicsDevice::create_render_pass(VkRenderPassCreateInfo& info) {

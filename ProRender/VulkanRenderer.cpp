@@ -586,7 +586,7 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
     }
 
     //Record GPUInstanceData structure(s)
-    uint32_t instances = (uint32_t)instance_datas.size();
+    uint32_t instance_count = (uint32_t)instance_datas.size();
     for (InstanceData& in_data : instance_datas) {
         GPUInstanceData g_data = {
             .world_matrix = in_data.world_from_model,
@@ -599,18 +599,18 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
     //Finally, record the actual indirect draw command
     VkDrawIndexedIndirectCommand command = {
         .indexCount = index_data->length,
-        .instanceCount = instances,
+        .instanceCount = instance_count,
         .firstIndex = index_data->start,
-        .vertexOffset = 0,                   //UNUSED 
+        .vertexOffset = 0,                   //TODO: Eliminate GPUMeshData?
         .firstInstance = _instances_so_far
     };
-    _instances_so_far += instances;
+    _instances_so_far += instance_count;
     _draw_calls.push_back(command);
 
 }
 
 //
-void VulkanRenderer::render() {
+void VulkanRenderer::render(VulkanFrameBuffer& framebuffer) {
 
     //Upload material buffer if it changed
     if (_material_dirty_flag) {
@@ -618,7 +618,7 @@ void VulkanRenderer::render() {
 
         VulkanBuffer* mat_buffer = vgd->get_buffer(_material_buffer);
         GPUMaterial* ptr = static_cast<GPUMaterial*>(mat_buffer->alloc_info.pMappedData);
-        memcpy(ptr, _gpu_materials.data(), _gpu_materials.size());
+        memcpy(ptr, _gpu_materials.data(), _gpu_materials.size() * sizeof(GPUMaterial));
     }
 
     //Upload mesh buffer if it changed
@@ -627,15 +627,253 @@ void VulkanRenderer::render() {
 
         VulkanBuffer* mesh_buffer = vgd->get_buffer(_mesh_buffer);
         GPUMesh* ptr = static_cast<GPUMesh*>(mesh_buffer->alloc_info.pMappedData);
-        memcpy(ptr, _gpu_meshes.data(), _gpu_meshes.size());
+        memcpy(ptr, _gpu_meshes.data(), _gpu_meshes.size() * sizeof(GPUMesh));
     }
 
     //Upload instance data buffer
+    {
+        VulkanBuffer* instance_buffer = vgd->get_buffer(_instance_buffer);
+        GPUInstanceData* ptr = static_cast<GPUInstanceData*>(instance_buffer->alloc_info.pMappedData);
+        ptr += (_current_frame % FRAMES_IN_FLIGHT) * MAX_INSTANCES * sizeof(GPUInstanceData);
+        memcpy(ptr, _gpu_instance_datas.data(), _gpu_instance_datas.size() * sizeof(GPUInstanceData));
+    }
 
     //Upload indirect draw buffer
+    {
+        VulkanBuffer* indirect_draw_buffer = vgd->get_buffer(_indirect_draw_buffer);
+        VkDrawIndexedIndirectCommand* ptr = static_cast<VkDrawIndexedIndirectCommand*>(indirect_draw_buffer->alloc_info.pMappedData);
+        ptr += (_current_frame % FRAMES_IN_FLIGHT) * MAX_INDIRECT_DRAWS * sizeof(VkDrawIndexedIndirectCommand);
+        memcpy(ptr, _draw_calls.data(), _draw_calls.size() * sizeof(VkDrawIndexedIndirectCommand));
+    }
+
+    {
+		//Wait for command buffer to finish execution before trying to record to it
+		if (_current_frame >= FRAMES_IN_FLIGHT) {
+			uint64_t wait_value = _current_frame - FRAMES_IN_FLIGHT + 1;
+
+			VkSemaphoreWaitInfo info = {};
+			info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+			info.semaphoreCount = 1;
+			info.pSemaphores = &graphics_timeline_semaphore;
+			info.pValues = &wait_value;
+			if (vkWaitSemaphores(vgd->device, &info, std::numeric_limits<uint64_t>::max()) != VK_SUCCESS) {
+				printf("Waiting for graphics timeline semaphore failed.\n");
+				exit(-1);
+			}
+		}
+		
+		uint64_t in_flight_frame = _current_frame % FRAMES_IN_FLIGHT;
+
+		//Acquire swapchain image for this frame
+		//We want to do this as soon as possible
+		// uint32_t acquired_image_idx;
+		// vkAcquireNextImageKHR(vgd->device, window.swapchain, std::numeric_limits<uint64_t>::max(), window.acquire_semaphores[in_flight_frame], VK_NULL_HANDLE, &acquired_image_idx);
+
+		VkCommandBuffer frame_cb = vgd->command_buffers[in_flight_frame];
+
+		VkCommandBufferBeginInfo begin_info = {
+			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+			.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+		};
+		vkBeginCommandBuffer(frame_cb, &begin_info);
+
+		//Per-frame checking of pending images to see if they're ready
+		vgd->tick_image_uploads(frame_cb, descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
+		uint64_t upload_batches_completed = vgd->completed_image_batches();
+
+		//Check for plane image
+		// {
+		// 	static uint32_t gen_bits = 0;
+		// 	if (!know_plane_image && plane_image_batch_id <= upload_batches_completed) {
+		// 		know_plane_image = true;
+		// 		for (auto it = vgd->available_images.begin(); it != vgd->available_images.end(); ++it) {
+		// 			VulkanAvailableImage& image = *it;
+		// 			if (plane_image_batch_id == image.batch_id && image.original_idx == which_image) {
+		// 				plane_image_idx = it.slot_index();
+		// 				gen_bits = it.generation_bits();
+		// 				break;
+		// 			}
+		// 		}
+		// 	}
+
+		// 	if (know_plane_image) {
+		// 		uint64_t key = (static_cast<uint64_t>(gen_bits) << 32) | plane_image_idx;
+		// 		if (!vgd->available_images.get(key)) {
+		// 			know_plane_image = false;
+		// 			plane_image_idx = imgui_renderer.get_atlas_idx();
+		// 		}
+		// 	}
+		// }
+
+		//Begin render pass
+		{
+			VkRect2D area = {
+				.offset = {
+					.x = 0,
+					.y = 0
+				},
+				.extent = {
+					.width = framebuffer.width,
+					.height = framebuffer.height
+				}
+			};
+
+			VkClearValue clear_color;
+			clear_color.color.float32[0] = 0.0f;
+			clear_color.color.float32[1] = 0.0f;
+			clear_color.color.float32[2] = 0.0f;
+			clear_color.color.float32[3] = 1.0f;
+			clear_color.depthStencil.depth = 0.0f;
+			clear_color.depthStencil.stencil = 0;
+
+			VkRenderPassBeginInfo info = {};
+			info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+			info.renderPass = *vgd->get_render_pass(framebuffer.render_pass);
+			//info.framebuffer = window.swapchain_framebuffers[acquired_image_idx];
+            info.framebuffer = *vgd->get_framebuffer(framebuffer.fb);
+			info.renderArea = area;
+			info.clearValueCount = 1;
+			info.pClearValues = &clear_color;
+
+			vkCmdBeginRenderPass(frame_cb, &info, VK_SUBPASS_CONTENTS_INLINE);
+		}
+
+		//Set viewport and scissor
+		{
+			VkViewport viewport = {
+				.x = 0,
+				.y = 0,
+				.width = (float)framebuffer.width,
+				.height = (float)framebuffer.height,
+				.minDepth = 0.0,
+				.maxDepth = 1.0
+			};
+			vkCmdSetViewport(frame_cb, 0, 1, &viewport);
+
+			VkRect2D scissor = {
+				.offset = {
+					.x = 0,
+					.y = 0
+				},
+				.extent = {
+					.width = framebuffer.width,
+					.height = framebuffer.height
+				}
+			};
+			vkCmdSetScissor(frame_cb, 0, 1, &scissor);
+		}
+
+		vkCmdBindDescriptorSets(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, *vgd->get_pipeline_layout(pipeline_layout_id), 0, 1, &descriptor_set, 0, nullptr);
+
+		//Bind global index buffer
+		vkCmdBindIndexBuffer(frame_cb, vgd->get_buffer(index_buffer)->buffer, 0, VK_INDEX_TYPE_UINT16);
+		
+		//Bind pipeline for this pass
+		vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd->get_graphics_pipeline(ps1_pipeline)->pipeline);
+
+		//Draw hardcoded plane
+		// {
+		// 	//Find GPU index of main viewport camera
+		// 	uint32_t main_cam_idx;
+		// 	{
+		// 		for (uint32_t i = 0; i < cam_idx_map.size(); ++i) {
+		// 			if (cam_idx_map[i] == EXTRACT_IDX(main_viewport_camera.value())) {
+		// 				main_cam_idx = i;
+		// 				break;
+		// 			}
+		// 		}
+		// 	}
+
+		// 	uint32_t image_idx = imgui_renderer.get_atlas_idx();
+		// 	if (plane_image_idx != 0xFFFFFFFF)
+		// 		image_idx = plane_image_idx;
+
+		// 	BufferView* plane_positions = renderer.get_vertex_positions(plane_mesh_key);
+		// 	BufferView* plane_uvs = renderer.get_vertex_uvs(plane_mesh_key);
+		// 	BufferView* plane_indices = renderer.get_indices16(plane_mesh_key);
+
+		// 	uint32_t pcs[] = {
+		// 		plane_positions->start / 4,
+		// 		plane_uvs->start / 2,
+		// 		main_cam_idx,
+		// 		image_idx,
+		// 		renderer.standard_sampler_idx
+		// 	};
+		// 	vkCmdPushConstants(frame_cb, *vgd->get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 20, pcs);
+
+		// 	vkCmdDrawIndexed(frame_cb, plane_indices->length, 1, plane_indices->start, 0, 0);
+		// }
 
 
+		//Record imgui drawing commands into this frame's command buffer
+		//imgui_renderer.draw(frame_cb, current_frame);
 
+		vkCmdEndRenderPass(frame_cb);
+		vkEndCommandBuffer(frame_cb);
+
+		//Submit rendering command buffer
+		VkQueue q;
+		vkGetDeviceQueue(vgd->device, vgd->graphics_queue_family_idx, 0, &q);
+		{
+			uint64_t wait_values[] = {0, upload_batches_completed};
+			uint64_t signal_values[] = {_current_frame + 1, 0};
+			VkTimelineSemaphoreSubmitInfo ts_info = {};
+			ts_info.waitSemaphoreValueCount = 2;
+			ts_info.pWaitSemaphoreValues = wait_values;
+			ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+			ts_info.signalSemaphoreValueCount = 2;
+			ts_info.pSignalSemaphoreValues = signal_values;
+
+			VkPipelineStageFlags wait_flags[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
+
+			VkSubmitInfo info = {};
+			VkSemaphore signal_semaphores[] = { graphics_timeline_semaphore, window.present_semaphores[in_flight_frame] };
+			VkSemaphore wait_semaphores[] = {window.acquire_semaphores[in_flight_frame], vgd->image_upload_semaphore};
+			info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			info.pNext = &ts_info;
+			info.waitSemaphoreCount = 2;
+			info.pWaitSemaphores = wait_semaphores;
+			info.pWaitDstStageMask = wait_flags;
+			info.signalSemaphoreCount = 2;
+			info.pSignalSemaphores = signal_semaphores;
+			info.commandBufferCount = 1;
+			info.pCommandBuffers = &frame_cb;
+
+			if (vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE) != VK_SUCCESS) {
+				printf("Queue submit failed.\n");
+				exit(-1);
+			}
+		}
+
+		//Queue present
+		// {
+		// 	VkPresentInfoKHR info = {};
+		// 	info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		// 	info.waitSemaphoreCount = 1;
+		// 	info.pWaitSemaphores = &window.present_semaphores[in_flight_frame];
+		// 	info.swapchainCount = 1;
+		// 	info.pSwapchains = &window.swapchain;
+		// 	info.pImageIndices = &acquired_image_idx;
+		// 	info.pResults = VK_NULL_HANDLE;
+
+		// 	VkResult r = vkQueuePresentKHR(q, &info);
+		// 	switch (r) {
+		// 		case VK_SUBOPTIMAL_KHR:
+		// 			printf("Swapchain suboptimal.\n");
+		// 			break;
+		// 		case VK_ERROR_OUT_OF_DATE_KHR:
+		// 			printf("Swapchain out of date.\n");
+		// 			window.resize(vgd);
+		// 			break;
+		// 		case VK_SUCCESS:
+		// 			break;
+		// 		default:
+		// 			printf("Queue present failed.\n");
+		// 			exit(-1);
+		// 			break;
+		// 	}
+		// }
+	}
 
 
 
@@ -644,6 +882,8 @@ void VulkanRenderer::render() {
     _draw_calls.clear();
     _gpu_instance_datas.clear();
     _instances_so_far = 0;
+    
+    _current_frame += 1;
 }
 
 VulkanRenderer::~VulkanRenderer() {

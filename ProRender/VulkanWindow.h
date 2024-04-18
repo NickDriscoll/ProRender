@@ -27,5 +27,6 @@ struct VulkanWindow {
 	VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface);
 	~VulkanWindow();
 
+	VulkanFrameBuffer acquire_framebuffer(VulkanGraphicsDevice& vgd, uint64_t current_frame);
 	void resize(VulkanGraphicsDevice& vgd);
 };

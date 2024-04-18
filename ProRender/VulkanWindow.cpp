@@ -323,3 +323,17 @@ void VulkanWindow::resize(VulkanGraphicsDevice& vgd) {
 		}
 	}
 }
+
+VulkanFrameBuffer VulkanWindow::acquire_framebuffer(VulkanGraphicsDevice& vgd, uint64_t current_frame) {
+	uint64_t in_flight_frame = current_frame % FRAMES_IN_FLIGHT;
+	uint32_t acquired_image_idx;
+	vkAcquireNextImageKHR(vgd.device, swapchain, std::numeric_limits<uint64_t>::max(), acquire_semaphores[in_flight_frame], VK_NULL_HANDLE, &acquired_image_idx);
+
+	VulkanFrameBuffer vkfb = {
+		.width = x_resolution,
+		.height = y_resolution,
+		.fb = swapchain_framebuffers[acquired_image_idx],
+		.render_pass = swapchain_renderpass
+	};
+	return vkfb;
+}

@@ -51,6 +51,13 @@ struct VulkanImage {
 	VmaAllocation image_allocation;
 };
 
+struct VulkanFrameBuffer {
+	uint32_t width;
+	uint32_t height;
+	Key<VkFramebuffer> fb;
+	Key<VkRenderPass> render_pass;
+};
+
 struct BufferDeletion {
 	uint32_t idx;
 	uint32_t frames_til;
@@ -171,8 +178,10 @@ struct VulkanGraphicsDevice {
 	VkSemaphore create_timeline_semaphore(uint64_t initial_value);
 	uint64_t check_timeline_semaphore(VkSemaphore semaphore);
 
-	Key<VkRenderPass> create_render_pass(VkRenderPassCreateInfo& info);
+	Key<VkFramebuffer> create_framebuffer(VkFramebufferCreateInfo& info);
+	VkFramebuffer* get_framebuffer(Key<VkFramebuffer> key);
 
+	Key<VkRenderPass> create_render_pass(VkRenderPassCreateInfo& info);
 	VkRenderPass* get_render_pass(Key<VkRenderPass> key);
 
 	VkShaderModule load_shader_module(const char* path);
@@ -207,6 +216,7 @@ private:
 
 	slotmap<VkDescriptorSetLayout> _descriptor_set_layouts;
 	slotmap<VkPipelineLayout> _pipeline_layouts;
+	slotmap<VkFramebuffer> _framebuffers;
 	slotmap<VkRenderPass> _render_passes;
 	slotmap<VulkanGraphicsPipeline> _graphics_pipelines;
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _graphics_command_buffers;
