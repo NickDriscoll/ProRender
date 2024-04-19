@@ -609,8 +609,9 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
 
 }
 
-//
-void VulkanRenderer::render(VulkanFrameBuffer& framebuffer) {
+//Synchronizes CPU and GPU buffers, then
+//records and submits all rendering commands in one command buffer
+void VulkanRenderer::render(VulkanFrameBuffer& framebuffer, ) {
 
     //Upload material buffer if it changed
     if (_material_dirty_flag) {
@@ -654,7 +655,7 @@ void VulkanRenderer::render(VulkanFrameBuffer& framebuffer) {
 			VkSemaphoreWaitInfo info = {};
 			info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
 			info.semaphoreCount = 1;
-			info.pSemaphores = &graphics_timeline_semaphore;
+			info.pSemaphores = vgd->get_semaphore(graphics_timeline_semaphore);
 			info.pValues = &wait_value;
 			if (vkWaitSemaphores(vgd->device, &info, std::numeric_limits<uint64_t>::max()) != VK_SUCCESS) {
 				printf("Waiting for graphics timeline semaphore failed.\n");
@@ -669,7 +670,8 @@ void VulkanRenderer::render(VulkanFrameBuffer& framebuffer) {
 		// uint32_t acquired_image_idx;
 		// vkAcquireNextImageKHR(vgd->device, window.swapchain, std::numeric_limits<uint64_t>::max(), window.acquire_semaphores[in_flight_frame], VK_NULL_HANDLE, &acquired_image_idx);
 
-		VkCommandBuffer frame_cb = vgd->command_buffers[in_flight_frame];
+		//VkCommandBuffer frame_cb = vgd->command_buffers[in_flight_frame];
+        VkCommandBuffer frame_cb = vgd->borrow_graphics_command_buffer();
 
 		VkCommandBufferBeginInfo begin_info = {
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -680,30 +682,6 @@ void VulkanRenderer::render(VulkanFrameBuffer& framebuffer) {
 		//Per-frame checking of pending images to see if they're ready
 		vgd->tick_image_uploads(frame_cb, descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
 		uint64_t upload_batches_completed = vgd->completed_image_batches();
-
-		//Check for plane image
-		// {
-		// 	static uint32_t gen_bits = 0;
-		// 	if (!know_plane_image && plane_image_batch_id <= upload_batches_completed) {
-		// 		know_plane_image = true;
-		// 		for (auto it = vgd->available_images.begin(); it != vgd->available_images.end(); ++it) {
-		// 			VulkanAvailableImage& image = *it;
-		// 			if (plane_image_batch_id == image.batch_id && image.original_idx == which_image) {
-		// 				plane_image_idx = it.slot_index();
-		// 				gen_bits = it.generation_bits();
-		// 				break;
-		// 			}
-		// 		}
-		// 	}
-
-		// 	if (know_plane_image) {
-		// 		uint64_t key = (static_cast<uint64_t>(gen_bits) << 32) | plane_image_idx;
-		// 		if (!vgd->available_images.get(key)) {
-		// 			know_plane_image = false;
-		// 			plane_image_idx = imgui_renderer.get_atlas_idx();
-		// 		}
-		// 	}
-		// }
 
 		//Begin render pass
 		{
@@ -729,7 +707,6 @@ void VulkanRenderer::render(VulkanFrameBuffer& framebuffer) {
 			VkRenderPassBeginInfo info = {};
 			info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 			info.renderPass = *vgd->get_render_pass(framebuffer.render_pass);
-			//info.framebuffer = window.swapchain_framebuffers[acquired_image_idx];
             info.framebuffer = *vgd->get_framebuffer(framebuffer.fb);
 			info.renderArea = area;
 			info.clearValueCount = 1;
@@ -812,38 +789,46 @@ void VulkanRenderer::render(VulkanFrameBuffer& framebuffer) {
 		vkEndCommandBuffer(frame_cb);
 
 		//Submit rendering command buffer
-		VkQueue q;
-		vkGetDeviceQueue(vgd->device, vgd->graphics_queue_family_idx, 0, &q);
-		{
-			uint64_t wait_values[] = {0, upload_batches_completed};
-			uint64_t signal_values[] = {_current_frame + 1, 0};
-			VkTimelineSemaphoreSubmitInfo ts_info = {};
-			ts_info.waitSemaphoreValueCount = 2;
-			ts_info.pWaitSemaphoreValues = wait_values;
-			ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-			ts_info.signalSemaphoreValueCount = 2;
-			ts_info.pSignalSemaphoreValues = signal_values;
+        SubmitSemaphores sems = {
+            .wait_values = {0, upload_batches_completed},
+            .signal_values = {_current_frame + 1, 0},
+            .wait_semaphores = {window.acquire_semaphores[in_flight_frame], vgd->image_upload_semaphore},
+            .signal_semaphores = { graphics_timeline_semaphore, *vgd->get_semaphore(semaphore) },
+            .count = 2,
+        }
 
-			VkPipelineStageFlags wait_flags[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
+		// VkQueue q;
+		// vkGetDeviceQueue(vgd->device, vgd->graphics_queue_family_idx, 0, &q);
+		// {
+		// 	uint64_t wait_values[] = {0, upload_batches_completed};
+		// 	uint64_t signal_values[] = {_current_frame + 1, 0};
+		// 	VkTimelineSemaphoreSubmitInfo ts_info = {};
+		// 	ts_info.waitSemaphoreValueCount = 2;
+		// 	ts_info.pWaitSemaphoreValues = wait_values;
+		// 	ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+		// 	ts_info.signalSemaphoreValueCount = 2;
+		// 	ts_info.pSignalSemaphoreValues = signal_values;
 
-			VkSubmitInfo info = {};
-			VkSemaphore signal_semaphores[] = { graphics_timeline_semaphore, window.present_semaphores[in_flight_frame] };
-			VkSemaphore wait_semaphores[] = {window.acquire_semaphores[in_flight_frame], vgd->image_upload_semaphore};
-			info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-			info.pNext = &ts_info;
-			info.waitSemaphoreCount = 2;
-			info.pWaitSemaphores = wait_semaphores;
-			info.pWaitDstStageMask = wait_flags;
-			info.signalSemaphoreCount = 2;
-			info.pSignalSemaphores = signal_semaphores;
-			info.commandBufferCount = 1;
-			info.pCommandBuffers = &frame_cb;
+		// 	VkPipelineStageFlags wait_flags[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
 
-			if (vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE) != VK_SUCCESS) {
-				printf("Queue submit failed.\n");
-				exit(-1);
-			}
-		}
+		// 	VkSubmitInfo info = {};
+		// 	VkSemaphore signal_semaphores[] = { graphics_timeline_semaphore, *vgd->get_semaphore(semaphore) };
+		// 	VkSemaphore wait_semaphores[] = {window.acquire_semaphores[in_flight_frame], vgd->image_upload_semaphore};
+		// 	info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		// 	info.pNext = &ts_info;
+		// 	info.waitSemaphoreCount = 2;
+		// 	info.pWaitSemaphores = wait_semaphores;
+		// 	info.pWaitDstStageMask = wait_flags;
+		// 	info.signalSemaphoreCount = 2;
+		// 	info.pSignalSemaphores = signal_semaphores;
+		// 	info.commandBufferCount = 1;
+		// 	info.pCommandBuffers = &frame_cb;
+
+		// 	if (vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE) != VK_SUCCESS) {
+		// 		printf("Queue submit failed.\n");
+		// 		exit(-1);
+		// 	}
+		// }
 
 		//Queue present
 		// {

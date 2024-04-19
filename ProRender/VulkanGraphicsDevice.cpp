@@ -12,6 +12,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	_pending_images.alloc(1024 * 1024);
 	_image_upload_batches.alloc(1024);
 	_framebuffers.alloc(1024);
+	_semaphores.alloc(1024);
 	_render_passes.alloc(32);
 	_graphics_pipelines.alloc(32);
 	_descriptor_set_layouts.alloc(64);
@@ -344,22 +345,6 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		_transfer_command_buffers = std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>>(storage);
 	}
 
-	//Allocate command buffers
-	{
-		VkCommandBufferAllocateInfo cb_info = {};
-		cb_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		cb_info.commandPool = graphics_command_pool;
-		cb_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		cb_info.commandBufferCount = FRAMES_IN_FLIGHT;
-
-		if (vkAllocateCommandBuffers(device, &cb_info, command_buffers) != VK_SUCCESS) {
-			printf("Creating main command buffers failed.\n");
-			exit(-1);
-		}
-	}
-	timer.print("Command buffer allocation");
-	timer.start();
-
 	image_upload_semaphore = create_timeline_semaphore(0);
 
 	//Create pipeline cache
@@ -452,11 +437,13 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 		vkDestroyDescriptorSetLayout(device, p, alloc_callbacks);
 	}
 
+	for (VkSemaphore& s : _semaphores) {
+		vkDestroySemaphore(device, s, alloc_callbacks);
+	}
+
 	//Wait for the image upload thread
 	_image_upload_running = false;
 	_image_upload_thread.join();
-	
-	vkDestroySemaphore(device, image_upload_semaphore, alloc_callbacks);
 
 	vkDestroyCommandPool(device, transfer_command_pool, alloc_callbacks);
 	vkDestroyCommandPool(device, graphics_command_pool, alloc_callbacks);
@@ -466,6 +453,58 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 
 	vkDestroyDevice(device, alloc_callbacks);
 	vkDestroyInstance(instance, alloc_callbacks);
+}
+
+VkCommandBuffer VulkanGraphicsDevice::borrow_graphics_command_buffer() {
+	VkCommandBuffer cb = _graphics_command_buffers.top();
+	_graphics_command_buffers.pop();
+	return cb;
+}
+
+void VulkanGraphicsDevice::graphics_queue_submit(VkCommandBuffer cb, SubmitSemaphores& sems) {
+	VkQueue q;
+	vkGetDeviceQueue(device, graphics_queue_family_idx, 0, &q);
+	{
+		std::vector<uint64_t> wait_values;
+		wait_values.reserve(MAX_SEMAPHORES + 1);
+		wait_values.push_back(_image_batches_completed);
+		wait_values.emplace_back(sems.wait_values);
+		std::vector<uint64_t> signal_values;
+		signal_values.reserve(MAX_SEMAPHORES + 1);
+		signal_values.push_back(_image_batches_completed);
+		signal_values.emplace_back(sems.signal_values);
+
+		VkTimelineSemaphoreSubmitInfo ts_info = {};
+		ts_info.waitSemaphoreValueCount = sems.count + 1;
+		ts_info.pWaitSemaphoreValues = sems.wait_values;
+		ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+		ts_info.signalSemaphoreValueCount = sems.count + 1;
+		ts_info.pSignalSemaphoreValues = sems.signal_values;
+
+		VkPipelineStageFlags wait_flags[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
+
+		std::vector<VkSemaphore> wait_semaphores;
+		wait_semaphores.reserve(MAX_SEMAPHORES + 1);
+		wait_semaphores.push_back(*get_semaphore(image_upload_semaphore));
+		wait_semaphores.emplace_back(sems.wait_semaphores);
+
+		VkSubmitInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		info.pNext = &ts_info;
+		info.waitSemaphoreCount = wait_semaphores.size();
+		info.pWaitSemaphores = wait_semaphores.data();
+		info.pWaitDstStageMask = wait_flags;
+		info.signalSemaphoreCount = sems.count;
+		info.pSignalSemaphores = sems.signal_semaphores;
+		info.commandBufferCount = 1;
+		info.pCommandBuffers = &cb;
+
+		if (vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE) != VK_SUCCESS) {
+			printf("Queue submit failed.\n");
+			exit(-1);
+		}
+	}
+	_graphics_command_buffers.push(cb);
 }
 
 VkCommandBuffer VulkanGraphicsDevice::borrow_transfer_command_buffer() {
@@ -1082,7 +1121,7 @@ void VulkanGraphicsDevice::submit_image_upload_batch(uint64_t id, const std::vec
 		info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		info.pNext = &ts_info;
 		info.signalSemaphoreCount = 1;
-		info.pSignalSemaphores = &image_upload_semaphore;
+		info.pSignalSemaphores = get_semaphore(image_upload_semaphore);
 		info.commandBufferCount = 1;
 		info.pCommandBuffers = &current_batch.command_buffer;
 		info.pWaitDstStageMask = flags;
@@ -1527,7 +1566,20 @@ void VulkanGraphicsDevice::service_deletion_queues() {
 	}
 }
 
-VkSemaphore VulkanGraphicsDevice::create_timeline_semaphore(uint64_t initial_value) {
+Key<VkSemaphore> VulkanGraphicsDevice::create_semaphore(VkSemaphoreCreateInfo& info) {
+	VkSemaphore s;
+	if (vkCreateSemaphore(device, &info, alloc_callbacks, &s) != VK_SUCCESS) {
+		printf("Creating semaphore failed.\n");
+		exit(-1);
+	}
+	return _semaphores.insert(s);
+}
+
+VkSemaphore* VulkanGraphicsDevice::get_semaphore(Key<VkSemaphore> key) {
+	return _semaphores.get(key);
+}
+
+Key<VkSemaphore> VulkanGraphicsDevice::create_timeline_semaphore(uint64_t initial_value) {
 	VkSemaphoreTypeCreateInfo type_info = {};
 	type_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
 	type_info.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
@@ -1537,17 +1589,12 @@ VkSemaphore VulkanGraphicsDevice::create_timeline_semaphore(uint64_t initial_val
 	info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 	info.pNext = &type_info;
 
-	VkSemaphore ts;
-	if (vkCreateSemaphore(device, &info, alloc_callbacks, &ts) != VK_SUCCESS) {
-		printf("Creating timeline semaphore failed.\n");
-		exit(-1);
-	}
-	return ts;
+	return create_semaphore(info);
 }
 
-uint64_t VulkanGraphicsDevice::check_timeline_semaphore(VkSemaphore semaphore) {
+uint64_t VulkanGraphicsDevice::check_timeline_semaphore(Key<VkSemaphore> semaphore) {
 	uint64_t value;
-	vkGetSemaphoreCounterValue(device, semaphore, &value);
+	vkGetSemaphoreCounterValue(device, *get_semaphore(semaphore), &value);
 	return value;
 }
 

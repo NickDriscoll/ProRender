@@ -85,7 +85,7 @@ struct InstanceData {
 struct VulkanRenderer {
 	Key<VulkanGraphicsPipeline> ps1_pipeline;
 
-	VkSemaphore graphics_timeline_semaphore;
+	Key<VkSemaphore> graphics_timeline_semaphore;
 
 	Key<VkDescriptorSetLayout> descriptor_set_layout_id;
 	Key<VkPipelineLayout> pipeline_layout_id;
@@ -126,7 +126,7 @@ struct VulkanRenderer {
 	void ps1_draw(Key<BufferView> mesh_key, Key<Material> material_key, const std::span<InstanceData>& instance_datas);
 
 	//Called at the end of each frame
-	void render(VulkanFrameBuffer& framebuffer);
+	void render(VulkanFrameBuffer& framebuffer, Key<VkSemaphore> wait_semaphores[MAX_SEMAPHORES], Key<VkSemaphore> signal_semaphores[MAX_SEMAPHORES]);
 
 	VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swapchain_renderpass);
 	~VulkanRenderer();

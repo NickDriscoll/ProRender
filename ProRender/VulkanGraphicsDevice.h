@@ -109,6 +109,15 @@ struct FileImageBatchParameters {
 	const std::vector<VkFormat> image_formats;
 };
 
+#define MAX_SEMAPHORES 4
+struct SubmitSemaphores {
+	uint64_t wait_values[MAX_SEMAPHORES];
+	uint64_t signal_values[MAX_SEMAPHORES];
+	Key<VkSemaphore> wait_semaphores[MAX_SEMAPHORES];
+	Key<VkSemaphore> signal_semaphores[MAX_SEMAPHORES];
+	uint32_t count;
+};
+
 struct VulkanGraphicsDevice {
 	const VkAllocationCallbacks* alloc_callbacks;
 	VkInstance instance;
@@ -125,14 +134,16 @@ struct VulkanGraphicsDevice {
 
 	VkCommandPool graphics_command_pool;
 	VkCommandPool transfer_command_pool;
-	VkCommandBuffer command_buffers[FRAMES_IN_FLIGHT];
-	VkSemaphore image_upload_semaphore;			//Timeline semaphore whose value increments by one for each image upload batch
+	//VkCommandBuffer command_buffers[FRAMES_IN_FLIGHT];
+	Key<VkSemaphore> image_upload_semaphore;			//Timeline semaphore whose value increments by one for each image upload batch
 	
 	slotmap<VulkanAvailableImage> available_images;
 
 	VmaAllocator allocator;		//Thank you, AMD
 	const VmaDeviceMemoryCallbacks* vma_alloc_callbacks;
 
+	VkCommandBuffer borrow_graphics_command_buffer();
+	void graphics_queue_submit(VkCommandBuffer cb, SubmitSemaphores& sems);
 	VkCommandBuffer borrow_transfer_command_buffer();
 	void return_transfer_command_buffer(VkCommandBuffer cb);
 
@@ -161,6 +172,11 @@ struct VulkanGraphicsDevice {
 	VulkanBuffer* get_buffer(Key<VulkanBuffer> key);
 	void destroy_buffer(Key<VulkanBuffer> key);
 
+	Key<VkSemaphore> create_semaphore(VkSemaphoreCreateInfo& info);
+	VkSemaphore* get_semaphore(Key<VkSemaphore> key);
+	Key<VkSemaphore> create_timeline_semaphore(uint64_t initial_value);
+	uint64_t check_timeline_semaphore(Key<VkSemaphore> semaphore);
+
 	VkSampler create_sampler(VkSamplerCreateInfo& info);
 
 	uint64_t load_raw_images(
@@ -174,9 +190,6 @@ struct VulkanGraphicsDevice {
 	void tick_image_uploads(VkCommandBuffer render_cb, VkDescriptorSet descriptor_set, uint32_t binding);
 	uint64_t completed_image_batches();
 	void destroy_image(Key<VulkanAvailableImage> key);
-
-	VkSemaphore create_timeline_semaphore(uint64_t initial_value);
-	uint64_t check_timeline_semaphore(VkSemaphore semaphore);
 
 	Key<VkFramebuffer> create_framebuffer(VkFramebufferCreateInfo& info);
 	VkFramebuffer* get_framebuffer(Key<VkFramebuffer> key);
@@ -218,6 +231,7 @@ private:
 	slotmap<VkPipelineLayout> _pipeline_layouts;
 	slotmap<VkFramebuffer> _framebuffers;
 	slotmap<VkRenderPass> _render_passes;
+	slotmap<VkSemaphore> _semaphores;
 	slotmap<VulkanGraphicsPipeline> _graphics_pipelines;
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _graphics_command_buffers;
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _transfer_command_buffers;

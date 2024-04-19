@@ -688,7 +688,7 @@ int main(int argc, char* argv[]) {
 		// }
 
 		//End-of-frame bookkeeping
-		current_frame++;
+		//current_frame++;
 		last_frame_took = frame_timer.check();
 	}
 
