@@ -466,7 +466,7 @@ int main(int argc, char* argv[]) {
 		};
 		vkBeginCommandBuffer(frame_cb, &begin_info);
 		SemaphoreWait w = {
-			.wait_value = renderer.get_current_frame() + FRAMES_IN_FLIGHT,
+			.wait_value = renderer.get_current_frame() + 1,
 			.wait_semaphore = renderer.frames_completed_semaphore
 		};
 		vgd.return_command_buffer(frame_cb, w);
