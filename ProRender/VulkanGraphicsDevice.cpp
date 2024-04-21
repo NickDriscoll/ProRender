@@ -461,41 +461,43 @@ VkCommandBuffer VulkanGraphicsDevice::borrow_graphics_command_buffer() {
 	return cb;
 }
 
-void VulkanGraphicsDevice::graphics_queue_submit(VkCommandBuffer cb, SubmitSemaphores& sems) {
+void VulkanGraphicsDevice::return_command_buffer(VkCommandBuffer cb, SemaphoreWait& wait) {
+	_command_buffer_returns.push_back({
+		.cb = cb,
+		.wait = wait
+	});
+}
+
+void VulkanGraphicsDevice::graphics_queue_submit(VkCommandBuffer cb, SyncData& sync_data) {
+	//End the command buffer
+	vkEndCommandBuffer(cb);
+
 	VkQueue q;
 	vkGetDeviceQueue(device, graphics_queue_family_idx, 0, &q);
 	{
-		std::vector<uint64_t> wait_values;
-		wait_values.reserve(MAX_SEMAPHORES + 1);
-		wait_values.push_back(_image_batches_completed);
-		wait_values.emplace_back(sems.wait_values);
-		std::vector<uint64_t> signal_values;
-		signal_values.reserve(MAX_SEMAPHORES + 1);
-		signal_values.push_back(_image_batches_completed);
-		signal_values.emplace_back(sems.signal_values);
+		sync_data.wait_semaphores.push_back(*_semaphores.get(image_upload_semaphore));
+		sync_data.wait_values.push_back(_image_batches_completed);
 
+		uint32_t wait_count = sync_data.wait_semaphores.size();
+		uint32_t signal_count = sync_data.signal_semaphores.size();
 		VkTimelineSemaphoreSubmitInfo ts_info = {};
-		ts_info.waitSemaphoreValueCount = sems.count + 1;
-		ts_info.pWaitSemaphoreValues = sems.wait_values;
+		ts_info.waitSemaphoreValueCount = wait_count;
+		ts_info.pWaitSemaphoreValues = sync_data.wait_values.data();
 		ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-		ts_info.signalSemaphoreValueCount = sems.count + 1;
-		ts_info.pSignalSemaphoreValues = sems.signal_values;
+		ts_info.signalSemaphoreValueCount = signal_count;
+		ts_info.pSignalSemaphoreValues = sync_data.signal_values.data();
 
+		//TODO: Reevaluate this line
 		VkPipelineStageFlags wait_flags[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
-
-		std::vector<VkSemaphore> wait_semaphores;
-		wait_semaphores.reserve(MAX_SEMAPHORES + 1);
-		wait_semaphores.push_back(*get_semaphore(image_upload_semaphore));
-		wait_semaphores.emplace_back(sems.wait_semaphores);
 
 		VkSubmitInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		info.pNext = &ts_info;
-		info.waitSemaphoreCount = wait_semaphores.size();
-		info.pWaitSemaphores = wait_semaphores.data();
+		info.waitSemaphoreCount = wait_count;
+		info.pWaitSemaphores = sync_data.wait_semaphores.data();
 		info.pWaitDstStageMask = wait_flags;
-		info.signalSemaphoreCount = sems.count;
-		info.pSignalSemaphores = sems.signal_semaphores;
+		info.signalSemaphoreCount = signal_count;
+		info.pSignalSemaphores = sync_data.signal_semaphores.data();
 		info.commandBufferCount = 1;
 		info.pCommandBuffers = &cb;
 
@@ -504,7 +506,6 @@ void VulkanGraphicsDevice::graphics_queue_submit(VkCommandBuffer cb, SubmitSemap
 			exit(-1);
 		}
 	}
-	_graphics_command_buffers.push(cb);
 }
 
 VkCommandBuffer VulkanGraphicsDevice::borrow_transfer_command_buffer() {
@@ -1564,6 +1565,22 @@ void VulkanGraphicsDevice::service_deletion_queues() {
 			deleted_count -= 1;
 		}
 	}
+
+	//Service command buffer queue
+	{
+		uint32_t deleted_count = 0;
+		for (CommandBufferReturn& cb_return : _command_buffer_returns) {
+			if (cb_return.wait.wait_value == check_timeline_semaphore(cb_return.wait.wait_semaphore)) {
+				_graphics_command_buffers.push(cb_return.cb);
+				deleted_count += 1;
+			}
+		}
+
+		while (deleted_count > 0) {
+			_command_buffer_returns.pop_back();
+			deleted_count -= 1;
+		}
+	}
 }
 
 Key<VkSemaphore> VulkanGraphicsDevice::create_semaphore(VkSemaphoreCreateInfo& info) {
@@ -1613,6 +1630,10 @@ Key<VkFramebuffer> VulkanGraphicsDevice::create_framebuffer(VkFramebufferCreateI
 
 VkFramebuffer* VulkanGraphicsDevice::get_framebuffer(Key<VkFramebuffer> key) {
 	return _framebuffers.get(key);
+}
+
+void VulkanGraphicsDevice::destroy_framebuffer(Key<VkFramebuffer> key) {
+	_framebuffers.remove(EXTRACT_IDX(key.value()));
 }
 
 Key<VkRenderPass> VulkanGraphicsDevice::create_render_pass(VkRenderPassCreateInfo& info) {

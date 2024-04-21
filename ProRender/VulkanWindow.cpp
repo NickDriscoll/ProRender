@@ -171,10 +171,7 @@ VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 			info.height = y_resolution;
 			info.layers = 1;
 
-			if (vkCreateFramebuffer(vgd.device, &info, vgd.alloc_callbacks, &swapchain_framebuffers[i]) != VK_SUCCESS) {
-				printf("Creating swapchain framebuffer %i failed.\n", i);
-				exit(-1);
-			}
+			swapchain_framebuffers[i] = vgd.create_framebuffer(info);
 		}
 	}
 
@@ -205,9 +202,6 @@ VulkanWindow::~VulkanWindow() {
 		vkDestroySemaphore(device, present_semaphores[i], alloc_callbacks);
 	}
 
-	for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
-		vkDestroyFramebuffer(device, swapchain_framebuffers[i], alloc_callbacks);
-	}
 	for (uint32_t i = 0; i < swapchain_image_views.size(); i++) {
 		vkDestroyImageView(device, swapchain_image_views[i], alloc_callbacks);
 	}
@@ -221,7 +215,7 @@ void VulkanWindow::resize(VulkanGraphicsDevice& vgd) {
 	
 	//Destroy old swapchain resources
 	for (uint32_t i = 0; i < swapchain_framebuffers.size(); i++) {
-		vkDestroyFramebuffer(device, swapchain_framebuffers[i], alloc_callbacks);
+		vgd.destroy_framebuffer(swapchain_framebuffers[i]);
 	}
 	for (uint32_t i = 0; i < swapchain_image_views.size(); i++) {
 		vkDestroyImageView(device, swapchain_image_views[i], alloc_callbacks);
@@ -316,24 +310,68 @@ void VulkanWindow::resize(VulkanGraphicsDevice& vgd) {
 			info.height = y_resolution;
 			info.layers = 1;
 
-			if (vkCreateFramebuffer(vgd.device, &info, vgd.alloc_callbacks, &swapchain_framebuffers[i]) != VK_SUCCESS) {
-				printf("Creating swapchain framebuffer %i failed.\n", i);
-				exit(-1);
-			}
+			swapchain_framebuffers[i] = vgd.create_framebuffer(info);
 		}
 	}
 }
 
-VulkanFrameBuffer VulkanWindow::acquire_framebuffer(VulkanGraphicsDevice& vgd, uint64_t current_frame) {
+SwapchainFramebuffer VulkanWindow::acquire_next_image(VulkanGraphicsDevice& vgd, SyncData& sync_data, uint64_t current_frame) {
 	uint64_t in_flight_frame = current_frame % FRAMES_IN_FLIGHT;
 	uint32_t acquired_image_idx;
 	vkAcquireNextImageKHR(vgd.device, swapchain, std::numeric_limits<uint64_t>::max(), acquire_semaphores[in_flight_frame], VK_NULL_HANDLE, &acquired_image_idx);
 
-	VulkanFrameBuffer vkfb = {
-		.width = x_resolution,
-		.height = y_resolution,
-		.fb = swapchain_framebuffers[acquired_image_idx],
-		.render_pass = swapchain_renderpass
+	sync_data.wait_semaphores.push_back(acquire_semaphores[in_flight_frame]);
+	sync_data.wait_values.push_back(0);
+
+	SwapchainFramebuffer vkfb = {
+		.fb = {
+			.width = x_resolution,
+			.height = y_resolution,
+			.fb = swapchain_framebuffers[acquired_image_idx],
+			.render_pass = swapchain_renderpass
+		},
+		.idx = acquired_image_idx
 	};
 	return vkfb;
+}
+
+void VulkanWindow::present_framebuffer(VulkanGraphicsDevice& vgd, SwapchainFramebuffer& swp_framebuffer, SyncData& sync_data) {
+	//Queue present
+	VkQueue q;
+	vkGetDeviceQueue(vgd.device, vgd.graphics_queue_family_idx, 0, &q);
+	{
+		std::vector<VkSemaphore> sems;
+		sems.reserve(sync_data.signal_semaphores.size());
+		for (uint32_t i = 0; i < sync_data.signal_semaphores.size(); i++) {
+			if (sync_data.signal_values[i] == 0) {
+				sems.push_back(sync_data.signal_semaphores[i]);
+			}
+		}
+
+		VkPresentInfoKHR info = {};
+		info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		info.waitSemaphoreCount = sems.size();
+		info.pWaitSemaphores = sems.data();
+		info.swapchainCount = 1;
+		info.pSwapchains = &swapchain;
+		info.pImageIndices = &swp_framebuffer.idx;
+		info.pResults = VK_NULL_HANDLE;
+
+		VkResult r = vkQueuePresentKHR(q, &info);
+		switch (r) {
+			case VK_SUBOPTIMAL_KHR:
+				printf("Swapchain suboptimal.\n");
+				break;
+			case VK_ERROR_OUT_OF_DATE_KHR:
+				printf("Swapchain out of date.\n");
+				resize(vgd);
+				break;
+			case VK_SUCCESS:
+				break;
+			default:
+				printf("Queue present failed.\n");
+				exit(-1);
+				break;
+		}
+	}
 }

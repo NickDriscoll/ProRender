@@ -109,13 +109,22 @@ struct FileImageBatchParameters {
 	const std::vector<VkFormat> image_formats;
 };
 
-#define MAX_SEMAPHORES 4
-struct SubmitSemaphores {
-	uint64_t wait_values[MAX_SEMAPHORES];
-	uint64_t signal_values[MAX_SEMAPHORES];
-	Key<VkSemaphore> wait_semaphores[MAX_SEMAPHORES];
-	Key<VkSemaphore> signal_semaphores[MAX_SEMAPHORES];
-	uint32_t count;
+struct SemaphoreWait {
+	uint64_t wait_value;
+	Key<VkSemaphore> wait_semaphore;
+};
+
+struct CommandBufferReturn {
+	VkCommandBuffer cb;
+	SemaphoreWait wait;
+};
+
+struct SyncData {
+	std::vector<uint64_t> wait_values;
+	std::vector<uint64_t> signal_values;
+	std::vector<VkSemaphore> wait_semaphores;
+	std::vector<VkSemaphore> signal_semaphores;
+	VkFence fence = 0;
 };
 
 struct VulkanGraphicsDevice {
@@ -143,7 +152,7 @@ struct VulkanGraphicsDevice {
 	const VmaDeviceMemoryCallbacks* vma_alloc_callbacks;
 
 	VkCommandBuffer borrow_graphics_command_buffer();
-	void graphics_queue_submit(VkCommandBuffer cb, SubmitSemaphores& sems);
+	void return_command_buffer(VkCommandBuffer cb, SemaphoreWait& wait);
 	VkCommandBuffer borrow_transfer_command_buffer();
 	void return_transfer_command_buffer(VkCommandBuffer cb);
 
@@ -193,6 +202,7 @@ struct VulkanGraphicsDevice {
 
 	Key<VkFramebuffer> create_framebuffer(VkFramebufferCreateInfo& info);
 	VkFramebuffer* get_framebuffer(Key<VkFramebuffer> key);
+	void destroy_framebuffer(Key<VkFramebuffer> key);
 
 	Key<VkRenderPass> create_render_pass(VkRenderPassCreateInfo& info);
 	VkRenderPass* get_render_pass(Key<VkRenderPass> key);
@@ -200,6 +210,8 @@ struct VulkanGraphicsDevice {
 	VkShaderModule load_shader_module(const char* path);
 
 	void service_deletion_queues();
+	
+	void graphics_queue_submit(VkCommandBuffer cb, SyncData& sems);
 
 	VulkanGraphicsDevice();
 	~VulkanGraphicsDevice();
@@ -234,5 +246,6 @@ private:
 	slotmap<VkSemaphore> _semaphores;
 	slotmap<VulkanGraphicsPipeline> _graphics_pipelines;
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _graphics_command_buffers;
+	std::deque<CommandBufferReturn> _command_buffer_returns;
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _transfer_command_buffers;
 };

@@ -157,7 +157,7 @@ int main(int argc, char* argv[]) {
 	
 	//Main loop
 	bool running = true;
-	uint64_t current_frame = 0;
+	uint64_t current_tick = 0;
 	double last_frame_took = 0.0001;
 	while (running) {
 		Timer frame_timer;
@@ -459,6 +459,26 @@ int main(int argc, char* argv[]) {
 		}
 
 		//Draw
+        VkCommandBuffer frame_cb = vgd.borrow_graphics_command_buffer();
+		VkCommandBufferBeginInfo begin_info = {
+			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+			.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+		};
+		vkBeginCommandBuffer(frame_cb, &begin_info);
+		SemaphoreWait w = {
+			.wait_value = renderer.get_current_frame() + FRAMES_IN_FLIGHT,
+			.wait_semaphore = renderer.frames_completed_semaphore
+		};
+		vgd.return_command_buffer(frame_cb, w);
+
+		SyncData frame_sync = {};
+		SwapchainFramebuffer window_framebuffer = window.acquire_next_image(vgd, frame_sync, renderer.get_current_frame());
+		renderer.render(frame_cb, window_framebuffer.fb, frame_sync);
+		imgui_renderer.draw(frame_cb, window_framebuffer.fb, renderer.get_current_frame());
+		vgd.graphics_queue_submit(frame_cb, frame_sync);
+		window.present_framebuffer(vgd, window_framebuffer, frame_sync);
+
+
 		// {
 		// 	//Wait for command buffer to finish execution before trying to record to it
 		// 	if (current_frame >= FRAMES_IN_FLIGHT) {
@@ -688,7 +708,7 @@ int main(int argc, char* argv[]) {
 		// }
 
 		//End-of-frame bookkeeping
-		//current_frame++;
+		current_tick++;
 		last_frame_took = frame_timer.check();
 	}
 

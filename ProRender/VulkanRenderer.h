@@ -85,7 +85,7 @@ struct InstanceData {
 struct VulkanRenderer {
 	Key<VulkanGraphicsPipeline> ps1_pipeline;
 
-	Key<VkSemaphore> graphics_timeline_semaphore;
+	Key<VkSemaphore> frames_completed_semaphore;
 
 	Key<VkDescriptorSetLayout> descriptor_set_layout_id;
 	Key<VkPipelineLayout> pipeline_layout_id;
@@ -122,11 +122,13 @@ struct VulkanRenderer {
 	uint32_t standard_sampler_idx;
 	uint32_t point_sampler_idx;
 
+	uint64_t get_current_frame();
+
 	//Called during the main simulation whenever we want to draw something
 	void ps1_draw(Key<BufferView> mesh_key, Key<Material> material_key, const std::span<InstanceData>& instance_datas);
 
 	//Called at the end of each frame
-	void render(VulkanFrameBuffer& framebuffer, Key<VkSemaphore> wait_semaphores[MAX_SEMAPHORES], Key<VkSemaphore> signal_semaphores[MAX_SEMAPHORES]);
+	void render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebuffer, SyncData& sync_data);
 
 	VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swapchain_renderpass);
 	~VulkanRenderer();

@@ -4,6 +4,11 @@
 #include "volk.h"
 #include "VulkanGraphicsDevice.h"
 
+struct SwapchainFramebuffer {
+	VulkanFrameBuffer fb;
+	uint32_t idx;
+};
+
 struct VulkanWindow {
 	uint32_t x_resolution;
 	uint32_t y_resolution;
@@ -13,7 +18,7 @@ struct VulkanWindow {
 	VkDevice device;
 	const VkAllocationCallbacks* alloc_callbacks;
 
-	VkSurfaceFormatKHR format;	//This seems to be a pretty standard/common swapchain format
+	VkSurfaceFormatKHR format;
 	VkPresentModeKHR preferred_present_mode;
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapchain;
@@ -22,11 +27,12 @@ struct VulkanWindow {
 	Key<VkRenderPass> swapchain_renderpass;
 	std::vector<VkImage> swapchain_images;
 	std::vector<VkImageView> swapchain_image_views;
-	std::vector<VkFramebuffer> swapchain_framebuffers;
+	std::vector<Key<VkFramebuffer>> swapchain_framebuffers;
 
 	VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface);
 	~VulkanWindow();
 
-	VulkanFrameBuffer acquire_framebuffer(VulkanGraphicsDevice& vgd, uint64_t current_frame);
+	SwapchainFramebuffer acquire_next_image(VulkanGraphicsDevice& vgd, SyncData& sync_data, uint64_t current_frame);
+	void present_framebuffer(VulkanGraphicsDevice& vgd, SwapchainFramebuffer& swp_framebuffer, SyncData& sync_data);
 	void resize(VulkanGraphicsDevice& vgd);
 };

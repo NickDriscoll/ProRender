@@ -435,7 +435,7 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
 	}
 
 	//Create graphics pipeline timeline semaphore
-	graphics_timeline_semaphore = vgd->create_timeline_semaphore(0);
+	frames_completed_semaphore = vgd->create_timeline_semaphore(0);
 
     //Save pointer to graphics device
     this->vgd = vgd;
@@ -537,6 +537,10 @@ Key<Material> VulkanRenderer::push_material(uint64_t batch_id, hlslpp::float4& b
     return _materials.insert(mat);
 }
 
+uint64_t VulkanRenderer::get_current_frame() {
+    return _current_frame;
+}
+
 //Records one indirect draw command into the ps1 draws queue
 void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_key, const std::span<InstanceData>& instance_datas) {
     Material* material = _materials.get(material_key);
@@ -611,7 +615,7 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
 
 //Synchronizes CPU and GPU buffers, then
 //records and submits all rendering commands in one command buffer
-void VulkanRenderer::render(VulkanFrameBuffer& framebuffer, ) {
+void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebuffer, SyncData& sync_data) {
 
     //Upload material buffer if it changed
     if (_material_dirty_flag) {
@@ -655,7 +659,7 @@ void VulkanRenderer::render(VulkanFrameBuffer& framebuffer, ) {
 			VkSemaphoreWaitInfo info = {};
 			info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
 			info.semaphoreCount = 1;
-			info.pSemaphores = vgd->get_semaphore(graphics_timeline_semaphore);
+			info.pSemaphores = vgd->get_semaphore(frames_completed_semaphore);
 			info.pValues = &wait_value;
 			if (vkWaitSemaphores(vgd->device, &info, std::numeric_limits<uint64_t>::max()) != VK_SUCCESS) {
 				printf("Waiting for graphics timeline semaphore failed.\n");
@@ -671,13 +675,12 @@ void VulkanRenderer::render(VulkanFrameBuffer& framebuffer, ) {
 		// vkAcquireNextImageKHR(vgd->device, window.swapchain, std::numeric_limits<uint64_t>::max(), window.acquire_semaphores[in_flight_frame], VK_NULL_HANDLE, &acquired_image_idx);
 
 		//VkCommandBuffer frame_cb = vgd->command_buffers[in_flight_frame];
-        VkCommandBuffer frame_cb = vgd->borrow_graphics_command_buffer();
 
-		VkCommandBufferBeginInfo begin_info = {
-			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-			.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-		};
-		vkBeginCommandBuffer(frame_cb, &begin_info);
+		// VkCommandBufferBeginInfo begin_info = {
+		// 	.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		// 	.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+		// };
+		// vkBeginCommandBuffer(frame_cb, &begin_info);
 
 		//Per-frame checking of pending images to see if they're ready
 		vgd->tick_image_uploads(frame_cb, descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
@@ -786,16 +789,19 @@ void VulkanRenderer::render(VulkanFrameBuffer& framebuffer, ) {
 		//imgui_renderer.draw(frame_cb, current_frame);
 
 		vkCmdEndRenderPass(frame_cb);
-		vkEndCommandBuffer(frame_cb);
+		//vkEndCommandBuffer(frame_cb);
 
 		//Submit rendering command buffer
-        SubmitSemaphores sems = {
-            .wait_values = {0, upload_batches_completed},
-            .signal_values = {_current_frame + 1, 0},
-            .wait_semaphores = {window.acquire_semaphores[in_flight_frame], vgd->image_upload_semaphore},
-            .signal_semaphores = { graphics_timeline_semaphore, *vgd->get_semaphore(semaphore) },
-            .count = 2,
-        }
+        // SyncData sems = {
+        //     .wait_values = {0, upload_batches_completed},
+        //     .signal_values = {_current_frame + 1, 0},
+        //     .wait_semaphores = {window.acquire_semaphores[in_flight_frame], vgd->image_upload_semaphore},
+        //     .signal_semaphores = { graphics_timeline_semaphore, *vgd->get_semaphore(semaphore) },
+        //     .count = 2,
+        // }
+
+        sync_data.signal_semaphores.push_back(*vgd->get_semaphore(frames_completed_semaphore));
+        sync_data.signal_values.push_back(_current_frame + 1);
 
 		// VkQueue q;
 		// vkGetDeviceQueue(vgd->device, vgd->graphics_queue_family_idx, 0, &q);
@@ -863,11 +869,10 @@ void VulkanRenderer::render(VulkanFrameBuffer& framebuffer, ) {
 
 
 
-    //Reset renderer state
+    //Get renderer state ready for next frame
     _draw_calls.clear();
     _gpu_instance_datas.clear();
     _instances_so_far = 0;
-    
     _current_frame += 1;
 }
 
@@ -876,7 +881,7 @@ VulkanRenderer::~VulkanRenderer() {
 		vkDestroySampler(vgd->device, _samplers[i], vgd->alloc_callbacks);
 	}
 
-	vkDestroySemaphore(vgd->device, graphics_timeline_semaphore, vgd->alloc_callbacks);
+	vkDestroySemaphore(vgd->device, *vgd->get_semaphore(frames_completed_semaphore), vgd->alloc_callbacks);
 
 	vkDestroyDescriptorPool(vgd->device, descriptor_pool, vgd->alloc_callbacks);
     vgd->destroy_buffer(_instance_buffer);

@@ -144,8 +144,6 @@ int SDL2ToImGuiMouseButton(int button) {
     return ret - 1;
 }
 
-
-
 ImguiRenderer::ImguiRenderer(
 	VulkanGraphicsDevice* v,
 	uint32_t sampler,
@@ -185,7 +183,7 @@ ImguiRenderer::ImguiRenderer(
 		VkSemaphoreWaitInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
 		info.semaphoreCount = 1;
-		info.pSemaphores = &vgd->image_upload_semaphore;
+		info.pSemaphores = vgd->get_semaphore(vgd->image_upload_semaphore);
 		info.pValues = &batch_id;
 		if (vkWaitSemaphores(vgd->device, &info, U64_MAX) != VK_SUCCESS) {
 			printf("Waiting for graphics timeline semaphore failed.\n");
@@ -206,7 +204,6 @@ ImguiRenderer::ImguiRenderer(
 	}
 
     //Allocate memory for ImGUI vertex data
-    //TODO: probabaly shouldn't be in renderer init
     {
         VkDeviceSize buffer_size = 1024 * 1024;
 
@@ -358,7 +355,7 @@ ImguiRenderer::~ImguiRenderer() {
 	vgd->destroy_buffer(index_buffer);
 }
 
-void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
+void ImguiRenderer::draw(VkCommandBuffer& frame_cb, VulkanFrameBuffer& framebuffer, uint64_t frame_counter) {
 	//Upload ImGUI triangle data and record ImGUI draw commands
 	
 	uint32_t frame_slot = frame_counter % FRAMES_IN_FLIGHT;
@@ -393,6 +390,38 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 	uint8_t* gpu_uv_ptr = std::bit_cast<uint8_t*>(gpu_imgui_uvs->alloc_info.pMappedData);
 	uint8_t* gpu_col_ptr = std::bit_cast<uint8_t*>(gpu_imgui_colors->alloc_info.pMappedData);
 	uint8_t* gpu_idx_ptr = std::bit_cast<uint8_t*>(gpu_imgui_indices->alloc_info.pMappedData);
+
+	//Record start of renderpass
+	{
+		VkRect2D area = {
+			.offset = {
+				.x = 0,
+				.y = 0
+			},
+			.extent = {
+				.width = framebuffer.width,
+				.height = framebuffer.height
+			}
+		};
+
+		VkClearValue clear_color;
+		clear_color.color.float32[0] = 0.0f;
+		clear_color.color.float32[1] = 0.0f;
+		clear_color.color.float32[2] = 0.0f;
+		clear_color.color.float32[3] = 1.0f;
+		clear_color.depthStencil.depth = 0.0f;
+		clear_color.depthStencil.stencil = 0;
+
+		VkRenderPassBeginInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		info.renderPass = *vgd->get_render_pass(framebuffer.render_pass);
+		info.framebuffer = *vgd->get_framebuffer(framebuffer.fb);
+		info.renderArea = area;
+		info.clearValueCount = 1;
+		info.pClearValues = &clear_color;
+
+		vkCmdBeginRenderPass(frame_cb, &info, VK_SUBPASS_CONTENTS_INLINE);
+	}
 
 	//Record once-per-frame binding of index buffer and graphics pipeline
 	vkCmdBindIndexBuffer(frame_cb, gpu_imgui_indices->buffer, current_index_offset * sizeof(ImDrawIdx), VK_INDEX_TYPE_UINT16);
@@ -452,6 +481,9 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 		vtx_offset += draw_list->VtxBuffer.Size;
 		idx_offset += draw_list->IdxBuffer.Size;
 	}
+
+	//Record ending the renderpass
+	vkCmdEndRenderPass(frame_cb);
 
 	//Finally copy the intermediate vertex buffers to the real ones on the GPU
 	uint32_t vector_offset = current_vertex_offset * 2 * sizeof(float);
