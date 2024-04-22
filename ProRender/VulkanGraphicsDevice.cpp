@@ -407,6 +407,10 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 		fclose(f);
 	}
 
+	//Wait for the image upload thread
+	_image_upload_running = false;
+	_image_upload_thread.join();
+
 	//TODO: It doesn't make sense why I had to do this
 	for (uint32_t i = 0; i < FRAMES_IN_FLIGHT + 1; i++)
 		service_deletion_queues();
@@ -441,10 +445,6 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 		vkDestroySemaphore(device, s, alloc_callbacks);
 	}
 
-	//Wait for the image upload thread
-	_image_upload_running = false;
-	_image_upload_thread.join();
-
 	vkDestroyCommandPool(device, transfer_command_pool, alloc_callbacks);
 	vkDestroyCommandPool(device, graphics_command_pool, alloc_callbacks);
 	vkDestroyPipelineCache(device, pipeline_cache, alloc_callbacks);
@@ -458,6 +458,12 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 VkCommandBuffer VulkanGraphicsDevice::borrow_graphics_command_buffer() {
 	VkCommandBuffer cb = _graphics_command_buffers.top();
 	_graphics_command_buffers.pop();
+
+	VkCommandBufferBeginInfo begin_info = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+	};
+	vkBeginCommandBuffer(cb, &begin_info);
 	return cb;
 }
 

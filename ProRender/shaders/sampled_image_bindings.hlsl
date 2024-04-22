@@ -4,7 +4,14 @@ Texture2D sampled_images[];
 [[vk::binding(1, 0)]]
 SamplerState samplers[];
 
+#define MAX_MATERIAL_TEXTURES 8
 struct GPUMaterial {
-    uint color_idx;
+    uint tex_indices[MAX_MATERIAL_TEXTURES];
     float4 base_color;
+    uint sampler_idx;
+    uint _pad0;
+    uint _pad1;
 };
+
+[[vk::binding(10, 0)]]
+StructuredBuffer<GPUMaterial> materials;

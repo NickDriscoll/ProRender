@@ -91,7 +91,7 @@ int main(int argc, char* argv[]) {
 			plane_image_count = names.size();
 			plane_image_batch_id = vgd.load_image_files(names, formats);
 			hlslpp::float4 base_color(1.0, 1.0, 1.0, 1.0);
-			plane_material_key = renderer.push_material(plane_image_batch_id, base_color);
+			plane_material_key = renderer.push_material(plane_image_batch_id, renderer.standard_sampler_idx, base_color);
 		}
 
 		float plane_pos[] = {
@@ -460,16 +460,10 @@ int main(int argc, char* argv[]) {
 
 		//Draw
         VkCommandBuffer frame_cb = vgd.borrow_graphics_command_buffer();
-		VkCommandBufferBeginInfo begin_info = {
-			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-			.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-		};
-		vkBeginCommandBuffer(frame_cb, &begin_info);
 		SemaphoreWait w = {
 			.wait_value = renderer.get_current_frame() + 1,
 			.wait_semaphore = renderer.frames_completed_semaphore
 		};
-		vgd.return_command_buffer(frame_cb, w);
 
 		SyncData frame_sync = {};
 		SwapchainFramebuffer window_framebuffer = window.acquire_next_image(vgd, frame_sync, renderer.get_current_frame());
@@ -477,6 +471,7 @@ int main(int argc, char* argv[]) {
 		imgui_renderer.draw(frame_cb, window_framebuffer.fb, renderer.get_current_frame());
 		vgd.graphics_queue_submit(frame_cb, frame_sync);
 		window.present_framebuffer(vgd, window_framebuffer, frame_sync);
+		vgd.return_command_buffer(frame_cb, w);
 
 
 		// {

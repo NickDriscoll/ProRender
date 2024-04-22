@@ -15,8 +15,10 @@ struct VertexUvBlock {
 [[vk::binding(7, 0)]]
 StructuredBuffer<VertexUvBlock> vertex_uvs;
 
-
 struct GPUMesh {
     uint position_start;
     uint uv_start;
 };
+
+[[vk::binding(9, 0)]]
+StructuredBuffer<GPUMesh> meshes;

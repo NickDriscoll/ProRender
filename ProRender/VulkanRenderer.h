@@ -9,7 +9,7 @@
 
 #define MAX_CAMERAS 64
 #define MAX_MATERIALS 1024
-#define MAX_MATERIAL_TEXTURES 16
+#define MAX_MATERIAL_TEXTURES 8
 #define MAX_VERTEX_ATTRIBS 1024
 #define MAX_MESHES 1024*1024
 #define MAX_INDIRECT_DRAWS 10000
@@ -24,7 +24,10 @@ enum DescriptorBindings : uint32_t {
 	IMGUI_COLORS = 5,
 	VERTEX_POSITIONS = 6,
 	VERTEX_UVS = 7,
-	CAMERA_BUFFER = 8
+	CAMERA_BUFFER = 8,
+	MESH_BUFFER = 9,
+	MATERIAL_BUFFER = 10,
+	INSTANCE_DATA_BUFFER = 11
 };
 
 struct FrameUniforms {
@@ -52,14 +55,16 @@ struct GPUMesh {
 
 struct GPUMaterial {
 	uint32_t texture_indices[MAX_MATERIAL_TEXTURES] = {std::numeric_limits<uint32_t>::max()};
-	uint32_t sampler_idx;
 	hlslpp::float4 base_color;
+	uint32_t sampler_idx;
+	uint32_t _pad0 = 0, _pad1 = 0;
 };
 
 struct GPUInstanceData {
 	hlslpp::float4x4 world_matrix;
 	uint32_t mesh_idx;
 	uint32_t material_idx;
+	uint32_t _pad0 = 0, _pad1 = 0;
 };
 
 struct BufferView {
@@ -73,9 +78,9 @@ struct MeshAttribute {
 };
 
 struct Material {
+	hlslpp::float4 base_color;
 	uint64_t batch_id;		//The batch where this material's textures come from
 	uint32_t sampler_idx;
-	hlslpp::float4 base_color;
 };
 
 struct InstanceData {
@@ -117,7 +122,7 @@ struct VulkanRenderer {
 	Key<MeshAttribute> push_indices16(Key<BufferView> position_key, std::span<uint16_t> data);
 	BufferView* get_indices16(Key<BufferView> position_key);
 
-	Key<Material> push_material(uint64_t batch_id, hlslpp::float4& base_color);
+	Key<Material> push_material(uint64_t batch_id, uint32_t sampler_idx, hlslpp::float4& base_color);
 	
 	uint32_t standard_sampler_idx;
 	uint32_t point_sampler_idx;

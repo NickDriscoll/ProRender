@@ -158,6 +158,27 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
                 .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
             });
 
+            //Mesh buffer
+            bindings.push_back({
+                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptor_count = 1,
+                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+            });
+
+            //Material buffer
+            bindings.push_back({
+                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptor_count = 1,
+                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+            });
+
+            //Instance data buffer
+            bindings.push_back({
+                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptor_count = 1,
+                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+            });
+
             descriptor_set_layout_id = vgd->create_descriptor_set_layout(bindings);
 
             std::vector<VkPushConstantRange> ranges = {
@@ -275,7 +296,7 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
         alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
         alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
         alloc_info.priority = 1.0;
-        _indirect_draw_buffer = vgd->create_buffer(FRAMES_IN_FLIGHT * MAX_INDIRECT_DRAWS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
+        _indirect_draw_buffer = vgd->create_buffer(FRAMES_IN_FLIGHT * MAX_INDIRECT_DRAWS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, alloc_info);
     }
 
     //Create instance data buffer
@@ -369,6 +390,57 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
             .pBufferInfo = &camera_buffer_info
         };
         descriptor_writes.push_back(camera_write);
+        
+        VkDescriptorBufferInfo mesh_buffer_info = {
+            .buffer = vgd->get_buffer(_mesh_buffer)->buffer,
+            .offset = 0,
+            .range = VK_WHOLE_SIZE
+        };
+        
+        VkWriteDescriptorSet mesh_write = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = descriptor_set,
+            .dstBinding = 9,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .pBufferInfo = &mesh_buffer_info
+        };
+        descriptor_writes.push_back(mesh_write);
+        
+        VkDescriptorBufferInfo material_buffer_info = {
+            .buffer = vgd->get_buffer(_material_buffer)->buffer,
+            .offset = 0,
+            .range = VK_WHOLE_SIZE
+        };
+        
+        VkWriteDescriptorSet material_write = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = descriptor_set,
+            .dstBinding = 10,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .pBufferInfo = &material_buffer_info
+        };
+        descriptor_writes.push_back(material_write);
+        
+        VkDescriptorBufferInfo instance_buffer_info = {
+            .buffer = vgd->get_buffer(_instance_buffer)->buffer,
+            .offset = 0,
+            .range = MAX_INSTANCES * sizeof(GPUInstanceData)
+        };
+        
+        VkWriteDescriptorSet instance_write = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = descriptor_set,
+            .dstBinding = 11,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .pBufferInfo = &instance_buffer_info
+        };
+        descriptor_writes.push_back(instance_write);
 
         vkUpdateDescriptorSets(vgd->device, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
 	}
@@ -529,10 +601,11 @@ BufferView* VulkanRenderer::get_indices16(Key<BufferView> position_key) {
 
 }
 
-Key<Material> VulkanRenderer::push_material(uint64_t batch_id, hlslpp::float4& base_color) {
+Key<Material> VulkanRenderer::push_material(uint64_t batch_id, uint32_t sampler_idx, hlslpp::float4& base_color) {
     Material mat {
-        .batch_id = batch_id,
         .base_color = base_color,
+        .batch_id = batch_id,
+        .sampler_idx = sampler_idx
     };
     return _materials.insert(mat);
 }
@@ -640,8 +713,6 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
         VulkanBuffer* instance_buffer = vgd->get_buffer(_instance_buffer);
         GPUInstanceData* ptr = static_cast<GPUInstanceData*>(instance_buffer->alloc_info.pMappedData);
         ptr += (_current_frame % FRAMES_IN_FLIGHT) * MAX_INSTANCES;
-        printf("Writing to ptr 0x%llX\n", ptr);
-        printf("Instance data size: %i\n", _gpu_instance_datas.size());
         memcpy(ptr, _gpu_instance_datas.data(), _gpu_instance_datas.size() * sizeof(GPUInstanceData));
     }
 
@@ -752,6 +823,16 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
 		
 		//Bind pipeline for this pass
 		vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd->get_graphics_pipeline(ps1_pipeline)->pipeline);
+
+        //Bind push constants for this pass
+        uint32_t pcs[] = {
+            0
+        };
+        vkCmdPushConstants(frame_cb, *vgd->get_pipeline_layout(pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 4, pcs);
+
+        
+        VkDeviceSize indirect_offset = (_current_frame % FRAMES_IN_FLIGHT) * MAX_INDIRECT_DRAWS * sizeof(VkDrawIndexedIndirectCommand);
+        vkCmdDrawIndexedIndirect(frame_cb, vgd->get_buffer(_indirect_draw_buffer)->buffer, indirect_offset, _draw_calls.size(), 0);
 
 		//Draw hardcoded plane
 		// {
@@ -882,8 +963,6 @@ VulkanRenderer::~VulkanRenderer() {
 	for (uint32_t i = 0; i < _samplers.size(); i++) {
 		vkDestroySampler(vgd->device, _samplers[i], vgd->alloc_callbacks);
 	}
-
-	vkDestroySemaphore(vgd->device, *vgd->get_semaphore(frames_completed_semaphore), vgd->alloc_callbacks);
 
 	vkDestroyDescriptorPool(vgd->device, descriptor_pool, vgd->alloc_callbacks);
     vgd->destroy_buffer(_instance_buffer);
