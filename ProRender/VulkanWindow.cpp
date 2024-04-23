@@ -335,7 +335,7 @@ SwapchainFramebuffer VulkanWindow::acquire_next_image(VulkanGraphicsDevice& vgd,
 	return vkfb;
 }
 
-void VulkanWindow::present_framebuffer(VulkanGraphicsDevice& vgd, SwapchainFramebuffer& swp_framebuffer, SyncData& sync_data) {
+void VulkanWindow::present_framebuffer(VulkanGraphicsDevice& vgd, SwapchainFramebuffer& swp_framebuffer, const SyncData& sync_data) {
 	//Queue present
 	VkQueue q;
 	vkGetDeviceQueue(vgd.device, vgd.graphics_queue_family_idx, 0, &q);

@@ -33,6 +33,6 @@ struct VulkanWindow {
 	~VulkanWindow();
 
 	SwapchainFramebuffer acquire_next_image(VulkanGraphicsDevice& vgd, SyncData& sync_data, uint64_t current_frame);
-	void present_framebuffer(VulkanGraphicsDevice& vgd, SwapchainFramebuffer& swp_framebuffer, SyncData& sync_data);
+	void present_framebuffer(VulkanGraphicsDevice& vgd, SwapchainFramebuffer& swp_framebuffer, const SyncData& sync_data);
 	void resize(VulkanGraphicsDevice& vgd);
 };

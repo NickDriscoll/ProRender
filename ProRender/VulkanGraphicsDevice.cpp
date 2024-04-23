@@ -467,10 +467,11 @@ VkCommandBuffer VulkanGraphicsDevice::borrow_graphics_command_buffer() {
 	return cb;
 }
 
-void VulkanGraphicsDevice::return_command_buffer(VkCommandBuffer cb, SemaphoreWait& wait) {
+void VulkanGraphicsDevice::return_command_buffer(VkCommandBuffer cb, uint64_t wait_value, Key<VkSemaphore> wait_semaphore) {
 	_command_buffer_returns.push_back({
 		.cb = cb,
-		.wait = wait
+		.wait_value = wait_value,
+		.wait_semaphore = wait_semaphore
 	});
 }
 
@@ -1576,14 +1577,14 @@ void VulkanGraphicsDevice::service_deletion_queues() {
 	{
 		uint32_t deleted_count = 0;
 		for (CommandBufferReturn& cb_return : _command_buffer_returns) {
-			if (cb_return.wait.wait_value == check_timeline_semaphore(cb_return.wait.wait_semaphore)) {
+			if (cb_return.wait_value <= check_timeline_semaphore(cb_return.wait_semaphore)) {
 				_graphics_command_buffers.push(cb_return.cb);
 				deleted_count += 1;
 			}
 		}
 
 		while (deleted_count > 0) {
-			_command_buffer_returns.pop_back();
+			_command_buffer_returns.pop_front();
 			deleted_count -= 1;
 		}
 	}
@@ -1683,4 +1684,39 @@ VkShaderModule VulkanGraphicsDevice::load_shader_module(const char* path) {
 	}
 
 	return shader;
+}
+
+void VulkanGraphicsDevice::begin_render_pass(VkCommandBuffer cb, VulkanFrameBuffer& fb) {
+	VkRect2D area = {
+		.offset = {
+			.x = 0,
+			.y = 0
+		},
+		.extent = {
+			.width = fb.width,
+			.height = fb.height
+		}
+	};
+
+	VkClearValue clear_color;
+	clear_color.color.float32[0] = 0.0f;
+	clear_color.color.float32[1] = 0.0f;
+	clear_color.color.float32[2] = 0.0f;
+	clear_color.color.float32[3] = 1.0f;
+	clear_color.depthStencil.depth = 0.0f;
+	clear_color.depthStencil.stencil = 0;
+
+	VkRenderPassBeginInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	info.renderPass = *_render_passes.get(fb.render_pass);
+	info.framebuffer = *_framebuffers.get(fb.fb);
+	info.renderArea = area;
+	info.clearValueCount = 1;
+	info.pClearValues = &clear_color;
+
+	vkCmdBeginRenderPass(cb, &info, VK_SUBPASS_CONTENTS_INLINE);
+}
+
+void VulkanGraphicsDevice::end_render_pass(VkCommandBuffer cb) {
+	vkCmdEndRenderPass(cb);
 }

@@ -392,36 +392,36 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, VulkanFrameBuffer& framebuff
 	uint8_t* gpu_idx_ptr = std::bit_cast<uint8_t*>(gpu_imgui_indices->alloc_info.pMappedData);
 
 	//Record start of renderpass
-	{
-		VkRect2D area = {
-			.offset = {
-				.x = 0,
-				.y = 0
-			},
-			.extent = {
-				.width = framebuffer.width,
-				.height = framebuffer.height
-			}
-		};
+	// {
+	// 	VkRect2D area = {
+	// 		.offset = {
+	// 			.x = 0,
+	// 			.y = 0
+	// 		},
+	// 		.extent = {
+	// 			.width = framebuffer.width,
+	// 			.height = framebuffer.height
+	// 		}
+	// 	};
 
-		VkClearValue clear_color;
-		clear_color.color.float32[0] = 0.0f;
-		clear_color.color.float32[1] = 0.0f;
-		clear_color.color.float32[2] = 0.0f;
-		clear_color.color.float32[3] = 1.0f;
-		clear_color.depthStencil.depth = 0.0f;
-		clear_color.depthStencil.stencil = 0;
+	// 	VkClearValue clear_color;
+	// 	clear_color.color.float32[0] = 0.0f;
+	// 	clear_color.color.float32[1] = 0.0f;
+	// 	clear_color.color.float32[2] = 0.0f;
+	// 	clear_color.color.float32[3] = 1.0f;
+	// 	clear_color.depthStencil.depth = 0.0f;
+	// 	clear_color.depthStencil.stencil = 0;
 
-		VkRenderPassBeginInfo info = {};
-		info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		info.renderPass = *vgd->get_render_pass(framebuffer.render_pass);
-		info.framebuffer = *vgd->get_framebuffer(framebuffer.fb);
-		info.renderArea = area;
-		info.clearValueCount = 1;
-		info.pClearValues = &clear_color;
+	// 	VkRenderPassBeginInfo info = {};
+	// 	info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	// 	info.renderPass = *vgd->get_render_pass(framebuffer.render_pass);
+	// 	info.framebuffer = *vgd->get_framebuffer(framebuffer.fb);
+	// 	info.renderArea = area;
+	// 	info.clearValueCount = 1;
+	// 	info.pClearValues = &clear_color;
 
-		vkCmdBeginRenderPass(frame_cb, &info, VK_SUBPASS_CONTENTS_INLINE);
-	}
+	// 	vkCmdBeginRenderPass(frame_cb, &info, VK_SUBPASS_CONTENTS_INLINE);
+	// }
 
 	//Record once-per-frame binding of index buffer and graphics pipeline
 	vkCmdBindIndexBuffer(frame_cb, gpu_imgui_indices->buffer, current_index_offset * sizeof(ImDrawIdx), VK_INDEX_TYPE_UINT16);
@@ -483,7 +483,7 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, VulkanFrameBuffer& framebuff
 	}
 
 	//Record ending the renderpass
-	vkCmdEndRenderPass(frame_cb);
+	//vkCmdEndRenderPass(frame_cb);
 
 	//Finally copy the intermediate vertex buffers to the real ones on the GPU
 	uint32_t vector_offset = current_vertex_offset * 2 * sizeof(float);

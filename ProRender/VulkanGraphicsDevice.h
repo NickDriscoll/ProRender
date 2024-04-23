@@ -116,7 +116,8 @@ struct SemaphoreWait {
 
 struct CommandBufferReturn {
 	VkCommandBuffer cb;
-	SemaphoreWait wait;
+	uint64_t wait_value;	//Could be zero if the semaphore is binary
+	Key<VkSemaphore> wait_semaphore;
 };
 
 struct SyncData {
@@ -124,7 +125,7 @@ struct SyncData {
 	std::vector<uint64_t> signal_values;
 	std::vector<VkSemaphore> wait_semaphores;
 	std::vector<VkSemaphore> signal_semaphores;
-	VkFence fence = 0;
+	VkFence fence = VK_NULL_HANDLE;
 };
 
 struct VulkanGraphicsDevice {
@@ -152,7 +153,7 @@ struct VulkanGraphicsDevice {
 	const VmaDeviceMemoryCallbacks* vma_alloc_callbacks;
 
 	VkCommandBuffer borrow_graphics_command_buffer();
-	void return_command_buffer(VkCommandBuffer cb, SemaphoreWait& wait);
+	void return_command_buffer(VkCommandBuffer cb, uint64_t wait_value, Key<VkSemaphore> wait_semaphore);
 	VkCommandBuffer borrow_transfer_command_buffer();
 	void return_transfer_command_buffer(VkCommandBuffer cb);
 
@@ -203,6 +204,8 @@ struct VulkanGraphicsDevice {
 	Key<VkFramebuffer> create_framebuffer(VkFramebufferCreateInfo& info);
 	VkFramebuffer* get_framebuffer(Key<VkFramebuffer> key);
 	void destroy_framebuffer(Key<VkFramebuffer> key);
+	void begin_render_pass(VkCommandBuffer cb, VulkanFrameBuffer& fb);
+	void end_render_pass(VkCommandBuffer cb);
 
 	Key<VkRenderPass> create_render_pass(VkRenderPassCreateInfo& info);
 	VkRenderPass* get_render_pass(Key<VkRenderPass> key);

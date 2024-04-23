@@ -459,21 +459,28 @@ int main(int argc, char* argv[]) {
 		}
 
 		//Draw
-        VkCommandBuffer frame_cb = vgd.borrow_graphics_command_buffer();
-		SemaphoreWait w = {
-			.wait_value = renderer.get_current_frame() + 1,
-			.wait_semaphore = renderer.frames_completed_semaphore
-		};
+		{
+			uint64_t current_frame = renderer.get_current_frame();
+			VkCommandBuffer frame_cb = vgd.borrow_graphics_command_buffer();
+			
+			//Per-frame checking of pending images to see if they're ready
+			vgd.tick_image_uploads(frame_cb, renderer.descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
+		
 
-		SyncData frame_sync = {};
-		SwapchainFramebuffer window_framebuffer = window.acquire_next_image(vgd, frame_sync, renderer.get_current_frame());
-		renderer.render(frame_cb, window_framebuffer.fb, frame_sync);
-		imgui_renderer.draw(frame_cb, window_framebuffer.fb, renderer.get_current_frame());
-		vgd.graphics_queue_submit(frame_cb, frame_sync);
-		window.present_framebuffer(vgd, window_framebuffer, frame_sync);
-		vgd.return_command_buffer(frame_cb, w);
+			SyncData frame_sync = {};
+			SwapchainFramebuffer window_framebuffer = window.acquire_next_image(vgd, frame_sync, current_frame);
+			
+			vgd.begin_render_pass(frame_cb, window_framebuffer.fb);
+			renderer.render(frame_cb, window_framebuffer.fb, frame_sync);
+			imgui_renderer.draw(frame_cb, window_framebuffer.fb, current_frame);
+			vgd.end_render_pass(frame_cb);
 
-
+			vgd.graphics_queue_submit(frame_cb, frame_sync);
+			
+			vgd.return_command_buffer(frame_cb, current_frame + 1, renderer.frames_completed_semaphore);
+			window.present_framebuffer(vgd, window_framebuffer, frame_sync);
+		}
+		
 		// {
 		// 	//Wait for command buffer to finish execution before trying to record to it
 		// 	if (current_frame >= FRAMES_IN_FLIGHT) {

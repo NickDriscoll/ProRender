@@ -637,6 +637,7 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
             VulkanAvailableImage& image = *it;
             if (image.batch_id == material->batch_id) {
                 mat.texture_indices[0] = it.slot_index();
+                break;
             }
         }
         assert(mat.texture_indices[0] != std::numeric_limits<uint32_t>::max());
@@ -756,40 +757,40 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
 		// vkBeginCommandBuffer(frame_cb, &begin_info);
 
 		//Per-frame checking of pending images to see if they're ready
-		vgd->tick_image_uploads(frame_cb, descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
-		uint64_t upload_batches_completed = vgd->completed_image_batches();
+		//vgd->tick_image_uploads(frame_cb, descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
+		//uint64_t upload_batches_completed = vgd->completed_image_batches();
 
 		//Begin render pass
-		{
-			VkRect2D area = {
-				.offset = {
-					.x = 0,
-					.y = 0
-				},
-				.extent = {
-					.width = framebuffer.width,
-					.height = framebuffer.height
-				}
-			};
+		// {
+		// 	VkRect2D area = {
+		// 		.offset = {
+		// 			.x = 0,
+		// 			.y = 0
+		// 		},
+		// 		.extent = {
+		// 			.width = framebuffer.width,
+		// 			.height = framebuffer.height
+		// 		}
+		// 	};
 
-			VkClearValue clear_color;
-			clear_color.color.float32[0] = 0.0f;
-			clear_color.color.float32[1] = 0.0f;
-			clear_color.color.float32[2] = 0.0f;
-			clear_color.color.float32[3] = 1.0f;
-			clear_color.depthStencil.depth = 0.0f;
-			clear_color.depthStencil.stencil = 0;
+		// 	VkClearValue clear_color;
+		// 	clear_color.color.float32[0] = 0.0f;
+		// 	clear_color.color.float32[1] = 0.0f;
+		// 	clear_color.color.float32[2] = 0.0f;
+		// 	clear_color.color.float32[3] = 1.0f;
+		// 	clear_color.depthStencil.depth = 0.0f;
+		// 	clear_color.depthStencil.stencil = 0;
 
-			VkRenderPassBeginInfo info = {};
-			info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			info.renderPass = *vgd->get_render_pass(framebuffer.render_pass);
-            info.framebuffer = *vgd->get_framebuffer(framebuffer.fb);
-			info.renderArea = area;
-			info.clearValueCount = 1;
-			info.pClearValues = &clear_color;
+		// 	VkRenderPassBeginInfo info = {};
+		// 	info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		// 	info.renderPass = *vgd->get_render_pass(framebuffer.render_pass);
+        //     info.framebuffer = *vgd->get_framebuffer(framebuffer.fb);
+		// 	info.renderArea = area;
+		// 	info.clearValueCount = 1;
+		// 	info.pClearValues = &clear_color;
 
-			vkCmdBeginRenderPass(frame_cb, &info, VK_SUBPASS_CONTENTS_INLINE);
-		}
+		// 	vkCmdBeginRenderPass(frame_cb, &info, VK_SUBPASS_CONTENTS_INLINE);
+		// }
 
 		//Set viewport and scissor
 		{
@@ -871,7 +872,7 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
 		//Record imgui drawing commands into this frame's command buffer
 		//imgui_renderer.draw(frame_cb, current_frame);
 
-		vkCmdEndRenderPass(frame_cb);
+		//vkCmdEndRenderPass(frame_cb);
 		//vkEndCommandBuffer(frame_cb);
 
 		//Submit rendering command buffer
