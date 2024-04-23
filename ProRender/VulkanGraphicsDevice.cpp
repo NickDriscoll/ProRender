@@ -445,6 +445,10 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 		vkDestroySemaphore(device, s, alloc_callbacks);
 	}
 
+	for (VkFramebuffer& fb : _framebuffers) {
+		vkDestroyFramebuffer(device, fb, alloc_callbacks);
+	}
+
 	vkDestroyCommandPool(device, transfer_command_pool, alloc_callbacks);
 	vkDestroyCommandPool(device, graphics_command_pool, alloc_callbacks);
 	vkDestroyPipelineCache(device, pipeline_cache, alloc_callbacks);

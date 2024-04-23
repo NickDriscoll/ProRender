@@ -411,53 +411,6 @@ int main(int argc, char* argv[]) {
 			renderer.ps1_draw(plane_mesh_key, plane_material_key, std::span(tforms));
 		}
 
-		//Update GPU camera data
-		std::vector<uint32_t> cam_idx_map;
-		cam_idx_map.reserve(renderer.cameras.count());
-		{
-			using namespace hlslpp;
-
-			std::vector<GPUCamera> g_cameras;
-			g_cameras.reserve(renderer.cameras.count());
-
-			for (auto it = renderer.cameras.begin(); it != renderer.cameras.end(); ++it) {
-				Camera camera = *it;
-
-				GPUCamera gcam;
-				gcam.view_matrix = camera.make_view_matrix();
-
-			    //Transformation applied after view transform to correct axes to match Vulkan clip-space
-				//(x-right, y-forward, z-up) -> (x-right, y-down, z-forward)
-				float4x4 c_matrix(
-					1.0, 0.0, 0.0, 0.0,
-					0.0, 0.0, -1.0, 0.0,
-					0.0, 1.0, 0.0, 0.0,
-					0.0, 0.0, 0.0, 1.0
-				);
-
-				float aspect = (float)window.x_resolution / (float)window.y_resolution;
-				float desired_fov = (float)(M_PI / 2.0);
-				float nearplane = 0.1f;
-				float farplane = 1000.0f;
-				float tan_fovy = tanf(desired_fov / 2.0f);
-				gcam.projection_matrix = float4x4(
-					1.0f / (tan_fovy * aspect), 0.0f, 0.0f, 0.0f,
-					0.0f, 1.0f / tan_fovy, 0.0f, 0.0f,
-					0.0f, 0.0f, nearplane / (nearplane - farplane), (nearplane * farplane) / (farplane - nearplane),
-					0.0f, 0.0f, 1.0f, 0.0f
-				);
-				gcam.projection_matrix = mul(gcam.projection_matrix, c_matrix);
-
-				g_cameras.push_back(gcam);
-				cam_idx_map.push_back(it.slot_index());
-			}
-
-			//Write camera data to GPU buffer in one contiguous push
-			//TODO: This is currently doing nothing to account for multiple in-flight frames
-			VulkanBuffer* camera_buffer = vgd.get_buffer(renderer.camera_buffer);
-			memcpy(camera_buffer->alloc_info.pMappedData, g_cameras.data(), g_cameras.size() * sizeof(GPUCamera));
-		}
-
 		//Draw
 		{
 			uint64_t current_frame = renderer.get_current_frame();
@@ -467,18 +420,18 @@ int main(int argc, char* argv[]) {
 			vgd.tick_image_uploads(frame_cb, renderer.descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
 		
 
-			SyncData frame_sync = {};
-			SwapchainFramebuffer window_framebuffer = window.acquire_next_image(vgd, frame_sync, current_frame);
-			
+			SyncData sync = {};
+			SwapchainFramebuffer window_framebuffer = window.acquire_next_image(vgd, sync, current_frame);
+
 			vgd.begin_render_pass(frame_cb, window_framebuffer.fb);
-			renderer.render(frame_cb, window_framebuffer.fb, frame_sync);
+			renderer.render(frame_cb, window_framebuffer.fb, sync);
 			imgui_renderer.draw(frame_cb, window_framebuffer.fb, current_frame);
 			vgd.end_render_pass(frame_cb);
 
-			vgd.graphics_queue_submit(frame_cb, frame_sync);
+			vgd.graphics_queue_submit(frame_cb, sync);
 			
 			vgd.return_command_buffer(frame_cb, current_frame + 1, renderer.frames_completed_semaphore);
-			window.present_framebuffer(vgd, window_framebuffer, frame_sync);
+			window.present_framebuffer(vgd, window_framebuffer, sync);
 		}
 		
 		// {

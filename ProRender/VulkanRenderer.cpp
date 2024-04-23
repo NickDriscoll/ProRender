@@ -725,6 +725,53 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
         memcpy(ptr, _draw_calls.data(), _draw_calls.size() * sizeof(VkDrawIndexedIndirectCommand));
     }
 
+    //Update GPU camera data
+    std::vector<uint32_t> cam_idx_map;
+    cam_idx_map.reserve(cameras.count());
+    {
+        using namespace hlslpp;
+
+        std::vector<GPUCamera> g_cameras;
+        g_cameras.reserve(cameras.count());
+
+        for (auto it = cameras.begin(); it != cameras.end(); ++it) {
+            Camera camera = *it;
+
+            GPUCamera gcam;
+            gcam.view_matrix = camera.make_view_matrix();
+
+            //Transformation applied after view transform to correct axes to match Vulkan clip-space
+            //(x-right, y-forward, z-up) -> (x-right, y-down, z-forward)
+            float4x4 c_matrix(
+                1.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, -1.0, 0.0,
+                0.0, 1.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 1.0
+            );
+
+            float aspect = (float)framebuffer.width / (float)framebuffer.height;
+            float desired_fov = (float)(M_PI / 2.0);
+            float nearplane = 0.1f;
+            float farplane = 1000.0f;
+            float tan_fovy = tanf(desired_fov / 2.0f);
+            gcam.projection_matrix = float4x4(
+                1.0f / (tan_fovy * aspect), 0.0f, 0.0f, 0.0f,
+                0.0f, 1.0f / tan_fovy, 0.0f, 0.0f,
+                0.0f, 0.0f, nearplane / (nearplane - farplane), (nearplane * farplane) / (farplane - nearplane),
+                0.0f, 0.0f, 1.0f, 0.0f
+            );
+            gcam.projection_matrix = mul(gcam.projection_matrix, c_matrix);
+
+            g_cameras.push_back(gcam);
+            cam_idx_map.push_back(it.slot_index());
+        }
+
+        //Write camera data to GPU buffer in one contiguous push
+        //TODO: This is currently doing nothing to account for multiple in-flight frames
+        VulkanBuffer* cam_buffer = vgd->get_buffer(camera_buffer);
+        memcpy(cam_buffer->alloc_info.pMappedData, g_cameras.data(), g_cameras.size() * sizeof(GPUCamera));
+    }
+
     {
 		//Wait for command buffer to finish execution before trying to record to it
 		if (_current_frame >= FRAMES_IN_FLIGHT) {

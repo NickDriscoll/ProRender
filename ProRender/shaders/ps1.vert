@@ -23,6 +23,7 @@ Ps1VertexOutput main(uint vtx_id : SV_VertexID, uint inst_idx : SV_INSTANCEID) {
     Ps1VertexOutput output;
     output.position = mul(mul(pos, cam.view_matrix), cam.projection_matrix);
     output.uv = uv;
+    output.instance_idx = inst_idx;
 
     return output;
 }
