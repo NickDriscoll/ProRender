@@ -152,7 +152,7 @@ struct VulkanGraphicsDevice {
 	VmaAllocator allocator;		//Thank you, AMD
 	const VmaDeviceMemoryCallbacks* vma_alloc_callbacks;
 
-	VkCommandBuffer borrow_graphics_command_buffer();
+	VkCommandBuffer get_graphics_command_buffer();
 	void return_command_buffer(VkCommandBuffer cb, uint64_t wait_value, Key<VkSemaphore> wait_semaphore);
 	VkCommandBuffer borrow_transfer_command_buffer();
 	void return_transfer_command_buffer(VkCommandBuffer cb);

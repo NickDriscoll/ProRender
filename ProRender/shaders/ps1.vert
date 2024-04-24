@@ -20,8 +20,10 @@ Ps1VertexOutput main(uint vtx_id : SV_VertexID, uint inst_idx : SV_INSTANCEID) {
 
     Camera cam = cameras[pc.camera_idx];
 
+    float4 world_pos = mul(pos, inst_data.world_matrix);
+
     Ps1VertexOutput output;
-    output.position = mul(mul(pos, cam.view_matrix), cam.projection_matrix);
+    output.position = mul(mul(world_pos, cam.view_matrix), cam.projection_matrix);
     output.uv = uv;
     output.instance_idx = inst_idx;
 

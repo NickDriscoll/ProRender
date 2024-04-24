@@ -71,10 +71,12 @@ int main(int argc, char* argv[]) {
 	float mouse_saved_x, mouse_saved_y;
 
 	//Load simple 3D plane
-	uint64_t plane_image_batch_id;
+	uint64_t miyamoto_image_batch_id;
+	uint64_t bird_image_batch_id;
 	uint32_t plane_image_count;
 	Key<BufferView> plane_mesh_key;
-	Key<Material> plane_material_key;
+	Key<Material> miyamoto_material_key;
+	Key<Material> bird_material_key;
 	uint32_t plane_image_idx = 0xFFFFFFFF;
 	bool know_plane_image = false;
 	{
@@ -82,16 +84,22 @@ int main(int argc, char* argv[]) {
 		{
 			std::vector<const char*> names = {
 				"images/stressed-miyamoto.jpg",
+			};
+			std::vector<const char*> names2 = {
 				"images/birds-allowed.png"
 			};
 			std::vector<VkFormat> formats = {
-				VK_FORMAT_R8G8B8A8_SRGB,
+				VK_FORMAT_R8G8B8A8_SRGB
+			};
+			std::vector<VkFormat> formats2 = {
 				VK_FORMAT_R8G8B8A8_SRGB
 			};
 			plane_image_count = names.size();
-			plane_image_batch_id = vgd.load_image_files(names, formats);
+			miyamoto_image_batch_id = vgd.load_image_files(names, formats);
+			bird_image_batch_id = vgd.load_image_files(names2, formats2);
 			hlslpp::float4 base_color(1.0, 1.0, 1.0, 1.0);
-			plane_material_key = renderer.push_material(plane_image_batch_id, renderer.standard_sampler_idx, base_color);
+			miyamoto_material_key = renderer.push_material(miyamoto_image_batch_id, renderer.standard_sampler_idx, base_color);
+			bird_material_key = renderer.push_material(bird_image_batch_id, renderer.standard_sampler_idx, base_color);
 		}
 
 		float plane_pos[] = {
@@ -373,13 +381,6 @@ int main(int argc, char* argv[]) {
 					ImGui::Image((ImTextureID)(uint64_t)it.slot_index(), ImVec2(region_sz * zoom, region_sz * zoom), uv0, uv1, tint_col, border_col);
 					ImGui::EndTooltip();
 				}
-
-				ImGui::PushID(it.slot_index());
-				if (ImGui::Button("Delete", ImVec2(0, 32))) {
-					uint64_t key = (static_cast<uint64_t>(it.generation_bits()) << 32) | it.slot_index();
-					vgd.destroy_image(key);
-				}
-				ImGui::PopID();
 				ImGui::Separator();
 			}
 			ImGui::End();
@@ -388,33 +389,71 @@ int main(int argc, char* argv[]) {
 		//Process resource deletion queue(s)
 		vgd.service_deletion_queues();
 
-		//Update per-frame uniforms
-		//TODO: This is currently doing nothing to account for multiple in-flight frames
-		{
-			VulkanBuffer* uniform_buffer = vgd.get_buffer(renderer.frame_uniforms_buffer);
-			memcpy(uniform_buffer->alloc_info.pMappedData, &renderer.frame_uniforms, sizeof(FrameUniforms));
-		}
-
 		//Queue the static plane to be drawn
 		{
-			hlslpp::float4x4 matrix(
-				1.0, 0.0, 0.0, 0.0,
-				0.0, 1.0, 0.0, 0.0,
-				0.0, 0.0, 1.0, 0.0,
-				0.0, 0.0, 0.0, 1.0
-			);
-			InstanceData tforms[] = {
-				{
-					.world_from_model = matrix
-				}
-			};
-			renderer.ps1_draw(plane_mesh_key, plane_material_key, std::span(tforms));
+			using namespace hlslpp;
+
+			int number = 100;
+			std::vector<InstanceData> tforms;
+			tforms.reserve(number);
+			static float rotation = 0.0f;
+			for (int i = 0; i < number; i++) {
+				float yaw = (float)i * rotation;
+				float cosyaw = cosf(yaw);
+				float sinyaw = sinf(yaw);
+				float4x4 yaw_matrix(
+					cosyaw, -sinyaw, 0.0, 0.0,
+					sinyaw, cosyaw, 0.0, 0.0,
+					0.0, 0.0, 1.0, 0.0,
+					0.0, 0.0, 0.0, 1.0
+				);
+				float4x4 matrix(
+					1.0, 0.0, 0.0, 0.0,
+					0.0, 1.0, 0.0, 0.0,
+					0.0, 0.0, 1.0, (float)i * 3.0,
+					0.0, 0.0, 0.0, 1.0
+				);
+				tforms.push_back(
+					{
+						.world_from_model = mul(matrix, yaw_matrix)
+					}
+				);
+			}
+			renderer.ps1_draw(plane_mesh_key, miyamoto_material_key, std::span(tforms));
+			tforms.clear();
+
+			for (int i = 0; i < number; i++) {
+				float yaw = (float)i * rotation;
+				float cosyaw = cosf(yaw);
+				float sinyaw = sinf(yaw);
+				float4x4 yaw_matrix(
+					cosyaw, -sinyaw, 0.0, 0.0,
+					sinyaw, cosyaw, 0.0, 0.0,
+					0.0, 0.0, 1.0, 0.0,
+					0.0, 0.0, 0.0, 1.0
+				);
+				float4x4 matrix(
+					1.0, 0.0, 0.0, 30.0,
+					0.0, 1.0, 0.0, 0.0,
+					0.0, 0.0, 1.0, (float)i * 3.0,
+					0.0, 0.0, 0.0, 1.0
+				);
+				tforms.push_back(
+					{
+						.world_from_model = mul(matrix, yaw_matrix)
+					}
+				);
+			}
+			renderer.ps1_draw(plane_mesh_key, bird_material_key, std::span(tforms));
+
+			rotation += delta_time;
+			while (rotation > 2.0f * M_PI) rotation -= (float)(2.0 * M_PI);
 		}
 
 		//Draw
 		{
 			uint64_t current_frame = renderer.get_current_frame();
-			VkCommandBuffer frame_cb = vgd.borrow_graphics_command_buffer();
+			VkCommandBuffer frame_cb = vgd.get_graphics_command_buffer();
 			
 			//Per-frame checking of pending images to see if they're ready
 			vgd.tick_image_uploads(frame_cb, renderer.descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
@@ -434,234 +473,6 @@ int main(int argc, char* argv[]) {
 			window.present_framebuffer(vgd, window_framebuffer, sync);
 		}
 		
-		// {
-		// 	//Wait for command buffer to finish execution before trying to record to it
-		// 	if (current_frame >= FRAMES_IN_FLIGHT) {
-		// 		uint64_t wait_value = current_frame - FRAMES_IN_FLIGHT + 1;
-
-		// 		VkSemaphoreWaitInfo info = {};
-		// 		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-		// 		info.semaphoreCount = 1;
-		// 		info.pSemaphores = &renderer.graphics_timeline_semaphore;
-		// 		info.pValues = &wait_value;
-		// 		if (vkWaitSemaphores(vgd.device, &info, U64_MAX) != VK_SUCCESS) {
-		// 			printf("Waiting for graphics timeline semaphore failed.\n");
-		// 			exit(-1);
-		// 		}
-		// 	}
-			
-		// 	uint64_t in_flight_frame = current_frame % FRAMES_IN_FLIGHT;
-
-		// 	//Acquire swapchain image for this frame
-		// 	//We want to do this as soon as possible
-		// 	uint32_t acquired_image_idx;
-		// 	vkAcquireNextImageKHR(vgd.device, window.swapchain, U64_MAX, window.acquire_semaphores[in_flight_frame], VK_NULL_HANDLE, &acquired_image_idx);
-
-		// 	VkCommandBuffer frame_cb = vgd.command_buffers[in_flight_frame];
-
-		// 	VkCommandBufferBeginInfo begin_info = {
-		// 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-		// 		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-		// 	};
-		// 	vkBeginCommandBuffer(frame_cb, &begin_info);
-
-		// 	//Per-frame checking of pending images to see if they're ready
-		// 	vgd.tick_image_uploads(frame_cb, renderer.descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
-		// 	uint64_t upload_batches_completed = vgd.completed_image_batches();
-
-		// 	//Check for plane image
-		// 	{
-		// 		static uint32_t gen_bits = 0;
-		// 		if (!know_plane_image && plane_image_batch_id <= upload_batches_completed) {
-		// 			know_plane_image = true;
-		// 			for (auto it = vgd.available_images.begin(); it != vgd.available_images.end(); ++it) {
-		// 				VulkanAvailableImage& image = *it;
-		// 				if (plane_image_batch_id == image.batch_id && image.original_idx == which_image) {
-		// 					plane_image_idx = it.slot_index();
-		// 					gen_bits = it.generation_bits();
-		// 					break;
-		// 				}
-		// 			}
-		// 		}
-
-		// 		if (know_plane_image) {
-		// 			uint64_t key = (static_cast<uint64_t>(gen_bits) << 32) | plane_image_idx;
-		// 			if (!vgd.available_images.get(key)) {
-		// 				know_plane_image = false;
-		// 				plane_image_idx = imgui_renderer.get_atlas_idx();
-		// 			}
-		// 		}
-		// 	}
-
-		// 	//Begin render pass
-		// 	{
-		// 		VkRect2D area = {
-		// 			.offset = {
-		// 				.x = 0,
-		// 				.y = 0
-		// 			},
-		// 			.extent = {
-		// 				.width = window.x_resolution,
-		// 				.height = window.y_resolution
-		// 			}
-		// 		};
-
-		// 		VkClearValue clear_color;
-		// 		clear_color.color.float32[0] = 0.0f;
-		// 		clear_color.color.float32[1] = 0.0f;
-		// 		clear_color.color.float32[2] = 0.0f;
-		// 		clear_color.color.float32[3] = 1.0f;
-		// 		clear_color.depthStencil.depth = 0.0f;
-		// 		clear_color.depthStencil.stencil = 0;
-
-		// 		VkRenderPassBeginInfo info = {};
-		// 		info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		// 		info.renderPass = *vgd.get_render_pass(window.swapchain_renderpass);
-		// 		info.framebuffer = window.swapchain_framebuffers[acquired_image_idx];
-		// 		info.renderArea = area;
-		// 		info.clearValueCount = 1;
-		// 		info.pClearValues = &clear_color;
-
-		// 		vkCmdBeginRenderPass(frame_cb, &info, VK_SUBPASS_CONTENTS_INLINE);
-		// 	}
-
-		// 	//Set viewport and scissor
-		// 	{
-		// 		VkViewport viewport = {
-		// 			.x = 0,
-		// 			.y = 0,
-		// 			.width = (float)window.x_resolution,
-		// 			.height = (float)window.y_resolution,
-		// 			.minDepth = 0.0,
-		// 			.maxDepth = 1.0
-		// 		};
-		// 		vkCmdSetViewport(frame_cb, 0, 1, &viewport);
-
-		// 		VkRect2D scissor = {
-		// 			.offset = {
-		// 				.x = 0,
-		// 				.y = 0
-		// 			},
-		// 			.extent = {
-		// 				.width = window.x_resolution,
-		// 				.height = window.y_resolution
-		// 			}
-		// 		};
-		// 		vkCmdSetScissor(frame_cb, 0, 1, &scissor);
-		// 	}
-
-		// 	vkCmdBindDescriptorSets(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), 0, 1, &renderer.descriptor_set, 0, nullptr);
-
-		// 	//Bind global index buffer
-		// 	vkCmdBindIndexBuffer(frame_cb, vgd.get_buffer(renderer.index_buffer)->buffer, 0, VK_INDEX_TYPE_UINT16);
-			
-		// 	//Bind pipeline for this pass
-		// 	vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd.get_graphics_pipeline(renderer.ps1_pipeline)->pipeline);
-
-		// 	//Draw hardcoded plane
-		// 	{
-		// 		//Find GPU index of main viewport camera
-		// 		uint32_t main_cam_idx;
-		// 		{
-		// 			for (uint32_t i = 0; i < cam_idx_map.size(); ++i) {
-		// 				if (cam_idx_map[i] == EXTRACT_IDX(main_viewport_camera.value())) {
-		// 					main_cam_idx = i;
-		// 					break;
-		// 				}
-		// 			}
-		// 		}
-
-		// 		uint32_t image_idx = imgui_renderer.get_atlas_idx();
-		// 		if (plane_image_idx != 0xFFFFFFFF)
-		// 			image_idx = plane_image_idx;
-
-		// 		BufferView* plane_positions = renderer.get_vertex_positions(plane_mesh_key);
-		// 		BufferView* plane_uvs = renderer.get_vertex_uvs(plane_mesh_key);
-		// 		BufferView* plane_indices = renderer.get_indices16(plane_mesh_key);
-
-		// 		uint32_t pcs[] = {
-		// 			plane_positions->start / 4,
-		// 			plane_uvs->start / 2,
-		// 			main_cam_idx,
-		// 			image_idx,
-		// 			renderer.standard_sampler_idx
-		// 		};
-		// 		vkCmdPushConstants(frame_cb, *vgd.get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 20, pcs);
-
-		// 		vkCmdDrawIndexed(frame_cb, plane_indices->length, 1, plane_indices->start, 0, 0);
-		// 	}
-
-
-		// 	//Record imgui drawing commands into this frame's command buffer
-		// 	imgui_renderer.draw(frame_cb, current_frame);
-
-		// 	vkCmdEndRenderPass(frame_cb);
-		// 	vkEndCommandBuffer(frame_cb);
-
-		// 	//Submit rendering command buffer
-		// 	VkQueue q;
-		// 	vkGetDeviceQueue(vgd.device, vgd.graphics_queue_family_idx, 0, &q);
-		// 	{
-		// 		uint64_t wait_values[] = {0, upload_batches_completed};
-		// 		uint64_t signal_values[] = {current_frame + 1, 0};
-		// 		VkTimelineSemaphoreSubmitInfo ts_info = {};
-		// 		ts_info.waitSemaphoreValueCount = 2;
-		// 		ts_info.pWaitSemaphoreValues = wait_values;
-		// 		ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-		// 		ts_info.signalSemaphoreValueCount = 2;
-		// 		ts_info.pSignalSemaphoreValues = signal_values;
-
-		// 		VkPipelineStageFlags wait_flags[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
-
-		// 		VkSubmitInfo info = {};
-		// 		VkSemaphore signal_semaphores[] = { renderer.graphics_timeline_semaphore, window.present_semaphores[in_flight_frame] };
-		// 		VkSemaphore wait_semaphores[] = {window.acquire_semaphores[in_flight_frame], vgd.image_upload_semaphore};
-		// 		info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		// 		info.pNext = &ts_info;
-		// 		info.waitSemaphoreCount = 2;
-		// 		info.pWaitSemaphores = wait_semaphores;
-		// 		info.pWaitDstStageMask = wait_flags;
-		// 		info.signalSemaphoreCount = 2;
-		// 		info.pSignalSemaphores = signal_semaphores;
-		// 		info.commandBufferCount = 1;
-		// 		info.pCommandBuffers = &frame_cb;
-
-		// 		if (vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE) != VK_SUCCESS) {
-		// 			printf("Queue submit failed.\n");
-		// 			exit(-1);
-		// 		}
-		// 	}
-
-		// 	//Queue present
-		// 	{
-		// 		VkPresentInfoKHR info = {};
-		// 		info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-		// 		info.waitSemaphoreCount = 1;
-		// 		info.pWaitSemaphores = &window.present_semaphores[in_flight_frame];
-		// 		info.swapchainCount = 1;
-		// 		info.pSwapchains = &window.swapchain;
-		// 		info.pImageIndices = &acquired_image_idx;
-		// 		info.pResults = VK_NULL_HANDLE;
-
-		// 		VkResult r = vkQueuePresentKHR(q, &info);
-		// 		switch (r) {
-		// 			case VK_SUBOPTIMAL_KHR:
-		// 				printf("Swapchain suboptimal.\n");
-		// 				break;
-		// 			case VK_ERROR_OUT_OF_DATE_KHR:
-		// 				printf("Swapchain out of date.\n");
-		// 				window.resize(vgd);
-		// 				break;
-		// 			case VK_SUCCESS:
-		// 				break;
-		// 			default:
-		// 				printf("Queue present failed.\n");
-		// 				exit(-1);
-		// 				break;
-		// 		}
-		// 	}
-		// }
-
 		//End-of-frame bookkeeping
 		current_tick++;
 		last_frame_took = frame_timer.check();

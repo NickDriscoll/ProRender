@@ -459,7 +459,7 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 	vkDestroyInstance(instance, alloc_callbacks);
 }
 
-VkCommandBuffer VulkanGraphicsDevice::borrow_graphics_command_buffer() {
+VkCommandBuffer VulkanGraphicsDevice::get_graphics_command_buffer() {
 	VkCommandBuffer cb = _graphics_command_buffers.top();
 	_graphics_command_buffers.pop();
 
@@ -777,7 +777,7 @@ Key<VulkanBuffer> VulkanGraphicsDevice::create_buffer(VkDeviceSize size, VkBuffe
 
 	VulkanBuffer buffer;
 	if (vmaCreateBuffer(allocator, &buffer_info, &allocation_info, &buffer.buffer, &buffer.allocation, &buffer.alloc_info) != VK_SUCCESS) {
-		printf("Creating staging buffer failed.\n");
+		printf("Creating buffer failed.\n");
 		exit(-1);
 	}
 

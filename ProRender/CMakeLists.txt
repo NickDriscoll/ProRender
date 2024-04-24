@@ -2,8 +2,6 @@
 # project specific logic here.
 #
 
-set(CMAKE_BUILD_TYPE Debug)
-
 # Add source to this project's executable.
 add_executable (
 	ProRender

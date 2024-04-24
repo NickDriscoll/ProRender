@@ -2,6 +2,9 @@
 #include "imgui.h"
 #include <limits>
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 hlslpp::float4x4 Camera::make_view_matrix() {
     using namespace hlslpp;
 
@@ -679,12 +682,11 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
         .indexCount = index_data->length,
         .instanceCount = instance_count,
         .firstIndex = index_data->start,
-        .vertexOffset = 0,                   //TODO: Eliminate GPUMeshData?
+        .vertexOffset = 0,
         .firstInstance = _instances_so_far
     };
     _instances_so_far += instance_count;
     _draw_calls.push_back(command);
-
 }
 
 //Synchronizes CPU and GPU buffers, then
@@ -707,6 +709,13 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
         VulkanBuffer* mesh_buffer = vgd->get_buffer(_mesh_buffer);
         GPUMesh* ptr = static_cast<GPUMesh*>(mesh_buffer->alloc_info.pMappedData);
         memcpy(ptr, _gpu_meshes.data(), _gpu_meshes.size() * sizeof(GPUMesh));
+    }
+
+    //Update per-frame uniforms
+    //TODO: This is currently doing nothing to account for multiple in-flight frames
+    {
+        VulkanBuffer* uniform_buffer = vgd->get_buffer(frame_uniforms_buffer);
+        memcpy(uniform_buffer->alloc_info.pMappedData, &frame_uniforms, sizeof(FrameUniforms));
     }
 
     //Upload instance data buffer
@@ -790,55 +799,6 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
 		
 		uint64_t in_flight_frame = _current_frame % FRAMES_IN_FLIGHT;
 
-		//Acquire swapchain image for this frame
-		//We want to do this as soon as possible
-		// uint32_t acquired_image_idx;
-		// vkAcquireNextImageKHR(vgd->device, window.swapchain, std::numeric_limits<uint64_t>::max(), window.acquire_semaphores[in_flight_frame], VK_NULL_HANDLE, &acquired_image_idx);
-
-		//VkCommandBuffer frame_cb = vgd->command_buffers[in_flight_frame];
-
-		// VkCommandBufferBeginInfo begin_info = {
-		// 	.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-		// 	.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-		// };
-		// vkBeginCommandBuffer(frame_cb, &begin_info);
-
-		//Per-frame checking of pending images to see if they're ready
-		//vgd->tick_image_uploads(frame_cb, descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
-		//uint64_t upload_batches_completed = vgd->completed_image_batches();
-
-		//Begin render pass
-		// {
-		// 	VkRect2D area = {
-		// 		.offset = {
-		// 			.x = 0,
-		// 			.y = 0
-		// 		},
-		// 		.extent = {
-		// 			.width = framebuffer.width,
-		// 			.height = framebuffer.height
-		// 		}
-		// 	};
-
-		// 	VkClearValue clear_color;
-		// 	clear_color.color.float32[0] = 0.0f;
-		// 	clear_color.color.float32[1] = 0.0f;
-		// 	clear_color.color.float32[2] = 0.0f;
-		// 	clear_color.color.float32[3] = 1.0f;
-		// 	clear_color.depthStencil.depth = 0.0f;
-		// 	clear_color.depthStencil.stencil = 0;
-
-		// 	VkRenderPassBeginInfo info = {};
-		// 	info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		// 	info.renderPass = *vgd->get_render_pass(framebuffer.render_pass);
-        //     info.framebuffer = *vgd->get_framebuffer(framebuffer.fb);
-		// 	info.renderArea = area;
-		// 	info.clearValueCount = 1;
-		// 	info.pClearValues = &clear_color;
-
-		// 	vkCmdBeginRenderPass(frame_cb, &info, VK_SUBPASS_CONTENTS_INLINE);
-		// }
-
 		//Set viewport and scissor
 		{
 			VkViewport viewport = {
@@ -878,127 +838,12 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
         };
         vkCmdPushConstants(frame_cb, *vgd->get_pipeline_layout(pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 4, pcs);
 
-        
         VkDeviceSize indirect_offset = (_current_frame % FRAMES_IN_FLIGHT) * MAX_INDIRECT_DRAWS * sizeof(VkDrawIndexedIndirectCommand);
-        vkCmdDrawIndexedIndirect(frame_cb, vgd->get_buffer(_indirect_draw_buffer)->buffer, indirect_offset, _draw_calls.size(), 0);
-
-		//Draw hardcoded plane
-		// {
-		// 	//Find GPU index of main viewport camera
-		// 	uint32_t main_cam_idx;
-		// 	{
-		// 		for (uint32_t i = 0; i < cam_idx_map.size(); ++i) {
-		// 			if (cam_idx_map[i] == EXTRACT_IDX(main_viewport_camera.value())) {
-		// 				main_cam_idx = i;
-		// 				break;
-		// 			}
-		// 		}
-		// 	}
-
-		// 	uint32_t image_idx = imgui_renderer.get_atlas_idx();
-		// 	if (plane_image_idx != 0xFFFFFFFF)
-		// 		image_idx = plane_image_idx;
-
-		// 	BufferView* plane_positions = renderer.get_vertex_positions(plane_mesh_key);
-		// 	BufferView* plane_uvs = renderer.get_vertex_uvs(plane_mesh_key);
-		// 	BufferView* plane_indices = renderer.get_indices16(plane_mesh_key);
-
-		// 	uint32_t pcs[] = {
-		// 		plane_positions->start / 4,
-		// 		plane_uvs->start / 2,
-		// 		main_cam_idx,
-		// 		image_idx,
-		// 		renderer.standard_sampler_idx
-		// 	};
-		// 	vkCmdPushConstants(frame_cb, *vgd->get_pipeline_layout(renderer.pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 20, pcs);
-
-		// 	vkCmdDrawIndexed(frame_cb, plane_indices->length, 1, plane_indices->start, 0, 0);
-		// }
-
-
-		//Record imgui drawing commands into this frame's command buffer
-		//imgui_renderer.draw(frame_cb, current_frame);
-
-		//vkCmdEndRenderPass(frame_cb);
-		//vkEndCommandBuffer(frame_cb);
-
-		//Submit rendering command buffer
-        // SyncData sems = {
-        //     .wait_values = {0, upload_batches_completed},
-        //     .signal_values = {_current_frame + 1, 0},
-        //     .wait_semaphores = {window.acquire_semaphores[in_flight_frame], vgd->image_upload_semaphore},
-        //     .signal_semaphores = { graphics_timeline_semaphore, *vgd->get_semaphore(semaphore) },
-        //     .count = 2,
-        // }
+        vkCmdDrawIndexedIndirect(frame_cb, vgd->get_buffer(_indirect_draw_buffer)->buffer, indirect_offset, _draw_calls.size(), sizeof(VkDrawIndexedIndirectCommand));
 
         sync_data.signal_semaphores.push_back(*vgd->get_semaphore(frames_completed_semaphore));
         sync_data.signal_values.push_back(_current_frame + 1);
-
-		// VkQueue q;
-		// vkGetDeviceQueue(vgd->device, vgd->graphics_queue_family_idx, 0, &q);
-		// {
-		// 	uint64_t wait_values[] = {0, upload_batches_completed};
-		// 	uint64_t signal_values[] = {_current_frame + 1, 0};
-		// 	VkTimelineSemaphoreSubmitInfo ts_info = {};
-		// 	ts_info.waitSemaphoreValueCount = 2;
-		// 	ts_info.pWaitSemaphoreValues = wait_values;
-		// 	ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-		// 	ts_info.signalSemaphoreValueCount = 2;
-		// 	ts_info.pSignalSemaphoreValues = signal_values;
-
-		// 	VkPipelineStageFlags wait_flags[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
-
-		// 	VkSubmitInfo info = {};
-		// 	VkSemaphore signal_semaphores[] = { graphics_timeline_semaphore, *vgd->get_semaphore(semaphore) };
-		// 	VkSemaphore wait_semaphores[] = {window.acquire_semaphores[in_flight_frame], vgd->image_upload_semaphore};
-		// 	info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		// 	info.pNext = &ts_info;
-		// 	info.waitSemaphoreCount = 2;
-		// 	info.pWaitSemaphores = wait_semaphores;
-		// 	info.pWaitDstStageMask = wait_flags;
-		// 	info.signalSemaphoreCount = 2;
-		// 	info.pSignalSemaphores = signal_semaphores;
-		// 	info.commandBufferCount = 1;
-		// 	info.pCommandBuffers = &frame_cb;
-
-		// 	if (vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE) != VK_SUCCESS) {
-		// 		printf("Queue submit failed.\n");
-		// 		exit(-1);
-		// 	}
-		// }
-
-		//Queue present
-		// {
-		// 	VkPresentInfoKHR info = {};
-		// 	info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-		// 	info.waitSemaphoreCount = 1;
-		// 	info.pWaitSemaphores = &window.present_semaphores[in_flight_frame];
-		// 	info.swapchainCount = 1;
-		// 	info.pSwapchains = &window.swapchain;
-		// 	info.pImageIndices = &acquired_image_idx;
-		// 	info.pResults = VK_NULL_HANDLE;
-
-		// 	VkResult r = vkQueuePresentKHR(q, &info);
-		// 	switch (r) {
-		// 		case VK_SUBOPTIMAL_KHR:
-		// 			printf("Swapchain suboptimal.\n");
-		// 			break;
-		// 		case VK_ERROR_OUT_OF_DATE_KHR:
-		// 			printf("Swapchain out of date.\n");
-		// 			window.resize(vgd);
-		// 			break;
-		// 		case VK_SUCCESS:
-		// 			break;
-		// 		default:
-		// 			printf("Queue present failed.\n");
-		// 			exit(-1);
-		// 			break;
-		// 	}
-		// }
 	}
-
-
-
 
     //Get renderer state ready for next frame
     _draw_calls.clear();
