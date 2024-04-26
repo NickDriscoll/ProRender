@@ -711,6 +711,13 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
         memcpy(ptr, _gpu_meshes.data(), _gpu_meshes.size() * sizeof(GPUMesh));
     }
 
+    frame_uniforms.clip_from_screen = hlslpp::float4x4(
+        2.0f / (float)framebuffer.width, 0.0f, 0.0f, -1.0f,
+        0.0f, 2.0f / (float)framebuffer.height, 0.0f, -1.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
+    );
+
     //Update per-frame uniforms
     //TODO: This is currently doing nothing to account for multiple in-flight frames
     {

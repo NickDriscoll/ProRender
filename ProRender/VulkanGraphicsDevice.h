@@ -144,7 +144,6 @@ struct VulkanGraphicsDevice {
 
 	VkCommandPool graphics_command_pool;
 	VkCommandPool transfer_command_pool;
-	//VkCommandBuffer command_buffers[FRAMES_IN_FLIGHT];
 	Key<VkSemaphore> image_upload_semaphore;			//Timeline semaphore whose value increments by one for each image upload batch
 	
 	slotmap<VulkanAvailableImage> available_images;

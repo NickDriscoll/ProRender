@@ -1,10 +1,42 @@
-﻿#include "ProRender.h"
-#include "ImguiRenderer.h"
-#include "tinyfiledialogs.h"
-#include <algorithm>
+﻿#ifdef _WIN32
+	#define VK_USE_PLATFORM_WIN32_KHR
+	#define NOMINMAX
+#endif
+#ifdef __linux__
+	#define VK_USE_PLATFORM_XLIB_KHR
+#endif
 
+#include <bit>
+#include <chrono>
+#include <filesystem>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <vector>
+#include <thread>
+#include <math.h>
+#include <hlsl++.h>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
+#include <SDL3/SDL_vulkan.h>
+#include <fastgltf/core.hpp>
+#include "volk.h"
+#include "stb_image.h"
+#include "VulkanWindow.h"
+#include "VulkanRenderer.h"
+#include "ImguiRenderer.h"
+#include "vma.h"
+#include "tinyfiledialogs.h"
+#include "utils.h"
+#include <algorithm>
 #define _USE_MATH_DEFINES
 #include <math.h>
+
+struct Configuration {
+	uint32_t window_width;
+	uint32_t window_height;
+};
+
 
 int main(int argc, char* argv[]) {
 	Timer init_timer = Timer("Init");
@@ -13,8 +45,8 @@ int main(int argc, char* argv[]) {
 	//User config structure
 
 	Configuration my_config = {
-		.window_width = 1200,
-		.window_height = 800	
+		.window_width = 1920,
+		.window_height = 1080	
 	};
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);	//Initialize SDL
@@ -46,12 +78,6 @@ int main(int argc, char* argv[]) {
 
 	//Initialize the renderer
 	VulkanRenderer renderer(&vgd, window.swapchain_renderpass);
-    renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
-        2.0f / (float)window.x_resolution, 0.0f, 0.0f, -1.0f,
-        0.0f, 2.0f / (float)window.y_resolution, 0.0f, -1.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f
-    );
 
 	//Initialize Dear ImGui
 	ImguiRenderer imgui_renderer = ImguiRenderer(
@@ -158,6 +184,7 @@ int main(int argc, char* argv[]) {
 	bool move_down = false;
 	bool move_up = false;
 	bool camera_rolling = false;
+	bool camera_boost = false;
 
 	uint32_t which_image = 0;
 
@@ -219,6 +246,9 @@ int main(int argc, char* argv[]) {
 					case SDLK_LALT:
 						camera_rolling = true;
 						break;
+					case SDLK_LSHIFT:
+						camera_boost = true;
+						break;
 					case SDLK_SPACE:
 						which_image = (which_image + 1) % plane_image_count;
 						know_plane_image = false;
@@ -251,6 +281,9 @@ int main(int argc, char* argv[]) {
 						break;
 					case SDLK_LALT:
 						camera_rolling = false;
+						break;
+					case SDLK_LSHIFT:
+						camera_boost = false;
 						break;
 					}
 					io.AddKeyEvent(SDL2ToImGuiKey(event.key.keysym.sym), false);
@@ -316,7 +349,10 @@ int main(int argc, char* argv[]) {
 
 			//Do updates that require knowing the view matrix
 
-			const float FREECAM_SPEED = 100.0;
+			float camera_speed = 100.0;
+			if (camera_boost) {
+				camera_speed *= 10.0;
+			}
 			float4 move_direction = float4(0);
 			if (move_forward) move_direction += float4(0.0, 1.0, 0.0, 0.0);
 			if (move_back) move_direction += float4(0.0, -1.0, 0.0, 0.0);
@@ -326,7 +362,7 @@ int main(int argc, char* argv[]) {
 			if (move_up) move_direction += float4(0.0, 0.0, 1.0, 0.0);
 			if (length(move_direction) >= float1(0.001)) {
 				float4 d = mul(0.1 * normalize(move_direction), view_matrix);
-				main_cam->position += FREECAM_SPEED * delta_time * float3(d.x, d.y, d.z);
+				main_cam->position += camera_speed * delta_time * float3(d.x, d.y, d.z);
 			}
 		}
 
@@ -390,10 +426,13 @@ int main(int argc, char* argv[]) {
 		vgd.service_deletion_queues();
 
 		//Queue the static plane to be drawn
+		Timer plane_update_timer;
+		plane_update_timer.start();
 		{
 			using namespace hlslpp;
 
-			int number = 100;
+			static int number = 10;
+
 			std::vector<InstanceData> tforms;
 			tforms.reserve(number);
 			static float rotation = 0.0f;
