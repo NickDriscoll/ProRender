@@ -1,5 +1,4 @@
 #include "VulkanGraphicsDevice.h"
-#include "VulkanWindow.h"
 #include <imgui.h>
 
 #define U64_MAX 0xFFFFFFFFFFFFFFFF

@@ -1,21 +1,12 @@
 #pragma once
 #define _CRT_SECURE_NO_WARNINGS
 
-#include <cstring>
-#include <stdlib.h>
-#include <stdio.h>
-#include <vector>
-#include <stack>
 #include <deque>
 #include <queue>
-#include <filesystem>
-#include <thread>
 #include <mutex>
 #include "volk.h"
 #include "vma.h"
 #include "slotmap.h"
-#include "stb_image.h"
-#include "timer.h"
 #include "VulkanGraphicsPipeline.h"
 
 #define FRAMES_IN_FLIGHT 2		//Number of simultaneous frames the GPU could be working on

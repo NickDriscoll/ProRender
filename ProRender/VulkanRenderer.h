@@ -1,6 +1,5 @@
 #include <span>
 #include <unordered_map>
-#include <stdint.h>
 #include <string.h>
 #include <hlsl++.h>
 #include <imgui.h>

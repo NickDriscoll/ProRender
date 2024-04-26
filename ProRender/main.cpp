@@ -26,6 +26,7 @@
 #include "VulkanRenderer.h"
 #include "ImguiRenderer.h"
 #include "vma.h"
+#include "timer.h"
 #include "tinyfiledialogs.h"
 #include "utils.h"
 #include <algorithm>
