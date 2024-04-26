@@ -53,22 +53,22 @@ endif()
 add_custom_command(
 			TARGET ProRender POST_BUILD
 			COMMAND ${CMAKE_COMMAND} -E make_directory
-					"${CMAKE_CURRENT_BINARY_DIR}/bin")
+					"${CMAKE_SOURCE_DIR}/bin")
 
 add_custom_command(
 	TARGET ProRender POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E make_directory
-			"${CMAKE_CURRENT_BINARY_DIR}/bin/shaders")
+			"${CMAKE_SOURCE_DIR}/bin/shaders")
 
 add_custom_command(
 	TARGET ProRender POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E make_directory
-			"${CMAKE_CURRENT_BINARY_DIR}/bin/images")
+			"${CMAKE_SOURCE_DIR}/bin/images")
 
 add_custom_command(
 	TARGET ProRender POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E make_directory
-			"${CMAKE_CURRENT_BINARY_DIR}/bin/models")
+			"${CMAKE_SOURCE_DIR}/bin/models")
 
 #Compile HLSL vertex shaders
 #message("Current source dir: ${CMAKE_CURRENT_SOURCE_DIR}")
@@ -79,7 +79,7 @@ foreach(file ${files})
 	add_custom_command(
 		TARGET ProRender
 		POST_BUILD
-		COMMAND "$ENV{VULKAN_SDK}/bin/dxc" -spirv -T vs_6_7 -Fo "${CMAKE_CURRENT_BINARY_DIR}/bin/shaders/${filename}.spv" "${file}"
+		COMMAND "$ENV{VULKAN_SDK}/bin/dxc" -spirv -T vs_6_7 -Fo "${CMAKE_SOURCE_DIR}/bin/shaders/${filename}.spv" "${file}"
 		VERBATIM)
 endforeach()
 
@@ -91,7 +91,7 @@ foreach(file ${files})
 	add_custom_command(
 		TARGET ProRender
 		POST_BUILD
-		COMMAND "$ENV{VULKAN_SDK}/bin/dxc" -spirv -T ps_6_7 -Fo "${CMAKE_CURRENT_BINARY_DIR}/bin/shaders/${filename}.spv" "${file}"
+		COMMAND "$ENV{VULKAN_SDK}/bin/dxc" -spirv -T ps_6_7 -Fo "${CMAKE_SOURCE_DIR}/bin/shaders/${filename}.spv" "${file}"
 		VERBATIM)
 endforeach()
 
@@ -105,7 +105,7 @@ foreach(file ${files})
 		POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E copy
 				${file}
-				${CMAKE_CURRENT_BINARY_DIR}/bin/images/)
+				${CMAKE_SOURCE_DIR}/bin/images/)
 endforeach()
 
 file(GLOB files "${CMAKE_SOURCE_DIR}/data/models/*")
@@ -117,17 +117,21 @@ foreach(file ${files})
 		POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E copy
 				${file}
-				${CMAKE_CURRENT_BINARY_DIR}/bin/models/)
+				${CMAKE_SOURCE_DIR}/bin/models/)
 endforeach()
 
-#TODO: Figure out how to make this work on windows and linux simultaneously
+#The path of the compiled binary varies by OS
+if (WIN32)
+	set(BIN_PATH "${CMAKE_CURRENT_BINARY_DIR}/Debug/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}")
+endif(WIN32)
+if (UNIX)
+	set(BIN_PATH "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}")
+endif(UNIX)
+
+#Copy executable to bin directory
 add_custom_command(
 		TARGET ProRender POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E copy
-		${CMAKE_CURRENT_BINARY_DIR}/Debug/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}	#windows
-		#${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}			#linux
-				${CMAKE_CURRENT_BINARY_DIR}/bin/)
-
-
+		${BIN_PATH} ${CMAKE_SOURCE_DIR}/bin/)
 
 # TODO: Add tests and install targets if needed.
