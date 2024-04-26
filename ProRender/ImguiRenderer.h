@@ -4,9 +4,6 @@
 
 #define U64_MAX 0xFFFFFFFFFFFFFFFF
 
-ImGuiKey SDL2ToImGuiKey(int keycode);
-int SDL2ToImGuiMouseButton(int button);
-
 struct ImguiFrame {
 	uint32_t vertex_start;
 	uint32_t vertex_size;
