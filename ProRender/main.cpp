@@ -56,6 +56,7 @@ int main(int argc, char* argv[]) {
 
 	//Init vulkan graphics device
 	VulkanGraphicsDevice vgd = VulkanGraphicsDevice();
+	printf("VulkanGraphicsDevice is %i bytes\n", sizeof(vgd));
 	app_timer.print("VGD Initialization");
 	app_timer.start();
 
@@ -217,12 +218,6 @@ int main(int argc, char* argv[]) {
 				case SDL_EVENT_WINDOW_RESIZED:
 					window.resize(vgd);
 					io.DisplaySize = ImVec2((float)window.x_resolution, (float)window.y_resolution);
-					renderer.frame_uniforms.clip_from_screen = hlslpp::float4x4(
-						2.0f / (float)window.x_resolution, 0.0f, 0.0f, -1.0f,
-						0.0f, 2.0f / (float)window.y_resolution, 0.0f, -1.0f,
-						0.0f, 0.0f, 1.0f, 0.0f,
-						0.0f, 0.0f, 0.0f, 1.0f
-					);
 					break;
 				case SDL_EVENT_KEY_DOWN:
 					switch (event.key.keysym.sym) {
@@ -432,7 +427,7 @@ int main(int argc, char* argv[]) {
 		{
 			using namespace hlslpp;
 
-			static int number = 10;
+			static int number = 1000;
 
 			std::vector<InstanceData> tforms;
 			tforms.reserve(number);

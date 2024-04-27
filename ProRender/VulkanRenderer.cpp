@@ -57,6 +57,10 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
     _gpu_materials.alloc(MAX_MATERIALS);
     _gpu_meshes.alloc(MAX_MESHES);
 
+	slotmap<VkDescriptorSet> _descriptor_sets;
+	slotmap<VkDescriptorPool> _descriptor_pools;
+	slotmap<VkDescriptorSetLayout> _descriptor_set_layouts;
+
     //Create bindless descriptor set
     {
         {
@@ -183,16 +187,6 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
             });
 
             descriptor_set_layout_id = vgd->create_descriptor_set_layout(bindings);
-
-            std::vector<VkPushConstantRange> ranges = {
-                {
-                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                    .offset = 0,
-                    .size = 20
-                }
-            };
-
-            pipeline_layout_id = vgd->create_pipeline_layout(descriptor_set_layout_id, ranges);
         }
 
         //Create bindless descriptor set
@@ -447,6 +441,17 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
 
         vkUpdateDescriptorSets(vgd->device, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
 	}
+
+    //Create pipeline layout
+    std::vector<VkPushConstantRange> ranges = {
+        {
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            .offset = 0,
+            .size = 20
+        }
+    };
+
+    pipeline_layout_id = vgd->create_pipeline_layout(descriptor_set_layout_id, ranges);
 
     //Create hardcoded graphics pipelines
 	{

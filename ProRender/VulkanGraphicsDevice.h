@@ -3,6 +3,7 @@
 
 #include <deque>
 #include <queue>
+#include <thread>
 #include <mutex>
 #include "volk.h"
 #include "vma.h"
@@ -17,13 +18,6 @@ constexpr VkComponentMapping COMPONENT_MAPPING_DEFAULT = {
 	.g = VK_COMPONENT_SWIZZLE_G,
 	.b = VK_COMPONENT_SWIZZLE_B,
 	.a = VK_COMPONENT_SWIZZLE_A,
-};
-
-struct VulkanDescriptorLayoutBinding {
-	VkDescriptorType descriptor_type;
-	uint32_t descriptor_count;
-	VkShaderStageFlags stage_flags;
-	const VkSampler* immutable_samplers;
 };
 
 struct VulkanBuffer {
@@ -119,6 +113,21 @@ struct SyncData {
 	VkFence fence = VK_NULL_HANDLE;
 };
 
+struct VulkanDescriptorLayoutBinding {
+	VkDescriptorType descriptor_type;
+	uint32_t descriptor_count;
+	VkShaderStageFlags stage_flags;
+	const VkSampler* immutable_samplers;
+};
+
+struct DescriptorSetSpec {
+	std::vector<VulkanDescriptorLayoutBinding> bindings;
+	std::vector<VkSamplerCreateInfo> immutable_samplers;
+
+	uint32_t push_binding(VkDescriptorType type, uint32_t count, VkShaderStageFlags flags);
+	uint32_t push_immutable_sampler(VulkanGraphicsDevice& vgd, VkSamplerCreateInfo& info);
+};
+
 struct VulkanGraphicsDevice {
 	const VkAllocationCallbacks* alloc_callbacks;
 	VkInstance instance;
@@ -147,8 +156,12 @@ struct VulkanGraphicsDevice {
 	VkCommandBuffer borrow_transfer_command_buffer();
 	void return_transfer_command_buffer(VkCommandBuffer cb);
 
-	Key<VkDescriptorSetLayout> create_descriptor_set_layout(std::vector<VulkanDescriptorLayoutBinding>& descriptor_sets);
+	//Descriptor set management
+	Key<VkDescriptorSetLayout> create_descriptor_set_layout(std::vector<VulkanDescriptorLayoutBinding>& descriptor_bindings);
 	VkDescriptorSetLayout* get_descriptor_set_layout(Key<VkDescriptorSetLayout> id);
+	void create_bindless_descriptor_set(DescriptorSetSpec& spec);
+	VkDescriptorSet get_bindless_descriptor_set();
+
 	Key<VkPipelineLayout> create_pipeline_layout(Key<VkDescriptorSetLayout> descriptor_set_layout_id, std::vector<VkPushConstantRange>& push_constants);
 	VkPipelineLayout* get_pipeline_layout(Key<VkPipelineLayout> id);
 
@@ -231,14 +244,23 @@ private:
 	std::mutex _image_upload_mutex;
 	std::deque<ImageDeletion> _image_deletion_queue;
 
+	//Bindless descriptor set management state
+	Key<VkDescriptorSetLayout> _bindless_descriptor_layout;
+	Key<VkDescriptorPool> _bindless_descriptor_pool;
+	Key<VkDescriptorSet> _bindless_descriptor_set;
 
+	//slotmaps holding the managed Vulkan objects
+	slotmap<VkDescriptorSet> _descriptor_sets;
+	slotmap<VkDescriptorPool> _descriptor_pools;
 	slotmap<VkDescriptorSetLayout> _descriptor_set_layouts;
 	slotmap<VkPipelineLayout> _pipeline_layouts;
 	slotmap<VkFramebuffer> _framebuffers;
 	slotmap<VkRenderPass> _render_passes;
 	slotmap<VkSemaphore> _semaphores;
 	slotmap<VulkanGraphicsPipeline> _graphics_pipelines;
+
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _graphics_command_buffers;
-	std::deque<CommandBufferReturn> _command_buffer_returns;
 	std::stack<VkCommandBuffer, std::vector<VkCommandBuffer>> _transfer_command_buffers;
+	std::deque<CommandBufferReturn> _command_buffer_returns;
 };
+

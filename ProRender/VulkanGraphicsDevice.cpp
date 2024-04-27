@@ -1,5 +1,6 @@
 #include "VulkanGraphicsDevice.h"
 #include <filesystem>
+#include <string.h>
 #include "stb_image.h"
 #include "timer.h"
 #include "tinyfiledialogs.h"
@@ -20,6 +21,9 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	_graphics_pipelines.alloc(32);
 	_descriptor_set_layouts.alloc(64);
 	_pipeline_layouts.alloc(64);
+    _descriptor_pools.alloc(1);
+    _descriptor_set_layouts.alloc(1);
+    _descriptor_sets.alloc(4);
 
 	//Initialize volk
 	if (volkInitialize() != VK_SUCCESS) {
@@ -813,20 +817,20 @@ VkSampler VulkanGraphicsDevice::create_sampler(VkSamplerCreateInfo& info) {
 	return sampler;
 }
 
-Key<VkDescriptorSetLayout> VulkanGraphicsDevice::create_descriptor_set_layout(std::vector<VulkanDescriptorLayoutBinding>& descriptor_sets) {
+Key<VkDescriptorSetLayout> VulkanGraphicsDevice::create_descriptor_set_layout(std::vector<VulkanDescriptorLayoutBinding>& descriptor_bindings) {
 	VkDescriptorSetLayout ds_layout;
 	{
 		std::vector<VkDescriptorSetLayoutBinding> bindings;
-		bindings.reserve(descriptor_sets.size());
+		bindings.reserve(descriptor_bindings.size());
 		std::vector<VkDescriptorBindingFlags> bindings_flags;
-		bindings_flags.reserve(descriptor_sets.size());
+		bindings_flags.reserve(descriptor_bindings.size());
 
 		//TODO: Maybe think about having these flags be configurable
 		//I'm having a hard time being bothered to do it bc it makes life so much easier on PC
 		VkDescriptorBindingFlags binding_flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
 
-		for (uint32_t i = 0; i < descriptor_sets.size(); i++) {
-			VulkanDescriptorLayoutBinding& b = descriptor_sets[i];
+		for (uint32_t i = 0; i < descriptor_bindings.size(); i++) {
+			VulkanDescriptorLayoutBinding& b = descriptor_bindings[i];
 			VkDescriptorSetLayoutBinding binding = {
 				.binding = i,
 				.descriptorType = b.descriptor_type,
@@ -1639,6 +1643,7 @@ Key<VkFramebuffer> VulkanGraphicsDevice::create_framebuffer(VkFramebufferCreateI
 		printf("Creating framebuffer failed.\n");
 		exit(-1);
 	}
+	printf("Created framebuffer 0x%X\n", fb);
 	return _framebuffers.insert(fb);
 }
 
@@ -1726,4 +1731,28 @@ void VulkanGraphicsDevice::begin_render_pass(VkCommandBuffer cb, VulkanFrameBuff
 
 void VulkanGraphicsDevice::end_render_pass(VkCommandBuffer cb) {
 	vkCmdEndRenderPass(cb);
+}
+
+void VulkanGraphicsDevice::create_bindless_descriptor_set(DescriptorSetSpec& spec) {
+
+}
+
+VkDescriptorSet VulkanGraphicsDevice::get_bindless_descriptor_set() {
+
+}
+
+uint32_t DescriptorSetSpec::push_binding(VkDescriptorType type, uint32_t count, VkShaderStageFlags flags) {
+	this->bindings.push_back({
+		.descriptor_type = type,
+		.descriptor_count = count,
+		.stage_flags = flags
+	});
+
+	//return index of pushed binding
+	return this->bindings.size() - 1;
+}
+
+uint32_t DescriptorSetSpec::push_immutable_sampler(VulkanGraphicsDevice& vgd, VkSamplerCreateInfo& info) {
+	this->immutable_samplers.push_back(info);
+	return this->immutable_samplers.size() - 1;
 }
