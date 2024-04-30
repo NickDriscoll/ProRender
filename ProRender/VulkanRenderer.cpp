@@ -57,189 +57,189 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
     _gpu_materials.alloc(MAX_MATERIALS);
     _gpu_meshes.alloc(MAX_MESHES);
 
-	slotmap<VkDescriptorSet> _descriptor_sets;
-	slotmap<VkDescriptorPool> _descriptor_pools;
-	slotmap<VkDescriptorSetLayout> _descriptor_set_layouts;
+	// slotmap<VkDescriptorSet> _descriptor_sets;
+	// slotmap<VkDescriptorPool> _descriptor_pools;
+	// slotmap<VkDescriptorSetLayout> _descriptor_set_layouts;
 
     //Create bindless descriptor set
-    {
-        {
-            //Create immutable samplers
-            {
-                VkSamplerCreateInfo info = {
-                    .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-                    .magFilter = VK_FILTER_LINEAR,
-                    .minFilter = VK_FILTER_LINEAR,
-                    .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-                    .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                    .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                    .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                    .anisotropyEnable = VK_TRUE,
-                    .maxAnisotropy = 16.0,
-                    .minLod = 0.0,
-                    .maxLod = VK_LOD_CLAMP_NONE,
-                };
-                _samplers.push_back(vgd->create_sampler(info));
-                standard_sampler_idx = 0;
+    // {
+    //     {
+    //         //Create immutable samplers
+    //         {
+    //             VkSamplerCreateInfo info = {
+    //                 .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+    //                 .magFilter = VK_FILTER_LINEAR,
+    //                 .minFilter = VK_FILTER_LINEAR,
+    //                 .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+    //                 .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+    //                 .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+    //                 .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+    //                 .anisotropyEnable = VK_TRUE,
+    //                 .maxAnisotropy = 16.0,
+    //                 .minLod = 0.0,
+    //                 .maxLod = VK_LOD_CLAMP_NONE,
+    //             };
+    //             _samplers.push_back(vgd->create_sampler(info));
+    //             standard_sampler_idx = 0;
 
-                info = {
-                    .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-                    .magFilter = VK_FILTER_NEAREST,
-                    .minFilter = VK_FILTER_NEAREST,
-                    .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-                    .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                    .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                    .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                    .anisotropyEnable = VK_FALSE,
-                    .maxAnisotropy = 1.0,
-                    .minLod = 0.0,
-                    .maxLod = VK_LOD_CLAMP_NONE,
-                };
-                _samplers.push_back(vgd->create_sampler(info));
-                point_sampler_idx = 1;
-            }
+    //             info = {
+    //                 .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+    //                 .magFilter = VK_FILTER_NEAREST,
+    //                 .minFilter = VK_FILTER_NEAREST,
+    //                 .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+    //                 .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+    //                 .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+    //                 .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+    //                 .anisotropyEnable = VK_FALSE,
+    //                 .maxAnisotropy = 1.0,
+    //                 .minLod = 0.0,
+    //                 .maxLod = VK_LOD_CLAMP_NONE,
+    //             };
+    //             _samplers.push_back(vgd->create_sampler(info));
+    //             point_sampler_idx = 1;
+    //         }
 
-            std::vector<VulkanDescriptorLayoutBinding> bindings;
+    //         std::vector<VulkanDescriptorLayoutBinding> bindings;
 
-            //Images
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                .descriptor_count = 1024*1024,
-                .stage_flags = VK_SHADER_STAGE_FRAGMENT_BIT
-            });
+    //         //Images
+    //         bindings.push_back({
+    //             .descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+    //             .descriptor_count = 1024*1024,
+    //             .stage_flags = VK_SHADER_STAGE_FRAGMENT_BIT
+    //         });
 
-            //Samplers
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLER,
-                .descriptor_count = static_cast<uint32_t>(_samplers.size()),
-                .stage_flags = VK_SHADER_STAGE_FRAGMENT_BIT,
-                .immutable_samplers = _samplers.data()
-            });
+    //         //Samplers
+    //         bindings.push_back({
+    //             .descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLER,
+    //             .descriptor_count = static_cast<uint32_t>(_samplers.size()),
+    //             .stage_flags = VK_SHADER_STAGE_FRAGMENT_BIT,
+    //             .immutable_samplers = _samplers.data()
+    //         });
 
-            //Frame uniforms
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-            });
+    //         //Frame uniforms
+    //         bindings.push_back({
+    //             .descriptor_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    //             .descriptor_count = 1,
+    //             .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+    //         });
 
-            //Imgui positions
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
-            });
+    //         //Imgui positions
+    //         bindings.push_back({
+    //             .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //             .descriptor_count = 1,
+    //             .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
+    //         });
 
-            //Imgui UVs
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
-            });
+    //         //Imgui UVs
+    //         bindings.push_back({
+    //             .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //             .descriptor_count = 1,
+    //             .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
+    //         });
 
-            //Imgui colors
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
-            });
+    //         //Imgui colors
+    //         bindings.push_back({
+    //             .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //             .descriptor_count = 1,
+    //             .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
+    //         });
 
-            //Vertex positions
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
-            });
+    //         //Vertex positions
+    //         bindings.push_back({
+    //             .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //             .descriptor_count = 1,
+    //             .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
+    //         });
 
-            //Vertex uvs
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
-            });
+    //         //Vertex uvs
+    //         bindings.push_back({
+    //             .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //             .descriptor_count = 1,
+    //             .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
+    //         });
 
-            //Camera buffer
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-            });
+    //         //Camera buffer
+    //         bindings.push_back({
+    //             .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //             .descriptor_count = 1,
+    //             .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+    //         });
 
-            //Mesh buffer
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-            });
+    //         //Mesh buffer
+    //         bindings.push_back({
+    //             .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //             .descriptor_count = 1,
+    //             .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+    //         });
 
-            //Material buffer
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-            });
+    //         //Material buffer
+    //         bindings.push_back({
+    //             .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //             .descriptor_count = 1,
+    //             .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+    //         });
 
-            //Instance data buffer
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-            });
+    //         //Instance data buffer
+    //         bindings.push_back({
+    //             .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //             .descriptor_count = 1,
+    //             .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+    //         });
 
-            descriptor_set_layout_id = vgd->create_descriptor_set_layout(bindings);
-        }
+    //         descriptor_set_layout_id = vgd->create_descriptor_set_layout(bindings);
+    //     }
 
-        //Create bindless descriptor set
-        {
-            {
-                VkDescriptorPoolSize sizes[] = {
-                    {
-                        .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                        .descriptorCount = 1024*1024,
-                    },
-                    {
-                        .type = VK_DESCRIPTOR_TYPE_SAMPLER,
-                        .descriptorCount = 16
-                    },
-                    {
-                        .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                        .descriptorCount = 256
-                    },
-                    {
-                        .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                        .descriptorCount = 16
-                    }
-                };
+    //     //Create bindless descriptor set
+    //     {
+    //         {
+    //             VkDescriptorPoolSize sizes[] = {
+    //                 {
+    //                     .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+    //                     .descriptorCount = 1024*1024,
+    //                 },
+    //                 {
+    //                     .type = VK_DESCRIPTOR_TYPE_SAMPLER,
+    //                     .descriptorCount = 16
+    //                 },
+    //                 {
+    //                     .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //                     .descriptorCount = 256
+    //                 },
+    //                 {
+    //                     .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    //                     .descriptorCount = 16
+    //                 }
+    //             };
 
-                VkDescriptorPoolCreateInfo info = {
-                    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-                    .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-                    .maxSets = 1,
-                    .poolSizeCount = 4,
-                    .pPoolSizes = sizes
-                };
+    //             VkDescriptorPoolCreateInfo info = {
+    //                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+    //                 .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+    //                 .maxSets = 1,
+    //                 .poolSizeCount = 4,
+    //                 .pPoolSizes = sizes
+    //             };
 
-                if (vkCreateDescriptorPool(vgd->device, &info, vgd->alloc_callbacks, &descriptor_pool) != VK_SUCCESS) {
-                    printf("Creating descriptor pool failed.\n");
-                    exit(-1);
-                }
-            }
+    //             if (vkCreateDescriptorPool(vgd->device, &info, vgd->alloc_callbacks, &descriptor_pool) != VK_SUCCESS) {
+    //                 printf("Creating descriptor pool failed.\n");
+    //                 exit(-1);
+    //             }
+    //         }
 
-            {
-                VkDescriptorSetAllocateInfo info = {
-                    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-                    .descriptorPool = descriptor_pool,
-                    .descriptorSetCount = 1,
-                    .pSetLayouts = vgd->get_descriptor_set_layout(descriptor_set_layout_id)
-                };
+    //         {
+    //             VkDescriptorSetAllocateInfo info = {
+    //                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+    //                 .descriptorPool = descriptor_pool,
+    //                 .descriptorSetCount = 1,
+    //                 .pSetLayouts = vgd->get_descriptor_set_layout(descriptor_set_layout_id)
+    //             };
 
-                if (vkAllocateDescriptorSets(vgd->device, &info, &descriptor_set) != VK_SUCCESS) {
-                    printf("Allocating descriptor set failed.\n");
-                    exit(-1);
-                }
-            }
-        }
-    }
+    //             if (vkAllocateDescriptorSets(vgd->device, &info, &descriptor_set) != VK_SUCCESS) {
+    //                 printf("Allocating descriptor set failed.\n");
+    //                 exit(-1);
+    //             }
+    //         }
+    //     }
+    // }
     
     //Allocate memory for vertex data
     {
@@ -317,130 +317,131 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
     }
 
 	//Write static descriptors
-	{
-		std::vector<VkWriteDescriptorSet> descriptor_writes;
+	// {
+    //     const VkDescriptorSet& descriptor_set = vgd->get_bindless_descriptor_set();
+	// 	std::vector<VkWriteDescriptorSet> descriptor_writes;
         
-        VkDescriptorBufferInfo uniform_buffer_info = {
-            .buffer = vgd->get_buffer(frame_uniforms_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
+    //     VkDescriptorBufferInfo uniform_buffer_info = {
+    //         .buffer = vgd->get_buffer(frame_uniforms_buffer)->buffer,
+    //         .offset = 0,
+    //         .range = VK_WHOLE_SIZE
+    //     };
         
-        VkWriteDescriptorSet uniform_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 2,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .pBufferInfo = &uniform_buffer_info
-        };
-        descriptor_writes.push_back(uniform_write);
+    //     VkWriteDescriptorSet uniform_write = {
+    //         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+    //         .dstSet = descriptor_set,
+    //         .dstBinding = 2,
+    //         .dstArrayElement = 0,
+    //         .descriptorCount = 1,
+    //         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    //         .pBufferInfo = &uniform_buffer_info
+    //     };
+    //     descriptor_writes.push_back(uniform_write);
         
-        VkDescriptorBufferInfo vert_pos_buffer_info = {
-            .buffer = vgd->get_buffer(vertex_position_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
+    //     VkDescriptorBufferInfo vert_pos_buffer_info = {
+    //         .buffer = vgd->get_buffer(vertex_position_buffer)->buffer,
+    //         .offset = 0,
+    //         .range = VK_WHOLE_SIZE
+    //     };
         
-        VkWriteDescriptorSet vert_pos_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 6,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &vert_pos_buffer_info
-        };
-        descriptor_writes.push_back(vert_pos_write);
+    //     VkWriteDescriptorSet vert_pos_write = {
+    //         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+    //         .dstSet = descriptor_set,
+    //         .dstBinding = 6,
+    //         .dstArrayElement = 0,
+    //         .descriptorCount = 1,
+    //         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //         .pBufferInfo = &vert_pos_buffer_info
+    //     };
+    //     descriptor_writes.push_back(vert_pos_write);
         
-        VkDescriptorBufferInfo vert_uv_buffer_info = {
-            .buffer = vgd->get_buffer(vertex_uv_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
+    //     VkDescriptorBufferInfo vert_uv_buffer_info = {
+    //         .buffer = vgd->get_buffer(vertex_uv_buffer)->buffer,
+    //         .offset = 0,
+    //         .range = VK_WHOLE_SIZE
+    //     };
         
-        VkWriteDescriptorSet vert_uv_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 7,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &vert_uv_buffer_info
-        };
-        descriptor_writes.push_back(vert_uv_write);
+    //     VkWriteDescriptorSet vert_uv_write = {
+    //         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+    //         .dstSet = descriptor_set,
+    //         .dstBinding = 7,
+    //         .dstArrayElement = 0,
+    //         .descriptorCount = 1,
+    //         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //         .pBufferInfo = &vert_uv_buffer_info
+    //     };
+    //     descriptor_writes.push_back(vert_uv_write);
         
-        VkDescriptorBufferInfo camera_buffer_info = {
-            .buffer = vgd->get_buffer(camera_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
+    //     VkDescriptorBufferInfo camera_buffer_info = {
+    //         .buffer = vgd->get_buffer(camera_buffer)->buffer,
+    //         .offset = 0,
+    //         .range = VK_WHOLE_SIZE
+    //     };
         
-        VkWriteDescriptorSet camera_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 8,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &camera_buffer_info
-        };
-        descriptor_writes.push_back(camera_write);
+    //     VkWriteDescriptorSet camera_write = {
+    //         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+    //         .dstSet = descriptor_set,
+    //         .dstBinding = 8,
+    //         .dstArrayElement = 0,
+    //         .descriptorCount = 1,
+    //         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //         .pBufferInfo = &camera_buffer_info
+    //     };
+    //     descriptor_writes.push_back(camera_write);
         
-        VkDescriptorBufferInfo mesh_buffer_info = {
-            .buffer = vgd->get_buffer(_mesh_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
+    //     VkDescriptorBufferInfo mesh_buffer_info = {
+    //         .buffer = vgd->get_buffer(_mesh_buffer)->buffer,
+    //         .offset = 0,
+    //         .range = VK_WHOLE_SIZE
+    //     };
         
-        VkWriteDescriptorSet mesh_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 9,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &mesh_buffer_info
-        };
-        descriptor_writes.push_back(mesh_write);
+    //     VkWriteDescriptorSet mesh_write = {
+    //         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+    //         .dstSet = descriptor_set,
+    //         .dstBinding = 9,
+    //         .dstArrayElement = 0,
+    //         .descriptorCount = 1,
+    //         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //         .pBufferInfo = &mesh_buffer_info
+    //     };
+    //     descriptor_writes.push_back(mesh_write);
         
-        VkDescriptorBufferInfo material_buffer_info = {
-            .buffer = vgd->get_buffer(_material_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
+    //     VkDescriptorBufferInfo material_buffer_info = {
+    //         .buffer = vgd->get_buffer(_material_buffer)->buffer,
+    //         .offset = 0,
+    //         .range = VK_WHOLE_SIZE
+    //     };
         
-        VkWriteDescriptorSet material_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 10,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &material_buffer_info
-        };
-        descriptor_writes.push_back(material_write);
+    //     VkWriteDescriptorSet material_write = {
+    //         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+    //         .dstSet = descriptor_set,
+    //         .dstBinding = 10,
+    //         .dstArrayElement = 0,
+    //         .descriptorCount = 1,
+    //         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //         .pBufferInfo = &material_buffer_info
+    //     };
+    //     descriptor_writes.push_back(material_write);
         
-        VkDescriptorBufferInfo instance_buffer_info = {
-            .buffer = vgd->get_buffer(_instance_buffer)->buffer,
-            .offset = 0,
-            .range = MAX_INSTANCES * sizeof(GPUInstanceData)
-        };
+    //     VkDescriptorBufferInfo instance_buffer_info = {
+    //         .buffer = vgd->get_buffer(_instance_buffer)->buffer,
+    //         .offset = 0,
+    //         .range = MAX_INSTANCES * sizeof(GPUInstanceData)
+    //     };
         
-        VkWriteDescriptorSet instance_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 11,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &instance_buffer_info
-        };
-        descriptor_writes.push_back(instance_write);
+    //     VkWriteDescriptorSet instance_write = {
+    //         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+    //         .dstSet = descriptor_set,
+    //         .dstBinding = 11,
+    //         .dstArrayElement = 0,
+    //         .descriptorCount = 1,
+    //         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //         .pBufferInfo = &instance_buffer_info
+    //     };
+    //     descriptor_writes.push_back(instance_write);
 
-        vkUpdateDescriptorSets(vgd->device, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
-	}
+    //     vkUpdateDescriptorSets(vgd->device, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
+	// }
 
     //Create pipeline layout
     std::vector<VkPushConstantRange> ranges = {
@@ -451,7 +452,7 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
         }
     };
 
-    pipeline_layout_id = vgd->create_pipeline_layout(descriptor_set_layout_id, ranges);
+    pipeline_layout_id = vgd->create_pipeline_layout(vgd->get_bindless_descriptor_set_layout(), ranges);
 
     //Create hardcoded graphics pipelines
 	{
@@ -620,6 +621,209 @@ Key<Material> VulkanRenderer::push_material(uint64_t batch_id, uint32_t sampler_
 
 uint64_t VulkanRenderer::get_current_frame() {
     return _current_frame;
+}
+
+void VulkanRenderer::register_descriptor_bindings(DescriptorSetSpec& spec) {
+    //Create immutable samplers
+    {
+        VkSamplerCreateInfo info = {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .magFilter = VK_FILTER_LINEAR,
+            .minFilter = VK_FILTER_LINEAR,
+            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+            .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .anisotropyEnable = VK_TRUE,
+            .maxAnisotropy = 16.0,
+            .minLod = 0.0,
+            .maxLod = VK_LOD_CLAMP_NONE,
+        };
+        standard_sampler_idx = spec.push_immutable_sampler(*vgd, info);
+
+        info = {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .magFilter = VK_FILTER_NEAREST,
+            .minFilter = VK_FILTER_NEAREST,
+            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+            .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .anisotropyEnable = VK_FALSE,
+            .maxAnisotropy = 1.0,
+            .minLod = 0.0,
+            .maxLod = VK_LOD_CLAMP_NONE,
+        };
+        point_sampler_idx = spec.push_immutable_sampler(*vgd, info);
+    }
+
+    _descriptor_binding_offset = spec.bindings.size();
+
+    //Images
+    spec.push_binding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1024*1024, VK_SHADER_STAGE_FRAGMENT_BIT, false);
+
+    //Samplers
+    spec.push_binding(VK_DESCRIPTOR_TYPE_SAMPLER, 2, VK_SHADER_STAGE_FRAGMENT_BIT, false);
+    
+    //Frame uniforms
+    spec.push_binding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, false);
+    
+    // //Imgui positions
+    // spec.push_binding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1024*1024, VK_SHADER_STAGE_FRAGMENT_BIT, false);
+    // bindings.push_back({
+    //     .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //     .descriptor_count = 1,
+    //     .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
+    // });
+    // //Imgui UVs
+    // bindings.push_back({
+    //     .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //     .descriptor_count = 1,
+    //     .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
+    // });
+    // //Imgui colors
+    // bindings.push_back({
+    //     .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //     .descriptor_count = 1,
+    //     .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
+    // });
+
+    //Vertex positions
+    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, false);
+    
+    //Vertex uvs
+    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, false);
+    
+    //Camera buffer
+    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, false);
+
+    //Mesh buffer
+    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, false);
+
+    //Material buffer
+    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, false);
+
+    //Instance data buffer
+    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, false);
+}
+
+void VulkanRenderer::write_uniform_descriptors() {
+    std::vector<VkWriteDescriptorSet> descriptor_writes;
+    const VkDescriptorSet descriptor_set = vgd->get_bindless_descriptor_set();
+        
+    VkDescriptorBufferInfo uniform_buffer_info = {
+        .buffer = vgd->get_buffer(frame_uniforms_buffer)->buffer,
+        .offset = 0,
+        .range = VK_WHOLE_SIZE
+    };        
+    VkWriteDescriptorSet uniform_write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = descriptor_set,
+        .dstBinding = DescriptorBindings::FRAME_UNIFORMS + _descriptor_binding_offset,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .pBufferInfo = &uniform_buffer_info
+    };
+    descriptor_writes.push_back(uniform_write);
+            
+    VkDescriptorBufferInfo vert_pos_buffer_info = {
+        .buffer = vgd->get_buffer(vertex_position_buffer)->buffer,
+        .offset = 0,
+        .range = VK_WHOLE_SIZE
+    };            
+    VkWriteDescriptorSet vert_pos_write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = descriptor_set,
+        .dstBinding = DescriptorBindings::VERTEX_POSITIONS + _descriptor_binding_offset,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .pBufferInfo = &vert_pos_buffer_info
+    };
+    descriptor_writes.push_back(vert_pos_write);
+            
+    VkDescriptorBufferInfo vert_uv_buffer_info = {
+        .buffer = vgd->get_buffer(vertex_uv_buffer)->buffer,
+        .offset = 0,
+        .range = VK_WHOLE_SIZE
+    };            
+    VkWriteDescriptorSet vert_uv_write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = descriptor_set,
+        .dstBinding = DescriptorBindings::VERTEX_UVS + _descriptor_binding_offset,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .pBufferInfo = &vert_uv_buffer_info
+    };
+    descriptor_writes.push_back(vert_uv_write);
+            
+    VkDescriptorBufferInfo camera_buffer_info = {
+        .buffer = vgd->get_buffer(camera_buffer)->buffer,
+        .offset = 0,
+        .range = VK_WHOLE_SIZE
+    };            
+    VkWriteDescriptorSet camera_write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = descriptor_set,
+        .dstBinding = DescriptorBindings::CAMERA_BUFFER + _descriptor_binding_offset,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .pBufferInfo = &camera_buffer_info
+    };
+    descriptor_writes.push_back(camera_write);
+            
+    VkDescriptorBufferInfo mesh_buffer_info = {
+        .buffer = vgd->get_buffer(_mesh_buffer)->buffer,
+        .offset = 0,
+        .range = VK_WHOLE_SIZE
+    };
+    VkWriteDescriptorSet mesh_write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = descriptor_set,
+        .dstBinding = DescriptorBindings::MESH_BUFFER + _descriptor_binding_offset,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .pBufferInfo = &mesh_buffer_info
+    };
+    descriptor_writes.push_back(mesh_write);
+            
+    VkDescriptorBufferInfo material_buffer_info = {
+        .buffer = vgd->get_buffer(_material_buffer)->buffer,
+        .offset = 0,
+        .range = VK_WHOLE_SIZE
+    };
+    VkWriteDescriptorSet material_write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = descriptor_set,
+        .dstBinding = DescriptorBindings::MATERIAL_BUFFER + _descriptor_binding_offset,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .pBufferInfo = &material_buffer_info
+    };
+    descriptor_writes.push_back(material_write);
+            
+    VkDescriptorBufferInfo instance_buffer_info = {
+        .buffer = vgd->get_buffer(_instance_buffer)->buffer,
+        .offset = 0,
+        .range = MAX_INSTANCES * sizeof(GPUInstanceData)
+    };
+    VkWriteDescriptorSet instance_write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = descriptor_set,
+        .dstBinding = DescriptorBindings::INSTANCE_DATA_BUFFER + _descriptor_binding_offset,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .pBufferInfo = &instance_buffer_info
+    };
+    descriptor_writes.push_back(instance_write);
+
+    vkUpdateDescriptorSets(vgd->device, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
 }
 
 //Records one indirect draw command into the ps1 draws queue
@@ -836,7 +1040,7 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
 			vkCmdSetScissor(frame_cb, 0, 1, &scissor);
 		}
 
-		vkCmdBindDescriptorSets(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, *vgd->get_pipeline_layout(pipeline_layout_id), 0, 1, &descriptor_set, 0, nullptr);
+		//vkCmdBindDescriptorSets(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, *vgd->get_pipeline_layout(pipeline_layout_id), 0, 1, &descriptor_set, 0, nullptr);
 
 		//Bind global index buffer
 		vkCmdBindIndexBuffer(frame_cb, vgd->get_buffer(index_buffer)->buffer, 0, VK_INDEX_TYPE_UINT16);
@@ -865,11 +1069,6 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
 }
 
 VulkanRenderer::~VulkanRenderer() {
-	for (uint32_t i = 0; i < _samplers.size(); i++) {
-		vkDestroySampler(vgd->device, _samplers[i], vgd->alloc_callbacks);
-	}
-
-	vkDestroyDescriptorPool(vgd->device, descriptor_pool, vgd->alloc_callbacks);
     vgd->destroy_buffer(_instance_buffer);
     vgd->destroy_buffer(_mesh_buffer);
     vgd->destroy_buffer(_indirect_draw_buffer);

@@ -13,6 +13,8 @@
 #define FRAMES_IN_FLIGHT 2		//Number of simultaneous frames the GPU could be working on
 #define PIPELINE_CACHE_FILENAME ".shadercache"
 
+struct VulkanGraphicsDevice;
+
 constexpr VkComponentMapping COMPONENT_MAPPING_DEFAULT = {
 	.r = VK_COMPONENT_SWIZZLE_R,
 	.g = VK_COMPONENT_SWIZZLE_G,
@@ -101,7 +103,7 @@ struct SemaphoreWait {
 
 struct CommandBufferReturn {
 	VkCommandBuffer cb;
-	uint64_t wait_value;	//Could be zero if the semaphore is binary
+	uint64_t wait_value;	//Zero if the semaphore is binary
 	Key<VkSemaphore> wait_semaphore;
 };
 
@@ -117,14 +119,14 @@ struct VulkanDescriptorLayoutBinding {
 	VkDescriptorType descriptor_type;
 	uint32_t descriptor_count;
 	VkShaderStageFlags stage_flags;
-	const VkSampler* immutable_samplers;
+	VkSampler* immutable_samplers;
 };
 
 struct DescriptorSetSpec {
 	std::vector<VulkanDescriptorLayoutBinding> bindings;
-	std::vector<VkSamplerCreateInfo> immutable_samplers;
+	std::vector<VkSampler> immutable_samplers;
 
-	uint32_t push_binding(VkDescriptorType type, uint32_t count, VkShaderStageFlags flags);
+	uint32_t push_binding(VkDescriptorType type, uint32_t count, VkShaderStageFlags flags, bool using_immutable_samplers);
 	uint32_t push_immutable_sampler(VulkanGraphicsDevice& vgd, VkSamplerCreateInfo& info);
 };
 
@@ -133,7 +135,7 @@ struct VulkanGraphicsDevice {
 	VkInstance instance;
 	VkPhysicalDevice physical_device = 0;
 	VkPhysicalDeviceFeatures2 device_features;
-	VkPhysicalDeviceLimits physical_limits;
+	VkPhysicalDeviceLimits device_limits;
 	VkDevice device = 0;
 	VkPipelineCache pipeline_cache;
 
@@ -157,10 +159,14 @@ struct VulkanGraphicsDevice {
 	void return_transfer_command_buffer(VkCommandBuffer cb);
 
 	//Descriptor set management
+	Key<VkDescriptorPool> create_descriptor_pool(VkDescriptorPoolCreateInfo& info);
+	Key<VkDescriptorSet> create_descriptor_set(VkDescriptorSetAllocateInfo& info);
 	Key<VkDescriptorSetLayout> create_descriptor_set_layout(std::vector<VulkanDescriptorLayoutBinding>& descriptor_bindings);
 	VkDescriptorSetLayout* get_descriptor_set_layout(Key<VkDescriptorSetLayout> id);
+
 	void create_bindless_descriptor_set(DescriptorSetSpec& spec);
 	VkDescriptorSet get_bindless_descriptor_set();
+	Key<VkDescriptorSetLayout> get_bindless_descriptor_set_layout();
 
 	Key<VkPipelineLayout> create_pipeline_layout(Key<VkDescriptorSetLayout> descriptor_set_layout_id, std::vector<VkPushConstantRange>& push_constants);
 	VkPipelineLayout* get_pipeline_layout(Key<VkPipelineLayout> id);

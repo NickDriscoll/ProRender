@@ -114,7 +114,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 				device_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
 				vkGetPhysicalDeviceProperties2(device, &device_properties);
 
-				physical_limits = device_properties.properties.limits;
+				device_limits = device_properties.properties.limits;
 
 				uint32_t queue_count = 0;
 				vkGetPhysicalDeviceQueueFamilyProperties2(device, &queue_count, nullptr);
@@ -1610,6 +1610,24 @@ Key<VkSemaphore> VulkanGraphicsDevice::create_semaphore(VkSemaphoreCreateInfo& i
 	return _semaphores.insert(s);
 }
 
+Key<VkDescriptorPool> VulkanGraphicsDevice::create_descriptor_pool(VkDescriptorPoolCreateInfo& info) {
+	VkDescriptorPool p;
+	if (vkCreateDescriptorPool(device, &info, alloc_callbacks, &p) != VK_SUCCESS) {
+		printf("Creating descriptor pool failed.\n");
+		exit(-1);
+	}
+	return _descriptor_pools.insert(p);
+}
+
+Key<VkDescriptorSet> VulkanGraphicsDevice::create_descriptor_set(VkDescriptorSetAllocateInfo& info) {
+	VkDescriptorSet s;
+	if (vkAllocateDescriptorSets(device, &info, &s) != VK_SUCCESS) {
+		printf("Creating descriptor set failed.\n");
+		exit(-1);
+	}
+	return _descriptor_sets.insert(s);
+}
+
 VkSemaphore* VulkanGraphicsDevice::get_semaphore(Key<VkSemaphore> key) {
 	return _semaphores.get(key);
 }
@@ -1734,25 +1752,65 @@ void VulkanGraphicsDevice::end_render_pass(VkCommandBuffer cb) {
 }
 
 void VulkanGraphicsDevice::create_bindless_descriptor_set(DescriptorSetSpec& spec) {
+	assert(_descriptor_set_layouts.get(_bindless_descriptor_layout) == nullptr);
+	assert(_descriptor_pools.get(_bindless_descriptor_pool) == nullptr);
+	assert(_descriptor_sets.get(_bindless_descriptor_set) == nullptr);
 
+	_bindless_descriptor_layout = create_descriptor_set_layout(spec.bindings);
+
+	std::vector<VkDescriptorPoolSize> pool_sizes;
+	pool_sizes.reserve(spec.bindings.size());
+	for (VulkanDescriptorLayoutBinding& binding : spec.bindings) {
+		VkDescriptorPoolSize d_size;
+		d_size.type = binding.descriptor_type;
+		d_size.descriptorCount = binding.descriptor_count;
+		pool_sizes.push_back(d_size);
+	}
+
+	VkDescriptorPoolCreateInfo pool_info = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+		.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+		.maxSets = 1,
+		.poolSizeCount = pool_sizes.size(),
+		.pPoolSizes = pool_sizes.data()
+	};
+	_bindless_descriptor_pool = create_descriptor_pool(pool_info);
+
+	VkDescriptorSetAllocateInfo info = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+		.descriptorPool = *_descriptor_pools.get(_bindless_descriptor_pool),
+		.descriptorSetCount = 1,
+		.pSetLayouts = get_descriptor_set_layout(_bindless_descriptor_layout)
+	};
+	_bindless_descriptor_set = create_descriptor_set(info);
 }
 
 VkDescriptorSet VulkanGraphicsDevice::get_bindless_descriptor_set() {
-
+	VkDescriptorSet* set = _descriptor_sets.get(_bindless_descriptor_set);
+	assert(set != nullptr);
+	return *set;
 }
 
-uint32_t DescriptorSetSpec::push_binding(VkDescriptorType type, uint32_t count, VkShaderStageFlags flags) {
-	this->bindings.push_back({
+Key<VkDescriptorSetLayout> VulkanGraphicsDevice::get_bindless_descriptor_set_layout() {
+	return _bindless_descriptor_layout;
+}
+
+uint32_t DescriptorSetSpec::push_binding(VkDescriptorType type, uint32_t count, VkShaderStageFlags flags, bool using_immutable_samplers) {
+	VulkanDescriptorLayoutBinding binding = {
 		.descriptor_type = type,
 		.descriptor_count = count,
 		.stage_flags = flags
-	});
+	};
+
+	if (using_immutable_samplers)
+		binding.immutable_samplers = immutable_samplers.data();
 
 	//return index of pushed binding
 	return this->bindings.size() - 1;
 }
 
 uint32_t DescriptorSetSpec::push_immutable_sampler(VulkanGraphicsDevice& vgd, VkSamplerCreateInfo& info) {
-	this->immutable_samplers.push_back(info);
-	return this->immutable_samplers.size() - 1;
+	VkSampler s = vgd.create_sampler(info);
+	immutable_samplers.push_back(s);
+	return immutable_samplers.size() - 1;
 }

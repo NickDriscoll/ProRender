@@ -30,6 +30,7 @@
 #include "tinyfiledialogs.h"
 #include "utils.h"
 #include <algorithm>
+
 #define _USE_MATH_DEFINES
 #include <math.h>
 
@@ -92,6 +93,12 @@ int main(int argc, char* argv[]) {
 	);
 	app_timer.print("Dear ImGUI Initialization");
 	app_timer.start();
+
+	//Register with the bindless descriptor set
+	DescriptorSetSpec spec;
+	renderer.register_descriptor_bindings(spec);
+	imgui_renderer.register_descriptor_bindings(spec);
+	vgd.create_bindless_descriptor_set(spec);
 
     //Create main camera
 	Key<Camera> main_viewport_camera = renderer.cameras.insert({ .position = { 1.0f, -2.0f, 5.0f }, .pitch = 1.3f });
@@ -491,7 +498,8 @@ int main(int argc, char* argv[]) {
 			VkCommandBuffer frame_cb = vgd.get_graphics_command_buffer();
 			
 			//Per-frame checking of pending images to see if they're ready
-			vgd.tick_image_uploads(frame_cb, renderer.descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
+			//vgd.tick_image_uploads(frame_cb, renderer.descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
+			vgd.tick_image_uploads(frame_cb, vgd.get_bindless_descriptor_set(), DescriptorBindings::SAMPLED_IMAGES);
 		
 
 			SyncData sync = {};

@@ -18,15 +18,15 @@ enum DescriptorBindings : uint32_t {
 	SAMPLED_IMAGES = 0,
 	SAMPLERS = 1,
 	FRAME_UNIFORMS = 2,
-	IMGUI_POSITIONS = 3,
-	IMGUI_UVS = 4,
-	IMGUI_COLORS = 5,
-	VERTEX_POSITIONS = 6,
-	VERTEX_UVS = 7,
-	CAMERA_BUFFER = 8,
-	MESH_BUFFER = 9,
-	MATERIAL_BUFFER = 10,
-	INSTANCE_DATA_BUFFER = 11
+	// IMGUI_POSITIONS = 3,
+	// IMGUI_UVS = 4,
+	// IMGUI_COLORS = 5,
+	VERTEX_POSITIONS = 3,
+	VERTEX_UVS = 4,
+	CAMERA_BUFFER = 5,
+	MESH_BUFFER = 6,
+	MATERIAL_BUFFER = 7,
+	INSTANCE_DATA_BUFFER = 8
 };
 
 struct FrameUniforms {
@@ -91,10 +91,14 @@ struct VulkanRenderer {
 
 	Key<VkSemaphore> frames_completed_semaphore;
 
-	Key<VkDescriptorSetLayout> descriptor_set_layout_id;
 	Key<VkPipelineLayout> pipeline_layout_id;
-	VkDescriptorPool descriptor_pool;
-	VkDescriptorSet descriptor_set;
+	// Key<VkDescriptorSetLayout> descriptor_set_layout_id;
+	// VkDescriptorPool descriptor_pool;
+	// VkDescriptorSet descriptor_set;
+
+	//Managing bindless descriptors
+	void register_descriptor_bindings(DescriptorSetSpec& spec);
+	void write_uniform_descriptors();
 
 	//Buffer of per-frame uniform data
 	FrameUniforms frame_uniforms;
@@ -128,7 +132,7 @@ struct VulkanRenderer {
 
 	uint64_t get_current_frame();
 
-	//Called during the main simulation whenever we want to draw something
+	//Called during the main simulation whenever we want to draw an object with the PS1 pipeline
 	void ps1_draw(Key<BufferView> mesh_key, Key<Material> material_key, const std::span<InstanceData>& instance_datas);
 
 	//Called at the end of each frame
@@ -142,7 +146,9 @@ private:
 	slotmap<MeshAttribute> _uv_buffers;
 	slotmap<MeshAttribute> _index16_buffers;
 	slotmap<Material> _materials;
-	std::vector<VkSampler> _samplers;
+	//std::vector<VkSampler> _samplers;
+
+	uint32_t _descriptor_binding_offset = 0; //Add this to a DescriptorBindings entry to get the real binding
 
 	//Draw stream state
 	Key<VulkanBuffer> _indirect_draw_buffer;
