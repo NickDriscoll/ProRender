@@ -663,7 +663,7 @@ void VulkanRenderer::register_descriptor_bindings(DescriptorSetSpec& spec) {
     spec.push_binding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1024*1024, VK_SHADER_STAGE_FRAGMENT_BIT, false);
 
     //Samplers
-    spec.push_binding(VK_DESCRIPTOR_TYPE_SAMPLER, 2, VK_SHADER_STAGE_FRAGMENT_BIT, false);
+    spec.push_binding(VK_DESCRIPTOR_TYPE_SAMPLER, 2, VK_SHADER_STAGE_FRAGMENT_BIT, true);
     
     //Frame uniforms
     spec.push_binding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, false);
