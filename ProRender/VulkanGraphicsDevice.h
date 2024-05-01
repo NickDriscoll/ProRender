@@ -126,8 +126,9 @@ struct DescriptorSetSpec {
 	std::vector<VulkanDescriptorLayoutBinding> bindings;
 	std::vector<VkSampler> immutable_samplers;
 
-	uint32_t push_binding(VkDescriptorType type, uint32_t count, VkShaderStageFlags flags, bool using_immutable_samplers);
+	uint32_t push_binding(VkDescriptorType type, uint32_t count, VkShaderStageFlags flags);
 	uint32_t push_immutable_sampler(VulkanGraphicsDevice& vgd, VkSamplerCreateInfo& info);
+	uint32_t push_immutable_sampler_binding(uint32_t count, VkShaderStageFlags flags);
 };
 
 struct VulkanGraphicsDevice {
@@ -167,6 +168,7 @@ struct VulkanGraphicsDevice {
 	void create_bindless_descriptor_set(DescriptorSetSpec& spec);
 	VkDescriptorSet get_bindless_descriptor_set();
 	Key<VkDescriptorSetLayout> get_bindless_descriptor_set_layout();
+	void bind_bindless_descriptor_set(VkCommandBuffer cb);
 
 	Key<VkPipelineLayout> create_pipeline_layout(Key<VkDescriptorSetLayout> descriptor_set_layout_id, std::vector<VkPushConstantRange>& push_constants);
 	VkPipelineLayout* get_pipeline_layout(Key<VkPipelineLayout> id);

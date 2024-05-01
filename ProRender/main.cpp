@@ -88,8 +88,7 @@ int main(int argc, char* argv[]) {
 		renderer.point_sampler_idx,
 		ImVec2((float)window.x_resolution, (float)window.y_resolution),
 		renderer.pipeline_layout_id,
-		window.swapchain_renderpass,
-		renderer.descriptor_set
+		window.swapchain_renderpass
 	);
 	app_timer.print("Dear ImGUI Initialization");
 	app_timer.start();
@@ -99,6 +98,8 @@ int main(int argc, char* argv[]) {
 	renderer.register_descriptor_bindings(spec);
 	imgui_renderer.register_descriptor_bindings(spec);
 	vgd.create_bindless_descriptor_set(spec);
+	renderer.write_static_descriptors();
+	imgui_renderer.write_static_descriptors();
 
     //Create main camera
 	Key<Camera> main_viewport_camera = renderer.cameras.insert({ .position = { 1.0f, -2.0f, 5.0f }, .pitch = 1.3f });

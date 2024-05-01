@@ -1771,7 +1771,7 @@ void VulkanGraphicsDevice::create_bindless_descriptor_set(DescriptorSetSpec& spe
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 		.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
 		.maxSets = 1,
-		.poolSizeCount = pool_sizes.size(),
+		.poolSizeCount = (uint32_t)pool_sizes.size(),
 		.pPoolSizes = pool_sizes.data()
 	};
 	_bindless_descriptor_pool = create_descriptor_pool(pool_info);
@@ -1795,15 +1795,22 @@ Key<VkDescriptorSetLayout> VulkanGraphicsDevice::get_bindless_descriptor_set_lay
 	return _bindless_descriptor_layout;
 }
 
-uint32_t DescriptorSetSpec::push_binding(VkDescriptorType type, uint32_t count, VkShaderStageFlags flags, bool using_immutable_samplers) {
+void VulkanGraphicsDevice::bind_bindless_descriptor_set(VkCommandBuffer cb) {
+	VkDescriptorSetLayout* layout = _descriptor_set_layouts.get(_bindless_descriptor_layout);
+	VkDescriptorSet* set = _descriptor_sets.get(_bindless_descriptor_set);
+	assert(set != nullptr);
+	
+	vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, *layout, )
+}
+
+uint32_t DescriptorSetSpec::push_binding(VkDescriptorType type, uint32_t count, VkShaderStageFlags flags) {
+	assert(type != VK_DESCRIPTOR_TYPE_SAMPLER);
 	VulkanDescriptorLayoutBinding binding = {
 		.descriptor_type = type,
 		.descriptor_count = count,
 		.stage_flags = flags
 	};
-
-	if (using_immutable_samplers)
-		binding.immutable_samplers = immutable_samplers.data();
+	this->bindings.push_back(binding);
 
 	//return index of pushed binding
 	return this->bindings.size() - 1;
@@ -1813,4 +1820,17 @@ uint32_t DescriptorSetSpec::push_immutable_sampler(VulkanGraphicsDevice& vgd, Vk
 	VkSampler s = vgd.create_sampler(info);
 	immutable_samplers.push_back(s);
 	return immutable_samplers.size() - 1;
+}
+
+uint32_t DescriptorSetSpec::push_immutable_sampler_binding(uint32_t count, VkShaderStageFlags flags) {
+	VulkanDescriptorLayoutBinding binding = {
+		.descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLER,
+		.descriptor_count = count,
+		.stage_flags = flags,
+		.immutable_samplers = immutable_samplers.data()
+	};
+	this->bindings.push_back(binding);
+
+	//return index of pushed binding
+	return this->bindings.size() - 1;
 }

@@ -18,9 +18,6 @@ enum DescriptorBindings : uint32_t {
 	SAMPLED_IMAGES = 0,
 	SAMPLERS = 1,
 	FRAME_UNIFORMS = 2,
-	// IMGUI_POSITIONS = 3,
-	// IMGUI_UVS = 4,
-	// IMGUI_COLORS = 5,
 	VERTEX_POSITIONS = 3,
 	VERTEX_UVS = 4,
 	CAMERA_BUFFER = 5,
@@ -98,7 +95,7 @@ struct VulkanRenderer {
 
 	//Managing bindless descriptors
 	void register_descriptor_bindings(DescriptorSetSpec& spec);
-	void write_uniform_descriptors();
+	void write_static_descriptors();
 
 	//Buffer of per-frame uniform data
 	FrameUniforms frame_uniforms;

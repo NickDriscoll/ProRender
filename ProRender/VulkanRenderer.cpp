@@ -660,16 +660,15 @@ void VulkanRenderer::register_descriptor_bindings(DescriptorSetSpec& spec) {
     _descriptor_binding_offset = spec.bindings.size();
 
     //Images
-    spec.push_binding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1024*1024, VK_SHADER_STAGE_FRAGMENT_BIT, false);
+    spec.push_binding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1024*1024, VK_SHADER_STAGE_FRAGMENT_BIT);
 
     //Samplers
-    spec.push_binding(VK_DESCRIPTOR_TYPE_SAMPLER, 2, VK_SHADER_STAGE_FRAGMENT_BIT, true);
+    spec.push_immutable_sampler_binding(2, VK_SHADER_STAGE_FRAGMENT_BIT);
     
     //Frame uniforms
-    spec.push_binding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, false);
+    spec.push_binding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
     
     // //Imgui positions
-    // spec.push_binding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1024*1024, VK_SHADER_STAGE_FRAGMENT_BIT, false);
     // bindings.push_back({
     //     .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
     //     .descriptor_count = 1,
@@ -689,25 +688,25 @@ void VulkanRenderer::register_descriptor_bindings(DescriptorSetSpec& spec) {
     // });
 
     //Vertex positions
-    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, false);
+    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT);
     
     //Vertex uvs
-    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, false);
+    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT);
     
     //Camera buffer
-    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, false);
+    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
 
     //Mesh buffer
-    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, false);
+    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT);
 
     //Material buffer
-    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, false);
+    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
 
     //Instance data buffer
-    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, false);
+    spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT);
 }
 
-void VulkanRenderer::write_uniform_descriptors() {
+void VulkanRenderer::write_static_descriptors() {
     std::vector<VkWriteDescriptorSet> descriptor_writes;
     const VkDescriptorSet descriptor_set = vgd->get_bindless_descriptor_set();
         

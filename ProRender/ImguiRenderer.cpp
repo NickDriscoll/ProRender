@@ -6,8 +6,7 @@ ImguiRenderer::ImguiRenderer(
 	uint32_t sampler,
 	ImVec2 window_size,
 	Key<VkPipelineLayout> pipeline_layout_id,
-	Key<VkRenderPass> renderpass,
-	VkDescriptorSet& descriptor_set
+	Key<VkRenderPass> renderpass
 ) {
     vgd = v;
     sampler_idx = sampler;
@@ -56,7 +55,6 @@ ImguiRenderer::ImguiRenderer(
 			}
 		}
 
-		atlas_idx = tex_index;
 		io.Fonts->SetTexID((ImTextureID)(uint64_t)tex_index);
 	}
 
@@ -75,64 +73,6 @@ ImguiRenderer::ImguiRenderer(
         color_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
         index_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, alloc_info);
     }
-
-	//Update bindless descriptor set with imgui related bindings
-	{
-		std::vector<VkWriteDescriptorSet> descriptor_writes;
-
-        VkDescriptorBufferInfo im_pos_buffer_info = {
-            .buffer = vgd->get_buffer(position_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
-    
-        VkWriteDescriptorSet im_pos_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 3,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &im_pos_buffer_info
-        };
-        descriptor_writes.push_back(im_pos_write);
-    
-        VkDescriptorBufferInfo im_uv_buffer_info = {
-            .buffer = vgd->get_buffer(uv_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
-    
-        VkWriteDescriptorSet im_uv_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 4,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &im_uv_buffer_info
-        };
-        descriptor_writes.push_back(im_uv_write);
-    
-        VkDescriptorBufferInfo im_col_buffer_info = {
-            .buffer = vgd->get_buffer(color_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
-    
-        VkWriteDescriptorSet im_col_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 5,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &im_col_buffer_info
-        };
-        descriptor_writes.push_back(im_col_write);
-
-		vkUpdateDescriptorSets(vgd->device, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
-	}
 
 	//Create graphics pipeline
 	{
@@ -212,6 +152,74 @@ ImguiRenderer::~ImguiRenderer() {
 	vgd->destroy_buffer(index_buffer);
 }
 
+void ImguiRenderer::register_descriptor_bindings(DescriptorSetSpec& spec) {
+	descriptor_binding_offset = spec.bindings.size();
+
+	//Positions
+	spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT);
+
+	//Uvs
+	spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT);
+
+	//Colors
+	spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT);
+}
+
+void ImguiRenderer::write_static_descriptors() {
+	VkDescriptorSet descriptor_set = vgd->get_bindless_descriptor_set();
+	std::vector<VkWriteDescriptorSet> descriptor_writes;
+
+	VkDescriptorBufferInfo im_pos_buffer_info = {
+		.buffer = vgd->get_buffer(position_buffer)->buffer,
+		.offset = 0,
+		.range = VK_WHOLE_SIZE
+	};
+	VkWriteDescriptorSet im_pos_write = {
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.dstSet = descriptor_set,
+		.dstBinding = descriptor_binding_offset,
+		.dstArrayElement = 0,
+		.descriptorCount = 1,
+		.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+		.pBufferInfo = &im_pos_buffer_info
+	};
+	descriptor_writes.push_back(im_pos_write);
+
+	VkDescriptorBufferInfo im_uv_buffer_info = {
+		.buffer = vgd->get_buffer(uv_buffer)->buffer,
+		.offset = 0,
+		.range = VK_WHOLE_SIZE
+	};
+	VkWriteDescriptorSet im_uv_write = {
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.dstSet = descriptor_set,
+		.dstBinding = descriptor_binding_offset + 1,
+		.dstArrayElement = 0,
+		.descriptorCount = 1,
+		.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+		.pBufferInfo = &im_uv_buffer_info
+	};
+	descriptor_writes.push_back(im_uv_write);
+
+	VkDescriptorBufferInfo im_col_buffer_info = {
+		.buffer = vgd->get_buffer(color_buffer)->buffer,
+		.offset = 0,
+		.range = VK_WHOLE_SIZE
+	};
+	VkWriteDescriptorSet im_col_write = {
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.dstSet = descriptor_set,
+		.dstBinding = descriptor_binding_offset + 2,
+		.dstArrayElement = 0,
+		.descriptorCount = 1,
+		.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+		.pBufferInfo = &im_col_buffer_info
+	};
+	descriptor_writes.push_back(im_col_write);
+
+	vkUpdateDescriptorSets(vgd->device, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
+}
+
 void ImguiRenderer::draw(VkCommandBuffer& frame_cb, VulkanFrameBuffer& framebuffer, uint64_t frame_counter) {
 	//Upload ImGUI triangle data and record ImGUI draw commands
 	
@@ -252,7 +260,7 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, VulkanFrameBuffer& framebuff
 	vkCmdBindIndexBuffer(frame_cb, gpu_imgui_indices->buffer, current_index_offset * sizeof(ImDrawIdx), VK_INDEX_TYPE_UINT16);
 	vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd->get_graphics_pipeline(graphics_pipeline)->pipeline);
 
-	uint32_t pcs[] = { atlas_idx, sampler_idx };
+	uint32_t pcs[] = { 0, sampler_idx };
 	
 	//Create intermediate buffers for Imgui vertex attributes
 	std::vector<uint8_t> imgui_positions;
@@ -315,5 +323,3 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, VulkanFrameBuffer& framebuff
 	memcpy(gpu_col_ptr + int_offset, imgui_colors.data(), imgui_colors.size());
 	
 }
-
-uint32_t ImguiRenderer::get_atlas_idx() { return atlas_idx; }

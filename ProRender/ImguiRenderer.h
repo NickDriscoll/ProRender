@@ -13,20 +13,21 @@ struct ImguiFrame {
 struct ImguiRenderer {
     
 	void draw(VkCommandBuffer& frame_cb, VulkanFrameBuffer& framebuffer, uint64_t frame_counter);
-	uint32_t get_atlas_idx();
+
+	void register_descriptor_bindings(DescriptorSetSpec& spec);
+	void write_static_descriptors();
 
     ImguiRenderer(
 		VulkanGraphicsDevice* v,
 		uint32_t sampler,
 		ImVec2 window_size,
 		Key<VkPipelineLayout> pipeline_layout_id,
-		Key<VkRenderPass> renderpass,
-		VkDescriptorSet& descriptor_set
+		Key<VkRenderPass> renderpass
 	);
     ~ImguiRenderer();
 
 private:
-	uint32_t atlas_idx;
+	uint32_t descriptor_binding_offset;
 	uint32_t sampler_idx;
 	Key<VulkanBuffer> position_buffer;
 	Key<VulkanBuffer> uv_buffer;
