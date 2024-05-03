@@ -88,7 +88,7 @@ struct VulkanRenderer {
 
 	Key<VkSemaphore> frames_completed_semaphore;
 
-	Key<VkPipelineLayout> pipeline_layout_id;
+	//Key<VkPipelineLayout> pipeline_layout_id;
 	// Key<VkDescriptorSetLayout> descriptor_set_layout_id;
 	// VkDescriptorPool descriptor_pool;
 	// VkDescriptorSet descriptor_set;
@@ -96,6 +96,8 @@ struct VulkanRenderer {
 	//Managing bindless descriptors
 	void register_descriptor_bindings(DescriptorSetSpec& spec);
 	void write_static_descriptors();
+
+	void compile_pipelines(Key<VkRenderPass> swapchain_renderpass);
 
 	//Buffer of per-frame uniform data
 	FrameUniforms frame_uniforms;

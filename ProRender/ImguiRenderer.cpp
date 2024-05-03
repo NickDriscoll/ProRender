@@ -4,9 +4,7 @@
 ImguiRenderer::ImguiRenderer(
 	VulkanGraphicsDevice* v,
 	uint32_t sampler,
-	ImVec2 window_size,
-	Key<VkPipelineLayout> pipeline_layout_id,
-	Key<VkRenderPass> renderpass
+	ImVec2 window_size
 ) {
     vgd = v;
     sampler_idx = sampler;
@@ -73,76 +71,6 @@ ImguiRenderer::ImguiRenderer(
         color_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
         index_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, alloc_info);
     }
-
-	//Create graphics pipeline
-	{
-		VulkanInputAssemblyState ia_states[] = {
-			{},
-			{}
-		};
-
-		VulkanTesselationState tess_states[] = {
-			{},
-			{}
-		};
-
-		VulkanViewportState vs_states[] = {
-			{},
-			{}
-		};
-
-		VulkanRasterizationState rast_states[] = {
-			{
-				.cullMode = VK_CULL_MODE_NONE
-			},
-			{}
-		};
-
-		VulkanMultisampleState ms_states[] = {
-			{},
-			{}
-		};
-
-		VulkanDepthStencilState ds_states[] = {
-			{
-				.depthTestEnable = VK_FALSE
-			},
-			{
-				.depthTestEnable = VK_FALSE
-			}
-		};
-
-		VulkanColorBlendAttachmentState blend_attachment_state = {};
-		VulkanColorBlendState blend_states[] = {
-			{
-				.attachmentCount = 1,
-				.pAttachments = &blend_attachment_state
-			},
-			{
-				.attachmentCount = 1,
-				.pAttachments = &blend_attachment_state
-			}
-		};
-
-		const char* shaders[] = { "shaders/imgui.vert.spv", "shaders/imgui.frag.spv" };
-
-		graphics_pipeline_layout = pipeline_layout_id;
-		vgd->create_graphics_pipelines(
-			pipeline_layout_id,
-			renderpass,
-			shaders,
-			ia_states,
-			tess_states,
-			vs_states,
-			rast_states,
-			ms_states,
-			ds_states,
-			blend_states,
-			&graphics_pipeline,
-			1
-		);
-	}
-
 }
 
 ImguiRenderer::~ImguiRenderer() {
@@ -218,6 +146,73 @@ void ImguiRenderer::write_static_descriptors() {
 	descriptor_writes.push_back(im_col_write);
 
 	vkUpdateDescriptorSets(vgd->device, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
+}
+
+void ImguiRenderer::compile_pipelines(Key<VkRenderPass> renderpass) {
+	VulkanInputAssemblyState ia_states[] = {
+		{},
+		{}
+	};
+
+	VulkanTesselationState tess_states[] = {
+		{},
+		{}
+	};
+
+	VulkanViewportState vs_states[] = {
+		{},
+		{}
+	};
+
+	VulkanRasterizationState rast_states[] = {
+		{
+			.cullMode = VK_CULL_MODE_NONE
+		},
+		{}
+	};
+
+	VulkanMultisampleState ms_states[] = {
+		{},
+		{}
+	};
+
+	VulkanDepthStencilState ds_states[] = {
+		{
+			.depthTestEnable = VK_FALSE
+		},
+		{
+			.depthTestEnable = VK_FALSE
+		}
+	};
+
+	VulkanColorBlendAttachmentState blend_attachment_state = {};
+	VulkanColorBlendState blend_states[] = {
+		{
+			.attachmentCount = 1,
+			.pAttachments = &blend_attachment_state
+		},
+		{
+			.attachmentCount = 1,
+			.pAttachments = &blend_attachment_state
+		}
+	};
+
+	const char* shaders[] = { "shaders/imgui.vert.spv", "shaders/imgui.frag.spv" };
+
+	vgd->create_graphics_pipelines(
+		vgd->get_bindless_pipeline_layout(),
+		renderpass,
+		shaders,
+		ia_states,
+		tess_states,
+		vs_states,
+		rast_states,
+		ms_states,
+		ds_states,
+		blend_states,
+		&graphics_pipeline,
+		1
+	);
 }
 
 void ImguiRenderer::draw(VkCommandBuffer& frame_cb, VulkanFrameBuffer& framebuffer, uint64_t frame_counter) {

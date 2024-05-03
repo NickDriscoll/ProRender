@@ -109,6 +109,7 @@ void slotmap<T, Tkey>::alloc(uint32_t size) {
     //TODO: There has to be a better way!
     for (uint32_t i = 0; i < size; i++) {
         free_inds[i] = size - i - 1;
+        generation_bits[i] = 1;
     }
     
     free_indices = std::stack(free_inds);

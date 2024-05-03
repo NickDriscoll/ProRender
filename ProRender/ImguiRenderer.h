@@ -16,13 +16,12 @@ struct ImguiRenderer {
 
 	void register_descriptor_bindings(DescriptorSetSpec& spec);
 	void write_static_descriptors();
+	void compile_pipelines(Key<VkRenderPass> renderpass);
 
     ImguiRenderer(
 		VulkanGraphicsDevice* v,
 		uint32_t sampler,
-		ImVec2 window_size,
-		Key<VkPipelineLayout> pipeline_layout_id,
-		Key<VkRenderPass> renderpass
+		ImVec2 window_size
 	);
     ~ImguiRenderer();
 

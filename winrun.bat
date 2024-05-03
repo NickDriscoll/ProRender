@@ -1,4 +1,4 @@
 @echo off
 
-cd .\build\ProRender\bin\
+cd .\bin\
 .\ProRender.exe

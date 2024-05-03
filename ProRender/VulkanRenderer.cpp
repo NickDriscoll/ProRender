@@ -444,16 +444,87 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
 	// }
 
     //Create pipeline layout
-    std::vector<VkPushConstantRange> ranges = {
-        {
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            .offset = 0,
-            .size = 20
-        }
-    };
+    // VkPushConstantRange ranges[] = {
+    //     {
+    //         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+    //         .offset = 0,
+    //         .size = 20
+    //     }
+    // };
 
-    pipeline_layout_id = vgd->create_pipeline_layout(vgd->get_bindless_descriptor_set_layout(), ranges);
+    // pipeline_layout_id = vgd->create_pipeline_layout(vgd->get_bindless_descriptor_set_layout(), std::span(ranges));
 
+    //Create hardcoded graphics pipelines
+	// {
+	// 	VulkanInputAssemblyState ia_states[] = {
+	// 		{}
+	// 	};
+
+	// 	VulkanTesselationState tess_states[] = {
+	// 		{}
+	// 	};
+
+	// 	VulkanViewportState vs_states[] = {
+	// 		{}
+	// 	};
+
+	// 	VulkanRasterizationState rast_states[] = {
+	// 		{
+    //             .cullMode = VK_CULL_MODE_NONE
+    //         }
+	// 	};
+
+	// 	VulkanMultisampleState ms_states[] = {
+	// 		{}
+	// 	};
+
+	// 	VulkanDepthStencilState ds_states[] = {
+	// 		{
+	// 			.depthTestEnable = VK_FALSE
+	// 		}
+	// 	};
+
+	// 	VulkanColorBlendAttachmentState blend_attachment_state = {};
+	// 	VulkanColorBlendState blend_states[] = {
+	// 		{
+	// 			.attachmentCount = 1,
+	// 			.pAttachments = &blend_attachment_state
+	// 		},
+	// 		{
+	// 			.attachmentCount = 1,
+	// 			.pAttachments = &blend_attachment_state
+	// 		}
+	// 	};
+
+	// 	const char* shaders[] = { "shaders/ps1.vert.spv", "shaders/ps1.frag.spv" };
+
+	// 	Key<VulkanGraphicsPipeline> pipelines[] = {0};
+	// 	vgd->create_graphics_pipelines(
+	// 		pipeline_layout_id,
+	// 		swapchain_renderpass,
+	// 		shaders,
+	// 		ia_states,
+	// 		tess_states,
+	// 		vs_states,
+	// 		rast_states,
+	// 		ms_states,
+	// 		ds_states,
+	// 		blend_states,
+	// 		pipelines,
+	// 		1
+	// 	);
+
+	// 	ps1_pipeline = pipelines[0];
+	// }
+
+	//Create graphics pipeline timeline semaphore
+	frames_completed_semaphore = vgd->create_timeline_semaphore(0);
+
+    //Save pointer to graphics device
+    this->vgd = vgd;
+}
+
+void VulkanRenderer::compile_pipelines(Key<VkRenderPass> swapchain_renderpass) {
     //Create hardcoded graphics pipelines
 	{
 		VulkanInputAssemblyState ia_states[] = {
@@ -469,7 +540,9 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
 		};
 
 		VulkanRasterizationState rast_states[] = {
-			{}
+			{
+                .cullMode = VK_CULL_MODE_NONE
+            }
 		};
 
 		VulkanMultisampleState ms_states[] = {
@@ -498,7 +571,7 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
 
 		Key<VulkanGraphicsPipeline> pipelines[] = {0};
 		vgd->create_graphics_pipelines(
-			pipeline_layout_id,
+			vgd->get_bindless_pipeline_layout(),
 			swapchain_renderpass,
 			shaders,
 			ia_states,
@@ -514,12 +587,6 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
 
 		ps1_pipeline = pipelines[0];
 	}
-
-	//Create graphics pipeline timeline semaphore
-	frames_completed_semaphore = vgd->create_timeline_semaphore(0);
-
-    //Save pointer to graphics device
-    this->vgd = vgd;
 }
 
 Key<BufferView> VulkanRenderer::push_vertex_positions(std::span<float> data) {
@@ -564,7 +631,6 @@ Key<MeshAttribute> VulkanRenderer::push_vertex_uvs(Key<BufferView> position_key,
 //TODO: Just kind of accepting the O(n) lookup because of hand-waving about cache
 //TODO: Make common function out of this and get_index16
 BufferView* VulkanRenderer::get_vertex_uvs(Key<BufferView> position_key) {
-
     BufferView* result = nullptr;
     for (MeshAttribute& att : _uv_buffers) {
         if (att.position_key.value() == position_key.value()) {
@@ -597,7 +663,6 @@ Key<MeshAttribute> VulkanRenderer::push_indices16(Key<BufferView> position_key, 
 }
 
 BufferView* VulkanRenderer::get_indices16(Key<BufferView> position_key) {
-
     BufferView* result = nullptr;
     for (MeshAttribute& att : _index16_buffers) {
         if (att.position_key.value() == position_key.value()) {
@@ -605,7 +670,6 @@ BufferView* VulkanRenderer::get_indices16(Key<BufferView> position_key) {
             break;
         }
     }
-
     return result;
 
 }
@@ -707,6 +771,10 @@ void VulkanRenderer::register_descriptor_bindings(DescriptorSetSpec& spec) {
 }
 
 void VulkanRenderer::write_static_descriptors() {
+    static bool done_this = false;
+    assert(!done_this);
+    done_this = true;
+
     std::vector<VkWriteDescriptorSet> descriptor_writes;
     const VkDescriptorSet descriptor_set = vgd->get_bindless_descriptor_set();
         
@@ -934,10 +1002,11 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
     }
 
     //Upload instance data buffer
+    //TODO: This is currently doing nothing to account for multiple in-flight frames
     {
         VulkanBuffer* instance_buffer = vgd->get_buffer(_instance_buffer);
         GPUInstanceData* ptr = static_cast<GPUInstanceData*>(instance_buffer->alloc_info.pMappedData);
-        ptr += (_current_frame % FRAMES_IN_FLIGHT) * MAX_INSTANCES;
+        //ptr += (_current_frame % FRAMES_IN_FLIGHT) * MAX_INSTANCES;
         memcpy(ptr, _gpu_instance_datas.data(), _gpu_instance_datas.size() * sizeof(GPUInstanceData));
     }
 
@@ -1051,7 +1120,8 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
         uint32_t pcs[] = {
             0
         };
-        vkCmdPushConstants(frame_cb, *vgd->get_pipeline_layout(pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 4, pcs);
+        VkPipelineLayout* layout = vgd->get_pipeline_layout(vgd->get_bindless_pipeline_layout());
+        vkCmdPushConstants(frame_cb, *layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 4, pcs);
 
         VkDeviceSize indirect_offset = (_current_frame % FRAMES_IN_FLIGHT) * MAX_INDIRECT_DRAWS * sizeof(VkDrawIndexedIndirectCommand);
         vkCmdDrawIndexedIndirect(frame_cb, vgd->get_buffer(_indirect_draw_buffer)->buffer, indirect_offset, _draw_calls.size(), sizeof(VkDrawIndexedIndirectCommand));

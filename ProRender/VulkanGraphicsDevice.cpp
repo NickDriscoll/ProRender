@@ -22,7 +22,6 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	_descriptor_set_layouts.alloc(64);
 	_pipeline_layouts.alloc(64);
     _descriptor_pools.alloc(1);
-    _descriptor_set_layouts.alloc(1);
     _descriptor_sets.alloc(4);
 
 	//Initialize volk
@@ -868,7 +867,7 @@ VkDescriptorSetLayout* VulkanGraphicsDevice::get_descriptor_set_layout(Key<VkDes
 	return _descriptor_set_layouts.get(id);
 }
 
-Key<VkPipelineLayout> VulkanGraphicsDevice::create_pipeline_layout(Key<VkDescriptorSetLayout> descriptor_set_layout_id, std::vector<VkPushConstantRange>& push_constants) {
+Key<VkPipelineLayout> VulkanGraphicsDevice::create_pipeline_layout(Key<VkDescriptorSetLayout> descriptor_set_layout_id, const std::span<VkPushConstantRange>& push_constants) {
 	VkDescriptorSetLayout* layout = _descriptor_set_layouts.get(descriptor_set_layout_id);
 
 	VkPipelineLayoutCreateInfo info = {};
@@ -1661,7 +1660,6 @@ Key<VkFramebuffer> VulkanGraphicsDevice::create_framebuffer(VkFramebufferCreateI
 		printf("Creating framebuffer failed.\n");
 		exit(-1);
 	}
-	printf("Created framebuffer 0x%X\n", fb);
 	return _framebuffers.insert(fb);
 }
 
@@ -1783,6 +1781,15 @@ void VulkanGraphicsDevice::create_bindless_descriptor_set(DescriptorSetSpec& spe
 		.pSetLayouts = get_descriptor_set_layout(_bindless_descriptor_layout)
 	};
 	_bindless_descriptor_set = create_descriptor_set(info);
+
+	VkPushConstantRange ranges[] = {
+		{
+			.stageFlags = VK_SHADER_STAGE_ALL,
+			.offset = 0,
+			.size = 128
+		}
+	};
+	_bindless_pipeline_layout = create_pipeline_layout(_bindless_descriptor_layout, std::span(ranges));
 }
 
 VkDescriptorSet VulkanGraphicsDevice::get_bindless_descriptor_set() {
@@ -1795,12 +1802,16 @@ Key<VkDescriptorSetLayout> VulkanGraphicsDevice::get_bindless_descriptor_set_lay
 	return _bindless_descriptor_layout;
 }
 
+Key<VkPipelineLayout> VulkanGraphicsDevice::get_bindless_pipeline_layout() {
+	return _bindless_pipeline_layout;
+}
+
 void VulkanGraphicsDevice::bind_bindless_descriptor_set(VkCommandBuffer cb) {
-	VkDescriptorSetLayout* layout = _descriptor_set_layouts.get(_bindless_descriptor_layout);
+	VkPipelineLayout* layout = _pipeline_layouts.get(_bindless_pipeline_layout);
 	VkDescriptorSet* set = _descriptor_sets.get(_bindless_descriptor_set);
 	assert(set != nullptr);
 	
-	vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, *layout, )
+	vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, *layout, 0, 1, set, 0, nullptr);
 }
 
 uint32_t DescriptorSetSpec::push_binding(VkDescriptorType type, uint32_t count, VkShaderStageFlags flags) {

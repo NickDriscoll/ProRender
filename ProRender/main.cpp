@@ -34,7 +34,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-struct Configuration {
+struct UserConfiguration {
 	uint32_t window_width;
 	uint32_t window_height;
 };
@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
 
 	//User config structure
 
-	Configuration my_config = {
+	UserConfiguration my_config = {
 		.window_width = 1920,
 		.window_height = 1080	
 	};
@@ -86,9 +86,7 @@ int main(int argc, char* argv[]) {
 	ImguiRenderer imgui_renderer = ImguiRenderer(
 		&vgd,
 		renderer.point_sampler_idx,
-		ImVec2((float)window.x_resolution, (float)window.y_resolution),
-		renderer.pipeline_layout_id,
-		window.swapchain_renderpass
+		ImVec2((float)window.x_resolution, (float)window.y_resolution)
 	);
 	app_timer.print("Dear ImGUI Initialization");
 	app_timer.start();
@@ -100,6 +98,9 @@ int main(int argc, char* argv[]) {
 	vgd.create_bindless_descriptor_set(spec);
 	renderer.write_static_descriptors();
 	imgui_renderer.write_static_descriptors();
+
+	//
+	renderer.compile_pipelines(window.swapchain_renderpass);
 
     //Create main camera
 	Key<Camera> main_viewport_camera = renderer.cameras.insert({ .position = { 1.0f, -2.0f, 5.0f }, .pitch = 1.3f });
@@ -502,17 +503,21 @@ int main(int argc, char* argv[]) {
 			//vgd.tick_image_uploads(frame_cb, renderer.descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
 			vgd.tick_image_uploads(frame_cb, vgd.get_bindless_descriptor_set(), DescriptorBindings::SAMPLED_IMAGES);
 		
+			//Descriptor set binding here
+			vgd.bind_bindless_descriptor_set(frame_cb);
 
 			SyncData sync = {};
 			SwapchainFramebuffer window_framebuffer = window.acquire_next_image(vgd, sync, current_frame);
-
 			vgd.begin_render_pass(frame_cb, window_framebuffer.fb);
-			renderer.render(frame_cb, window_framebuffer.fb, sync);
-			imgui_renderer.draw(frame_cb, window_framebuffer.fb, current_frame);
-			vgd.end_render_pass(frame_cb);
-
-			vgd.graphics_queue_submit(frame_cb, sync);
 			
+			//Draw all 3D elements
+			renderer.render(frame_cb, window_framebuffer.fb, sync);
+
+			//Draw Dear ImGUI
+			imgui_renderer.draw(frame_cb, window_framebuffer.fb, current_frame);
+
+			vgd.end_render_pass(frame_cb);
+			vgd.graphics_queue_submit(frame_cb, sync);			
 			vgd.return_command_buffer(frame_cb, current_frame + 1, renderer.frames_completed_semaphore);
 			window.present_framebuffer(vgd, window_framebuffer, sync);
 		}

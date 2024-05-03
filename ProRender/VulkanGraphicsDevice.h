@@ -5,6 +5,7 @@
 #include <queue>
 #include <thread>
 #include <mutex>
+#include <span>
 #include "volk.h"
 #include "vma.h"
 #include "slotmap.h"
@@ -168,9 +169,10 @@ struct VulkanGraphicsDevice {
 	void create_bindless_descriptor_set(DescriptorSetSpec& spec);
 	VkDescriptorSet get_bindless_descriptor_set();
 	Key<VkDescriptorSetLayout> get_bindless_descriptor_set_layout();
+	Key<VkPipelineLayout> get_bindless_pipeline_layout();
 	void bind_bindless_descriptor_set(VkCommandBuffer cb);
 
-	Key<VkPipelineLayout> create_pipeline_layout(Key<VkDescriptorSetLayout> descriptor_set_layout_id, std::vector<VkPushConstantRange>& push_constants);
+	Key<VkPipelineLayout> create_pipeline_layout(Key<VkDescriptorSetLayout> descriptor_set_layout_id, const std::span<VkPushConstantRange>& push_constants);
 	VkPipelineLayout* get_pipeline_layout(Key<VkPipelineLayout> id);
 
 	void create_graphics_pipelines(
@@ -254,6 +256,7 @@ private:
 
 	//Bindless descriptor set management state
 	Key<VkDescriptorSetLayout> _bindless_descriptor_layout;
+	Key<VkPipelineLayout> _bindless_pipeline_layout;
 	Key<VkDescriptorPool> _bindless_descriptor_pool;
 	Key<VkDescriptorSet> _bindless_descriptor_set;
 
