@@ -13,5 +13,5 @@ struct GPUMaterial {
     uint _pad1;
 };
 
-[[vk::binding(10, 0)]]
+[[vk::binding(7, 0)]]
 StructuredBuffer<GPUMaterial> materials;

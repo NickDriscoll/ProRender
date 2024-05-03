@@ -5,14 +5,14 @@ struct VertexPositionBlock {
     float4 positions[POSITION_BLOCK_SIZE];
 };
 
-[[vk::binding(6, 0)]]
+[[vk::binding(3, 0)]]
 StructuredBuffer<VertexPositionBlock> vertex_positions;
 
 struct VertexUvBlock {
     float2 uvs[UV_BLOCK_SIZE];
 };
 
-[[vk::binding(7, 0)]]
+[[vk::binding(4, 0)]]
 StructuredBuffer<VertexUvBlock> vertex_uvs;
 
 struct GPUMesh {
@@ -20,5 +20,5 @@ struct GPUMesh {
     uint uv_start;
 };
 
-[[vk::binding(9, 0)]]
+[[vk::binding(6, 0)]]
 StructuredBuffer<GPUMesh> meshes;

@@ -2,6 +2,15 @@
 #include "structs.hlsl"
 #include "imgui.hlsl"
 
+[[vk::binding(9, 0)]]
+StructuredBuffer<ImguiPositionBlock> imgui_positions;
+
+[[vk::binding(10, 0)]]
+StructuredBuffer<ImguiUvBlock> imgui_uvs;
+
+[[vk::binding(11, 0)]]
+StructuredBuffer<ImguiColorBlock> imgui_colors;
+
 ImguiVertexOutput main(uint idx : SV_VertexID) {
     float2 pos = imgui_positions[idx / 8].positions[idx % 8];
 
