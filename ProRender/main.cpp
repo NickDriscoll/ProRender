@@ -99,7 +99,7 @@ int main(int argc, char* argv[]) {
 	renderer.write_static_descriptors();
 	imgui_renderer.write_static_descriptors();
 
-	//
+	//The renderers' pipelines need compiled before any work can be done
 	renderer.compile_pipelines(window.swapchain_renderpass);
 	imgui_renderer.compile_pipelines(window.swapchain_renderpass);
 

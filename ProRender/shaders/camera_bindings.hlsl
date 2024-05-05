@@ -3,5 +3,5 @@ struct Camera {
 	float4x4 projection_matrix;
 };
 
-[[vk::binding(8, 0)]]
+[[vk::binding(5, 0)]]
 StructuredBuffer<Camera> cameras;
