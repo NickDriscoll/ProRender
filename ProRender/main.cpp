@@ -101,6 +101,7 @@ int main(int argc, char* argv[]) {
 
 	//
 	renderer.compile_pipelines(window.swapchain_renderpass);
+	imgui_renderer.compile_pipelines(window.swapchain_renderpass);
 
     //Create main camera
 	Key<Camera> main_viewport_camera = renderer.cameras.insert({ .position = { 1.0f, -2.0f, 5.0f }, .pitch = 1.3f });

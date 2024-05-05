@@ -302,7 +302,7 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, VulkanFrameBuffer& framebuff
 			vkCmdSetScissor(frame_cb, 0, 1, &scissor);
 			
 			pcs[0] = (uint32_t)draw_command.TextureId;
-			vkCmdPushConstants(frame_cb, *vgd->get_pipeline_layout(graphics_pipeline_layout), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 8, pcs);
+			vkCmdPushConstants(frame_cb, *vgd->get_pipeline_layout(vgd->get_bindless_pipeline_layout()), VK_SHADER_STAGE_ALL, 0, 8, pcs);
 
 			vkCmdDrawIndexed(frame_cb, draw_command.ElemCount, 1, draw_command.IdxOffset + idx_offset, draw_command.VtxOffset + current_vertex_offset + vtx_offset, 0);
 		}

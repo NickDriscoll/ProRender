@@ -32,7 +32,6 @@ private:
 	Key<VulkanBuffer> uv_buffer;
 	Key<VulkanBuffer> color_buffer;
 	Key<VulkanBuffer> index_buffer;
-	Key<VkPipelineLayout> graphics_pipeline_layout;
 	Key<VulkanGraphicsPipeline> graphics_pipeline;
 	ImguiFrame frames[FRAMES_IN_FLIGHT] = {};
 

@@ -115,21 +115,21 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 
 				device_limits = device_properties.properties.limits;
 
-				uint32_t queue_count = 0;
-				vkGetPhysicalDeviceQueueFamilyProperties2(device, &queue_count, nullptr);
+				uint32_t queue_family_count = 0;
+				vkGetPhysicalDeviceQueueFamilyProperties2(device, &queue_family_count, nullptr);
 
 				std::vector<VkQueueFamilyProperties2> queue_properties;
-				queue_properties.resize(queue_count);
+				queue_properties.resize(queue_family_count);
 				//C++ initialization is hell
-				for (uint32_t k = 0; k < queue_count; k++) {
+				for (uint32_t k = 0; k < queue_family_count; k++) {
 					queue_properties[k].pNext = nullptr;
 					queue_properties[k].sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2;
 				}
 
-				vkGetPhysicalDeviceQueueFamilyProperties2(device, &queue_count, queue_properties.data());
+				vkGetPhysicalDeviceQueueFamilyProperties2(device, &queue_family_count, queue_properties.data());
 
 				//Check for compute and transfer queues
-				for (uint32_t k = 0; k < queue_count; k++) {
+				for (uint32_t k = 0; k < queue_family_count; k++) {
 					VkQueueFamilyProperties2& props = queue_properties[k];
 					if (props.queueFamilyProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 						graphics_queue_family_idx = k;
@@ -156,6 +156,8 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 					break;
 				}
 			}
+			printf("Graphics queue family: %i\n", graphics_queue_family_idx);
+			printf("Transfer queue family: %i\n", transfer_queue_family_idx);
 
 			if (physical_device) {
 				//Physical device feature checking section

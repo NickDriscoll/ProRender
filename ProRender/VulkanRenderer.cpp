@@ -541,7 +541,7 @@ void VulkanRenderer::compile_pipelines(Key<VkRenderPass> swapchain_renderpass) {
 
 		VulkanRasterizationState rast_states[] = {
 			{
-                .cullMode = VK_CULL_MODE_NONE
+                //.cullMode = VK_CULL_MODE_NONE
             }
 		};
 
@@ -904,7 +904,7 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
         //If yes, reuse that data
         gpu_mat_key = _material_map[material_key.value()];
     } else {
-        //Otherwise we have to search for the image in the available images array
+        //If no, we have to search for the image in the available images array
         //and upload its metadata to the GPU
         _material_dirty_flag = true;
         
@@ -1121,7 +1121,7 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
             0
         };
         VkPipelineLayout* layout = vgd->get_pipeline_layout(vgd->get_bindless_pipeline_layout());
-        vkCmdPushConstants(frame_cb, *layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 4, pcs);
+        vkCmdPushConstants(frame_cb, *layout, VK_SHADER_STAGE_ALL, 0, 4, pcs);
 
         VkDeviceSize indirect_offset = (_current_frame % FRAMES_IN_FLIGHT) * MAX_INDIRECT_DRAWS * sizeof(VkDrawIndexedIndirectCommand);
         vkCmdDrawIndexedIndirect(frame_cb, vgd->get_buffer(_indirect_draw_buffer)->buffer, indirect_offset, _draw_calls.size(), sizeof(VkDrawIndexedIndirectCommand));
