@@ -150,36 +150,28 @@ void ImguiRenderer::write_static_descriptors() {
 
 void ImguiRenderer::compile_pipelines(Key<VkRenderPass> renderpass) {
 	VulkanInputAssemblyState ia_states[] = {
-		{},
 		{}
 	};
 
 	VulkanTesselationState tess_states[] = {
-		{},
 		{}
 	};
 
 	VulkanViewportState vs_states[] = {
-		{},
 		{}
 	};
 
 	VulkanRasterizationState rast_states[] = {
 		{
 			.cullMode = VK_CULL_MODE_NONE
-		},
-		{}
+		}
 	};
 
 	VulkanMultisampleState ms_states[] = {
-		{},
 		{}
 	};
 
 	VulkanDepthStencilState ds_states[] = {
-		{
-			.depthTestEnable = VK_FALSE
-		},
 		{
 			.depthTestEnable = VK_FALSE
 		}
@@ -187,10 +179,6 @@ void ImguiRenderer::compile_pipelines(Key<VkRenderPass> renderpass) {
 
 	VulkanColorBlendAttachmentState blend_attachment_state = {};
 	VulkanColorBlendState blend_states[] = {
-		{
-			.attachmentCount = 1,
-			.pAttachments = &blend_attachment_state
-		},
 		{
 			.attachmentCount = 1,
 			.pAttachments = &blend_attachment_state

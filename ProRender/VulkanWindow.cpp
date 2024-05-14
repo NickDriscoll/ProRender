@@ -322,6 +322,8 @@ SwapchainFramebuffer VulkanWindow::acquire_next_image(VulkanGraphicsDevice& vgd,
 
 	sync_data.wait_semaphores.push_back(acquire_semaphores[in_flight_frame]);
 	sync_data.wait_values.push_back(0);
+	sync_data.signal_semaphores.push_back(present_semaphores[in_flight_frame]);
+	sync_data.signal_values.push_back(0);
 
 	SwapchainFramebuffer vkfb = {
 		.fb = {

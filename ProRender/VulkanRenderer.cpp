@@ -541,7 +541,7 @@ void VulkanRenderer::compile_pipelines(Key<VkRenderPass> swapchain_renderpass) {
 
 		VulkanRasterizationState rast_states[] = {
 			{
-                //.cullMode = VK_CULL_MODE_NONE
+                .cullMode = VK_CULL_MODE_NONE
             }
 		};
 
@@ -557,10 +557,6 @@ void VulkanRenderer::compile_pipelines(Key<VkRenderPass> swapchain_renderpass) {
 
 		VulkanColorBlendAttachmentState blend_attachment_state = {};
 		VulkanColorBlendState blend_states[] = {
-			{
-				.attachmentCount = 1,
-				.pAttachments = &blend_attachment_state
-			},
 			{
 				.attachmentCount = 1,
 				.pAttachments = &blend_attachment_state

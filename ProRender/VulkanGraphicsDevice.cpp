@@ -449,12 +449,20 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 		vkDestroyDescriptorSetLayout(device, p, alloc_callbacks);
 	}
 
+	for (VkDescriptorPool& p : _descriptor_pools) {
+		vkDestroyDescriptorPool(device, p, alloc_callbacks);
+	}
+
 	for (VkSemaphore& s : _semaphores) {
 		vkDestroySemaphore(device, s, alloc_callbacks);
 	}
 
 	for (VkFramebuffer& fb : _framebuffers) {
 		vkDestroyFramebuffer(device, fb, alloc_callbacks);
+	}
+
+	for (VkSampler& s : _bindless_immutable_samplers) {
+		vkDestroySampler(device, s, alloc_callbacks);
 	}
 
 	vkDestroyCommandPool(device, transfer_command_pool, alloc_callbacks);
@@ -1757,6 +1765,8 @@ void VulkanGraphicsDevice::create_bindless_descriptor_set(DescriptorSetSpec& spe
 	assert(_descriptor_sets.get(_bindless_descriptor_set) == nullptr);
 
 	_bindless_descriptor_layout = create_descriptor_set_layout(spec.bindings);
+
+	_bindless_immutable_samplers = spec.immutable_samplers;
 
 	std::vector<VkDescriptorPoolSize> pool_sizes;
 	pool_sizes.reserve(spec.bindings.size());

@@ -259,6 +259,7 @@ private:
 	Key<VkPipelineLayout> _bindless_pipeline_layout;
 	Key<VkDescriptorPool> _bindless_descriptor_pool;
 	Key<VkDescriptorSet> _bindless_descriptor_set;
+	std::vector<VkSampler> _bindless_immutable_samplers;
 
 	//slotmaps holding the managed Vulkan objects
 	slotmap<VkDescriptorSet> _descriptor_sets;
