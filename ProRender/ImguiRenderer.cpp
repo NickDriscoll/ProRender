@@ -81,7 +81,7 @@ ImguiRenderer::~ImguiRenderer() {
 }
 
 void ImguiRenderer::register_descriptor_bindings(DescriptorSetSpec& spec) {
-	descriptor_binding_offset = spec.bindings.size();
+	descriptor_binding_offset = static_cast<uint32_t>(spec.bindings.size());
 
 	//Positions
 	spec.push_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT);
@@ -242,6 +242,19 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, VulkanFrameBuffer& framebuff
 	//Record once-per-frame binding of index buffer and graphics pipeline
 	vkCmdBindIndexBuffer(frame_cb, gpu_imgui_indices->buffer, current_index_offset * sizeof(ImDrawIdx), VK_INDEX_TYPE_UINT16);
 	vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd->get_graphics_pipeline(graphics_pipeline)->pipeline);
+
+	//Set viewport
+	{
+		VkViewport viewport = {
+			.x = 0,
+			.y = 0,
+			.width = static_cast<float>(framebuffer.width),
+			.height = static_cast<float>(framebuffer.height),
+			.minDepth = 0.0,
+			.maxDepth = 1.0
+		};
+		vkCmdSetViewport(frame_cb, 0, 1, &viewport);
+	}
 
 	uint32_t pcs[] = { 0, sampler_idx };
 	

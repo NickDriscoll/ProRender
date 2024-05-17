@@ -24,26 +24,33 @@ add_executable (
 #set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)
 add_compile_definitions(ImTextureID=int)
 
+#Turn on highest warning level + warnings as errors for this target
+if(MSVC)
+  target_compile_options(ProRender PRIVATE /W4 /WX)
+else()
+  target_compile_options(ProRender PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 #Include SDL2
-target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/external/SDL/include")
+target_include_directories(ProRender SYSTEM PUBLIC "${CMAKE_SOURCE_DIR}/external/SDL/include")
 target_link_libraries(ProRender PUBLIC SDL3-static)
 
 #Include Vulkan
-target_include_directories(ProRender PUBLIC ${Vulkan_INCLUDE_DIRS})
+target_include_directories(ProRender SYSTEM PUBLIC ${Vulkan_INCLUDE_DIRS})
 target_link_libraries(ProRender PUBLIC ${Vulkan_LIBRARIES})
 
 #Include hlslpp
-target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/external/hlslpp/include")
+target_include_directories(ProRender SYSTEM PUBLIC "${CMAKE_SOURCE_DIR}/external/hlslpp/include")
 
 #Include Dear ImGUI
-target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/external/imgui")
+target_include_directories(ProRender SYSTEM PUBLIC "${CMAKE_SOURCE_DIR}/external/imgui")
 
 #Include fastgltf
-target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/external/fastgltf/include")
+target_include_directories(ProRender SYSTEM PUBLIC "${CMAKE_SOURCE_DIR}/external/fastgltf/include")
 target_link_libraries(ProRender PUBLIC fastgltf)
 
 #Include the headers that sit directly in external
-target_include_directories(ProRender PUBLIC "${CMAKE_SOURCE_DIR}/external")
+target_include_directories(ProRender SYSTEM PUBLIC "${CMAKE_SOURCE_DIR}/external")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)

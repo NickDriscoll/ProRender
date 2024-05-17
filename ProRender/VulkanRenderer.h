@@ -137,7 +137,7 @@ struct VulkanRenderer {
 	//Called at the end of each frame
 	void render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebuffer, SyncData& sync_data);
 
-	VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swapchain_renderpass);
+	VulkanRenderer(VulkanGraphicsDevice* vgd);
 	~VulkanRenderer();
 
 private:

@@ -122,7 +122,7 @@ uint32_t slotmap<T, Tkey>::count() {
 
 template<typename T, typename Tkey>
 uint32_t slotmap<T, Tkey>::size() {
-    return _data.capacity();
+    return static_cast<uint32_t>(_data.capacity());
 }
 
 template<typename T, typename Tkey>

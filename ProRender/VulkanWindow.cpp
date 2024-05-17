@@ -33,9 +33,9 @@ VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 
 	VkFormat preferred_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
 	for (uint32_t i = 0; i < format_count; i++) {
-		VkSurfaceFormatKHR format = formats[i];
-		if (format.format == preferred_swapchain_format) {
-			this->format = format;
+		VkSurfaceFormatKHR f = formats[i];
+		if (f.format == preferred_swapchain_format) {
+			this->format = f;
 			break;
 		}
 	}
@@ -57,10 +57,10 @@ VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 		exit(-1);
 	}
 
-	for (uint32_t i = 0; i < present_mode_count; i++) {
-		VkPresentModeKHR mode = present_modes[i];
+	// for (uint32_t i = 0; i < present_mode_count; i++) {
+	// 	VkPresentModeKHR mode = present_modes[i];
 
-	}
+	// }
 
 	VkSwapchainCreateInfoKHR swapchain_info = {};
 	swapchain_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -352,7 +352,7 @@ void VulkanWindow::present_framebuffer(VulkanGraphicsDevice& vgd, SwapchainFrame
 
 		VkPresentInfoKHR info = {};
 		info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-		info.waitSemaphoreCount = sems.size();
+		info.waitSemaphoreCount = static_cast<uint32_t>(sems.size());
 		info.pWaitSemaphores = sems.data();
 		info.swapchainCount = 1;
 		info.pSwapchains = &swapchain;
