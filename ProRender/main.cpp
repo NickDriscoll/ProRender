@@ -425,9 +425,6 @@ int main(int argc, char* argv[]) {
 			ImGui::End();
 		}
 
-		//Process resource deletion queue(s)
-		vgd.service_deletion_queues();
-
 		//Queue the static plane to be drawn
 		Timer plane_update_timer;
 		plane_update_timer.start();
@@ -494,7 +491,23 @@ int main(int argc, char* argv[]) {
 
 		//Draw
 		{
+			//Process resource deletion queue(s)
+			vgd.service_deletion_queues();
+
 			uint64_t current_frame = renderer.get_current_frame();
+			if (current_frame >= FRAMES_IN_FLIGHT) {
+				uint64_t wait_value = current_frame - FRAMES_IN_FLIGHT + 1;
+
+				VkSemaphoreWaitInfo info = {};
+				info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+				info.semaphoreCount = 1;
+				info.pSemaphores = vgd.get_semaphore(renderer.frames_completed_semaphore);
+				info.pValues = &wait_value;
+				if (vkWaitSemaphores(vgd.device, &info, std::numeric_limits<uint64_t>::max()) != VK_SUCCESS) {
+					printf("Waiting for graphics timeline semaphore failed.\n");
+					exit(-1);
+				}
+			}
 			VkCommandBuffer frame_cb = vgd.get_graphics_command_buffer();
 			
 			//Per-frame checking of pending images to see if they're ready

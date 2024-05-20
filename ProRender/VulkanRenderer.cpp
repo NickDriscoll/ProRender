@@ -1063,19 +1063,19 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
 
     {
 		//Wait for command buffer to finish execution before trying to record to it
-		if (_current_frame >= FRAMES_IN_FLIGHT) {
-			uint64_t wait_value = _current_frame - FRAMES_IN_FLIGHT + 1;
+		// if (_current_frame >= FRAMES_IN_FLIGHT) {
+		// 	uint64_t wait_value = _current_frame - FRAMES_IN_FLIGHT + 1;
 
-			VkSemaphoreWaitInfo info = {};
-			info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-			info.semaphoreCount = 1;
-			info.pSemaphores = vgd->get_semaphore(frames_completed_semaphore);
-			info.pValues = &wait_value;
-			if (vkWaitSemaphores(vgd->device, &info, std::numeric_limits<uint64_t>::max()) != VK_SUCCESS) {
-				printf("Waiting for graphics timeline semaphore failed.\n");
-				exit(-1);
-			}
-		}
+		// 	VkSemaphoreWaitInfo info = {};
+		// 	info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+		// 	info.semaphoreCount = 1;
+		// 	info.pSemaphores = vgd->get_semaphore(frames_completed_semaphore);
+		// 	info.pValues = &wait_value;
+		// 	if (vkWaitSemaphores(vgd->device, &info, std::numeric_limits<uint64_t>::max()) != VK_SUCCESS) {
+		// 		printf("Waiting for graphics timeline semaphore failed.\n");
+		// 		exit(-1);
+		// 	}
+		// }
 		
 		//uint64_t in_flight_frame = _current_frame % FRAMES_IN_FLIGHT;
 
