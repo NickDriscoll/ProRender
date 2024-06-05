@@ -104,16 +104,16 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		const VkPhysicalDeviceType TYPES[] = { VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, VK_PHYSICAL_DEVICE_TYPE_CPU };
 		for (uint32_t j = 0; j < 3; j++) {
 			for (uint32_t i = 0; i < physical_device_count; i++) {
-				VkPhysicalDevice device = devices[i];
+				VkPhysicalDevice phys_device = devices[i];
 
 				VkPhysicalDeviceProperties2 device_properties = {};
 				device_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-				vkGetPhysicalDeviceProperties2(device, &device_properties);
+				vkGetPhysicalDeviceProperties2(phys_device, &device_properties);
 
 				physical_limits = device_properties.properties.limits;
 
 				uint32_t queue_count = 0;
-				vkGetPhysicalDeviceQueueFamilyProperties2(device, &queue_count, nullptr);
+				vkGetPhysicalDeviceQueueFamilyProperties2(phys_device, &queue_count, nullptr);
 
 				std::vector<VkQueueFamilyProperties2> queue_properties;
 				queue_properties.resize(queue_count);
@@ -123,7 +123,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 					queue_properties[k].sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2;
 				}
 
-				vkGetPhysicalDeviceQueueFamilyProperties2(device, &queue_count, queue_properties.data());
+				vkGetPhysicalDeviceQueueFamilyProperties2(phys_device, &queue_count, queue_properties.data());
 
 				//Check for compute and transfer queues
 				for (uint32_t k = 0; k < queue_count; k++) {
@@ -148,7 +148,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 				}
 
 				if (device_properties.properties.deviceType == TYPES[j]) {
-					physical_device = device;
+					physical_device = phys_device;
 					printf("Chosen physical device: %s\n", device_properties.properties.deviceName);
 					break;
 				}
@@ -506,8 +506,8 @@ void VulkanGraphicsDevice::graphics_queue_submit(VkCommandBuffer cb, SyncData& s
 		sync_data.wait_semaphores.push_back(*_semaphores.get(image_upload_semaphore));
 		sync_data.wait_values.push_back(_image_batches_completed);
 
-		uint32_t wait_count = sync_data.wait_semaphores.size();
-		uint32_t signal_count = sync_data.signal_semaphores.size();
+		uint32_t wait_count = static_cast<uint32_t>(sync_data.wait_semaphores.size());
+		uint32_t signal_count = static_cast<uint32_t>(sync_data.signal_semaphores.size());
 		VkTimelineSemaphoreSubmitInfo ts_info = {};
 		ts_info.waitSemaphoreValueCount = wait_count;
 		ts_info.pWaitSemaphoreValues = sync_data.wait_values.data();
@@ -1223,7 +1223,6 @@ void VulkanGraphicsDevice::load_images_impl() {
 		//Loading images from memory
 		while (_raw_image_batch_queue.size() > 0) {
 			RawImageBatchParameters& params = _raw_image_batch_queue.front();
-			uint32_t image_count = (uint32_t)params.raw_images.size();
 
 			this->submit_image_upload_batch(params.id, params.raw_images, params.image_formats);
 
@@ -1289,18 +1288,17 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 
 	std::vector<uint32_t> pending_images_to_delete;
 	std::vector<uint32_t> batches_to_delete;
-	for (auto it = _image_upload_batches.begin(); it != _image_upload_batches.end(); ++it) {
-		VulkanImageUploadBatch& batch = *it;
+	for (auto batch_it = _image_upload_batches.begin(); batch_it != _image_upload_batches.end(); ++batch_it) {
+		VulkanImageUploadBatch& batch = *batch_it;
 		if (batch.id > gpu_batches_processed) continue;
-		batches_to_delete.push_back(it.slot_index());
+		batches_to_delete.push_back(batch_it.slot_index());
 
 		//Make the transfer command buffer available again and destroy the staging buffer
 		return_transfer_command_buffer(batch.command_buffer);
 		vmaDestroyBuffer(allocator, _buffers.get(batch.staging_buffer_id)->buffer, _buffers.get(batch.staging_buffer_id)->allocation);
 
-		uint32_t start_count = _pending_images.count();
-		for (auto it = _pending_images.begin(); it != _pending_images.end(); ++it) {
-			VulkanPendingImage& pending_image = *it;
+		for (auto pending_image_it = _pending_images.begin(); pending_image_it != _pending_images.end(); ++pending_image_it) {
+			VulkanPendingImage& pending_image = *pending_image_it;
 
 			if (pending_image.batch_id == batch.id) {
 				//Record Graphics queue acquire ownership of the image
@@ -1493,7 +1491,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb, VkDescr
 					ava.vk_image = pending_image.vk_image;
 					
 					Key<VulkanAvailableImage> handle = available_images.insert(ava);
-					pending_images_to_delete.push_back(it.slot_index());
+					pending_images_to_delete.push_back(pending_image_it.slot_index());
 
 					uint32_t descriptor_index = EXTRACT_IDX(handle.value());
 

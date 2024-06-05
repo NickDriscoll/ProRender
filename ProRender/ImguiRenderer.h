@@ -12,7 +12,7 @@ struct ImguiFrame {
 
 struct ImguiRenderer {
     
-	void draw(VkCommandBuffer& frame_cb, VulkanFrameBuffer& framebuffer, uint64_t frame_counter);
+	void draw(VkCommandBuffer& frame_cb, uint64_t frame_counter);
 	uint32_t get_atlas_idx();
 
     ImguiRenderer(

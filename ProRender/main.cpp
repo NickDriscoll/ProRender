@@ -40,6 +40,9 @@ struct Configuration {
 
 
 int main(int argc, char* argv[]) {
+	PRORENDER_UNUSED_PARAMETER(argc);
+	PRORENDER_UNUSED_PARAMETER(argv);
+
 	Timer init_timer = Timer("Init");
 	Timer app_timer = Timer("Main function");
 
@@ -59,12 +62,12 @@ int main(int argc, char* argv[]) {
 	app_timer.print("VGD Initialization");
 	app_timer.start();
 
-	uint32_t window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
+	uint32_t sdl_window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
 	SDL_Window* sdl_window = SDL_CreateWindow(
 		"losing my mind",
 		my_config.window_width,
 		my_config.window_height,
-		window_flags
+		sdl_window_flags
 	);
 	
 	//Init the vulkan window
@@ -95,7 +98,7 @@ int main(int argc, char* argv[]) {
     //Create main camera
 	Key<Camera> main_viewport_camera = renderer.cameras.insert({ .position = { 1.0f, -2.0f, 5.0f }, .pitch = 1.3f });
 	bool camera_control = false;
-	float mouse_saved_x, mouse_saved_y;
+	float mouse_saved_x = 0.0, mouse_saved_y = 0.0;
 
 	//Load simple 3D plane
 	uint64_t miyamoto_image_batch_id;
@@ -104,7 +107,6 @@ int main(int argc, char* argv[]) {
 	Key<BufferView> plane_mesh_key;
 	Key<Material> miyamoto_material_key;
 	Key<Material> bird_material_key;
-	uint32_t plane_image_idx = 0xFFFFFFFF;
 	bool know_plane_image = false;
 	{
 		//Load plane texture
@@ -121,7 +123,7 @@ int main(int argc, char* argv[]) {
 			std::vector<VkFormat> formats2 = {
 				VK_FORMAT_R8G8B8A8_SRGB
 			};
-			plane_image_count = names.size();
+			plane_image_count = static_cast<uint32_t>(names.size());
 			miyamoto_image_batch_id = vgd.load_image_files(names, formats);
 			bird_image_batch_id = vgd.load_image_files(names2, formats2);
 			hlslpp::float4 base_color(1.0, 1.0, 1.0, 1.0);
@@ -154,28 +156,28 @@ int main(int argc, char* argv[]) {
 	app_timer.start();
 
 	//Load something from a glTF
-	{
-		using namespace fastgltf;
+	// {
+	// 	using namespace fastgltf;
 
-		std::filesystem::path glb_path = "models/BoomBox.glb";
-		Parser parser;
-		GltfDataBuffer data;
-		data.loadFromFile(glb_path);
-		Expected<Asset> asset = parser.loadGltfBinary(&data, glb_path.parent_path());
+	// 	std::filesystem::path glb_path = "models/BoomBox.glb";
+	// 	Parser parser;
+	// 	GltfDataBuffer data;
+	// 	data.loadFromFile(glb_path);
+	// 	Expected<Asset> asset = parser.loadGltfBinary(&data, glb_path.parent_path());
 
-		printf("Printing node names in \"%s\" ...\n", glb_path.string().c_str());
-		for (Node& node : asset->nodes) {
-			printf("\t%s\n", node.name.c_str());
+	// 	printf("Printing node names in \"%s\" ...\n", glb_path.string().c_str());
+	// 	for (Node& node : asset->nodes) {
+	// 		printf("\t%s\n", node.name.c_str());
 
-			if (node.meshIndex.has_value()) {
-				size_t mesh_idx = node.meshIndex.value();
-				Mesh& mesh = asset->meshes[mesh_idx];
+	// 		if (node.meshIndex.has_value()) {
+	// 			size_t mesh_idx = node.meshIndex.value();
+	// 			Mesh& mesh = asset->meshes[mesh_idx];
 
-			}
-		}
-	}
-	app_timer.print("Loaded glTF");
-	app_timer.start();
+	// 		}
+	// 	}
+	// }
+	// app_timer.print("Loaded glTF");
+	// app_timer.start();
 
 	//Freecam input variables
 	bool move_back = false;
@@ -319,7 +321,7 @@ int main(int argc, char* argv[]) {
 			ImGui::NewFrame();
 		}
 		
-		float time = (float)app_timer.check() * 1.5f / 1000.0f;
+		//float time = (float)app_timer.check() * 1.5f / 1000.0f;
 
 		//Move camera
 		{
@@ -447,7 +449,7 @@ int main(int argc, char* argv[]) {
 				float4x4 matrix(
 					1.0, 0.0, 0.0, 0.0,
 					0.0, 1.0, 0.0, 0.0,
-					0.0, 0.0, 1.0, (float)i * 3.0,
+					0.0, 0.0, 1.0, (float)i * 3.0f,
 					0.0, 0.0, 0.0, 1.0
 				);
 				tforms.push_back(
@@ -472,7 +474,7 @@ int main(int argc, char* argv[]) {
 				float4x4 matrix(
 					1.0, 0.0, 0.0, 30.0,
 					0.0, 1.0, 0.0, 0.0,
-					0.0, 0.0, 1.0, (float)i * 3.0,
+					0.0, 0.0, 1.0, (float)i * 3.0f,
 					0.0, 0.0, 0.0, 1.0
 				);
 				tforms.push_back(
@@ -501,7 +503,7 @@ int main(int argc, char* argv[]) {
 
 			vgd.begin_render_pass(frame_cb, window_framebuffer.fb);
 			renderer.render(frame_cb, window_framebuffer.fb, sync);
-			imgui_renderer.draw(frame_cb, window_framebuffer.fb, current_frame);
+			imgui_renderer.draw(frame_cb, current_frame);
 			vgd.end_render_pass(frame_cb);
 			
 			vgd.graphics_queue_submit(frame_cb, sync);

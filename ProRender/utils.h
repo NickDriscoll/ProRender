@@ -1,6 +1,8 @@
 #include <SDL3/SDL.h>
 #include <imgui.h>
 
+#define PRORENDER_UNUSED_PARAMETER(x) (void)x
+
 ImGuiKey SDL2ToImGuiKey(int keycode) {
     switch (keycode)
     {

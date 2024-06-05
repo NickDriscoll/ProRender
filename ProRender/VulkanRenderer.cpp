@@ -789,8 +789,6 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
     }
 
     {	
-		uint64_t in_flight_frame = _current_frame % FRAMES_IN_FLIGHT;
-
 		//Set viewport and scissor
 		{
 			VkViewport viewport = {
@@ -831,7 +829,7 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
         vkCmdPushConstants(frame_cb, *vgd->get_pipeline_layout(pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 4, pcs);
 
         VkDeviceSize indirect_offset = (_current_frame % FRAMES_IN_FLIGHT) * MAX_INDIRECT_DRAWS * sizeof(VkDrawIndexedIndirectCommand);
-        vkCmdDrawIndexedIndirect(frame_cb, vgd->get_buffer(_indirect_draw_buffer)->buffer, indirect_offset, _draw_calls.size(), sizeof(VkDrawIndexedIndirectCommand));
+        vkCmdDrawIndexedIndirect(frame_cb, vgd->get_buffer(_indirect_draw_buffer)->buffer, indirect_offset, static_cast<uint32_t>(_draw_calls.size()), sizeof(VkDrawIndexedIndirectCommand));
 
         sync_data.signal_semaphores.push_back(*vgd->get_semaphore(frames_completed_semaphore));
         sync_data.signal_values.push_back(_current_frame + 1);

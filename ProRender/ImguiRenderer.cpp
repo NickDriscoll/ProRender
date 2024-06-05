@@ -212,7 +212,7 @@ ImguiRenderer::~ImguiRenderer() {
 	vgd->destroy_buffer(index_buffer);
 }
 
-void ImguiRenderer::draw(VkCommandBuffer& frame_cb, VulkanFrameBuffer& framebuffer, uint64_t frame_counter) {
+void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 	//Upload ImGUI triangle data and record ImGUI draw commands
 	
 	uint32_t frame_slot = frame_counter % FRAMES_IN_FLIGHT;

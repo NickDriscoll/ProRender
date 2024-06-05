@@ -154,6 +154,9 @@ struct VulkanGraphicsDevice {
 	Key<VkPipelineLayout> create_pipeline_layout(Key<VkDescriptorSetLayout> descriptor_set_layout_id, std::vector<VkPushConstantRange>& push_constants);
 	VkPipelineLayout* get_pipeline_layout(Key<VkPipelineLayout> id);
 
+	//For convenience, a global bindless descriptor set API
+	
+
 	void create_graphics_pipelines(
 		Key<VkPipelineLayout> pipeline_layout_handle,
 		Key<VkRenderPass> render_pass_handle,
