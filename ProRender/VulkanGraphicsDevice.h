@@ -117,6 +117,8 @@ struct SyncData {
 	std::vector<VkSemaphore> wait_semaphores;
 	std::vector<VkSemaphore> signal_semaphores;
 	VkFence fence = VK_NULL_HANDLE;
+	VkSemaphore cpu_wait_semaphore;
+	uint64_t cpu_wait_value;
 };
 
 struct VulkanGraphicsDevice {

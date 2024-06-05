@@ -788,22 +788,7 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
         memcpy(cam_buffer->alloc_info.pMappedData, g_cameras.data(), g_cameras.size() * sizeof(GPUCamera));
     }
 
-    {
-		//Wait for command buffer to finish execution before trying to record to it
-		if (_current_frame >= FRAMES_IN_FLIGHT) {
-			uint64_t wait_value = _current_frame - FRAMES_IN_FLIGHT + 1;
-
-			VkSemaphoreWaitInfo info = {};
-			info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-			info.semaphoreCount = 1;
-			info.pSemaphores = vgd->get_semaphore(frames_completed_semaphore);
-			info.pValues = &wait_value;
-			if (vkWaitSemaphores(vgd->device, &info, std::numeric_limits<uint64_t>::max()) != VK_SUCCESS) {
-				printf("Waiting for graphics timeline semaphore failed.\n");
-				exit(-1);
-			}
-		}
-		
+    {	
 		uint64_t in_flight_frame = _current_frame % FRAMES_IN_FLIGHT;
 
 		//Set viewport and scissor
@@ -850,6 +835,11 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
 
         sync_data.signal_semaphores.push_back(*vgd->get_semaphore(frames_completed_semaphore));
         sync_data.signal_values.push_back(_current_frame + 1);
+
+        if (_current_frame >= FRAMES_IN_FLIGHT) {
+            sync_data.cpu_wait_semaphore = *vgd->get_semaphore(frames_completed_semaphore);
+            sync_data.cpu_wait_value = _current_frame - FRAMES_IN_FLIGHT + 1;
+        }
 	}
 
     //Get renderer state ready for next frame

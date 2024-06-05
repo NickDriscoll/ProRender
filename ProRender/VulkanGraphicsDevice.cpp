@@ -485,6 +485,20 @@ void VulkanGraphicsDevice::return_command_buffer(VkCommandBuffer cb, uint64_t wa
 void VulkanGraphicsDevice::graphics_queue_submit(VkCommandBuffer cb, SyncData& sync_data) {
 	//End the command buffer
 	vkEndCommandBuffer(cb);
+	
+	//Wait for command buffer to finish execution before submitting
+	//Prevents CPU from getting too far ahead
+	if (sync_data.cpu_wait_semaphore != VK_NULL_HANDLE) {
+		VkSemaphoreWaitInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+		info.semaphoreCount = 1;
+		info.pSemaphores = &sync_data.cpu_wait_semaphore;
+		info.pValues = &sync_data.cpu_wait_value;
+		if (vkWaitSemaphores(device, &info, std::numeric_limits<uint64_t>::max()) != VK_SUCCESS) {
+			printf("Waiting for timeline semaphore failed.\n");
+			exit(-1);
+		}
+	}
 
 	VkQueue q;
 	vkGetDeviceQueue(device, graphics_queue_family_idx, 0, &q);

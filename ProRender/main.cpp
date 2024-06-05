@@ -503,7 +503,7 @@ int main(int argc, char* argv[]) {
 			renderer.render(frame_cb, window_framebuffer.fb, sync);
 			imgui_renderer.draw(frame_cb, window_framebuffer.fb, current_frame);
 			vgd.end_render_pass(frame_cb);
-
+			
 			vgd.graphics_queue_submit(frame_cb, sync);
 			
 			vgd.return_command_buffer(frame_cb, current_frame + 1, renderer.frames_completed_semaphore);
