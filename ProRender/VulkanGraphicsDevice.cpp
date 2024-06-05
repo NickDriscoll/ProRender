@@ -535,7 +535,7 @@ void VulkanGraphicsDevice::return_transfer_command_buffer(VkCommandBuffer cb) {
 void VulkanGraphicsDevice::create_graphics_pipelines(
 	Key<VkPipelineLayout> pipeline_layout_handle,
 	Key<VkRenderPass> render_pass_handle,
-	const char** shaderfiles,
+	const char** spv_sources,
 	VulkanInputAssemblyState* ia_state,
 	VulkanTesselationState* tess_state,
 	VulkanViewportState* vp_state,
@@ -601,9 +601,9 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 	for (uint32_t i = 0; i < pipeline_count; i++) {
 
 		//Shader stages
-		//TODO: This assumes that graphics pipelines just have a vertex and fragment shader, but it might be nice to support hardware tessellation. Idk.
-		VkShaderModule vertex_shader = this->load_shader_module(shaderfiles[2 * i]);
-		VkShaderModule fragment_shader = this->load_shader_module(shaderfiles[2 * i + 1]);
+		//TODO: This assumes that graphics pipelines just have a vertex and fragment shader
+		VkShaderModule vertex_shader = this->load_shader_module(spv_sources[2 * i]);
+		VkShaderModule fragment_shader = this->load_shader_module(spv_sources[2 * i + 1]);
 		{
 			VkPipelineShaderStageCreateInfo vert_info = {};
 			vert_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

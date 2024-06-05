@@ -187,8 +187,6 @@ int main(int argc, char* argv[]) {
 	bool camera_rolling = false;
 	bool camera_boost = false;
 
-	uint32_t which_image = 0;
-
 	init_timer.print("App init");
 	
 	//Main loop
@@ -251,7 +249,6 @@ int main(int argc, char* argv[]) {
 						camera_boost = true;
 						break;
 					case SDLK_SPACE:
-						which_image = (which_image + 1) % plane_image_count;
 						know_plane_image = false;
 						break;
 					}

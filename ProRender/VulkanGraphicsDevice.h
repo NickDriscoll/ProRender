@@ -155,7 +155,7 @@ struct VulkanGraphicsDevice {
 	void create_graphics_pipelines(
 		Key<VkPipelineLayout> pipeline_layout_handle,
 		Key<VkRenderPass> render_pass_handle,
-		const char** shaderfiles,
+		const char** spv_sources,
 		VulkanInputAssemblyState* ia_state,
 		VulkanTesselationState* tess_state,
 		VulkanViewportState* vp_state,
