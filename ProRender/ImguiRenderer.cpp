@@ -1,5 +1,6 @@
 #include "ImguiRenderer.h"
 #include <bit>
+#include <inttypes.h>
 
 ImguiRenderer::ImguiRenderer(
 	VulkanGraphicsDevice* v,
@@ -62,7 +63,7 @@ ImguiRenderer::ImguiRenderer(
 
     //Allocate memory for ImGUI vertex data
     {
-        VkDeviceSize buffer_size = 1024 * 1024;		//1MB
+        VkDeviceSize buffer_size = 256 * 1024;		//256KB per vertex attribute
 
         VmaAllocationCreateInfo alloc_info = {};
         alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -70,9 +71,29 @@ ImguiRenderer::ImguiRenderer(
         alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
         alloc_info.priority = 1.0;
 
-        position_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
-        uv_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
-        color_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, alloc_info);
+		VkBufferUsageFlags vertex_buffer_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+        position_buffer = vgd->create_buffer(buffer_size, vertex_buffer_flags, alloc_info);
+        uv_buffer = vgd->create_buffer(buffer_size, vertex_buffer_flags, alloc_info);
+        color_buffer = vgd->create_buffer(buffer_size, vertex_buffer_flags, alloc_info);
+
+		//Get buffer device address :)
+		{
+			VkBufferDeviceAddressInfo info = {};
+			info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+			
+			info.buffer = vgd->get_buffer(position_buffer)->buffer;
+			this->position_address = vkGetBufferDeviceAddress(vgd->device, &info);
+			printf("Imgui positions address\t\t== 0x%" PRIx64 "\n", this->position_address);
+
+			info.buffer = vgd->get_buffer(uv_buffer)->buffer;
+			this->uv_address = vkGetBufferDeviceAddress(vgd->device, &info);
+			printf("Imgui uvs address\t\t== 0x%" PRIx64 "\n", this->uv_address);
+
+			info.buffer = vgd->get_buffer(color_buffer)->buffer;
+			this->color_address = vkGetBufferDeviceAddress(vgd->device, &info);
+			printf("Imgui colors address\t\t== 0x%" PRIx64 "\n", this->color_address);
+		}
+
         index_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, alloc_info);
     }
 

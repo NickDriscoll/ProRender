@@ -266,7 +266,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	//Initialize VMA
 	{
 		VmaAllocatorCreateInfo info = {};
-		info.flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT;
+		info.flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT | VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 		info.instance = instance;
 		info.physicalDevice = physical_device;
 		info.device = device;

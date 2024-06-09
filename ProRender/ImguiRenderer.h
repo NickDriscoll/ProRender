@@ -26,14 +26,20 @@ struct ImguiRenderer {
     ~ImguiRenderer();
 
 private:
-	uint32_t atlas_idx;
-	uint32_t sampler_idx;
+	uint32_t atlas_idx;		//Texture atlas index in the bindless textures array
+	uint32_t sampler_idx;	//Point sampler index in the immutable samplers array
+
 	Key<VulkanBuffer> position_buffer;
 	Key<VulkanBuffer> uv_buffer;
 	Key<VulkanBuffer> color_buffer;
 	Key<VulkanBuffer> index_buffer;
+	VkDeviceAddress position_address;
+	VkDeviceAddress uv_address;
+	VkDeviceAddress color_address;
+
 	Key<VkPipelineLayout> graphics_pipeline_layout;
 	Key<VulkanGraphicsPipeline> graphics_pipeline;
+
 	ImguiFrame frames[FRAMES_IN_FLIGHT] = {};
 
     VulkanGraphicsDevice* vgd;
