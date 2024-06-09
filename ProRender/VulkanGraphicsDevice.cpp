@@ -85,6 +85,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	VkPhysicalDeviceTimelineSemaphoreFeatures semaphore_features = {};
 	VkPhysicalDeviceSynchronization2Features sync2_features = {};
 	VkPhysicalDeviceDescriptorIndexingFeatures descriptor_indexing_features = {};
+	VkPhysicalDeviceBufferDeviceAddressFeatures bda_features = {};
 	{
 		uint32_t physical_device_count = 0;
 		//Getting physical device count by passing nullptr as last param
@@ -117,7 +118,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 
 				std::vector<VkQueueFamilyProperties2> queue_properties;
 				queue_properties.resize(queue_count);
-				//C++ initialization is hell
+				//C++ initialization moment
 				for (uint32_t k = 0; k < queue_count; k++) {
 					queue_properties[k].pNext = nullptr;
 					queue_properties[k].sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2;
@@ -160,10 +161,13 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 				sync2_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
 				device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 				descriptor_indexing_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+				bda_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
 
-				sync2_features.pNext = &descriptor_indexing_features;
-				semaphore_features.pNext = &sync2_features;
+				//pNext chain setup
 				device_features.pNext = &semaphore_features;
+				semaphore_features.pNext = &sync2_features;
+				sync2_features.pNext = &descriptor_indexing_features;
+				descriptor_indexing_features.pNext = &bda_features;
 				
 				vkGetPhysicalDeviceFeatures2(physical_device, &device_features);
 
@@ -179,6 +183,11 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 
 				if (!sync2_features.synchronization2) {
 					printf("No support for sync2 on this device.\n");
+					exit(-1);
+				}
+
+				if (!bda_features.bufferDeviceAddress) {
+					printf("No buffer device address support on this device.\n");
 					exit(-1);
 				}
 
@@ -485,20 +494,6 @@ void VulkanGraphicsDevice::return_command_buffer(VkCommandBuffer cb, uint64_t wa
 void VulkanGraphicsDevice::graphics_queue_submit(VkCommandBuffer cb, SyncData& sync_data) {
 	//End the command buffer
 	vkEndCommandBuffer(cb);
-	
-	//Wait for command buffer to finish execution before submitting
-	//Prevents CPU from getting too far ahead
-	if (sync_data.cpu_wait_semaphore != VK_NULL_HANDLE) {
-		VkSemaphoreWaitInfo info = {};
-		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-		info.semaphoreCount = 1;
-		info.pSemaphores = &sync_data.cpu_wait_semaphore;
-		info.pValues = &sync_data.cpu_wait_value;
-		if (vkWaitSemaphores(device, &info, std::numeric_limits<uint64_t>::max()) != VK_SUCCESS) {
-			printf("Waiting for timeline semaphore failed.\n");
-			exit(-1);
-		}
-	}
 
 	VkQueue q;
 	vkGetDeviceQueue(device, graphics_queue_family_idx, 0, &q);

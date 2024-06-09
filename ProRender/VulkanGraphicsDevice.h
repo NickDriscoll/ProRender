@@ -111,6 +111,10 @@ struct CommandBufferReturn {
 	Key<VkSemaphore> wait_semaphore;
 };
 
+struct DescriptorLayout {
+	
+};
+
 struct SyncData {
 	std::vector<uint64_t> wait_values;
 	std::vector<uint64_t> signal_values;

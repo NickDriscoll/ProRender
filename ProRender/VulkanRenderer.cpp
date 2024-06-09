@@ -463,7 +463,9 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
 		};
 
 		VulkanRasterizationState rast_states[] = {
-			{}
+			{
+                .cullMode = VK_CULL_MODE_NONE
+            }
 		};
 
 		VulkanMultisampleState ms_states[] = {
@@ -845,6 +847,26 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
     _gpu_instance_datas.clear();
     _instances_so_far = 0;
     _current_frame += 1;
+}
+
+void VulkanRenderer::cpu_sync() {
+    
+	
+	//Wait for command buffer to finish execution before submitting
+	//Prevents CPU from getting too far ahead
+	if (_current_frame >= FRAMES_IN_FLIGHT) {
+        VkSemaphore* graphics_tl_sem = vgd->get_semaphore(frames_completed_semaphore);
+        uint64_t wait_value = _current_frame - FRAMES_IN_FLIGHT + 1;
+		VkSemaphoreWaitInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+		info.semaphoreCount = 1;
+		info.pSemaphores = graphics_tl_sem;
+		info.pValues = &wait_value;
+		if (vkWaitSemaphores(vgd->device, &info, std::numeric_limits<uint64_t>::max()) != VK_SUCCESS) {
+			printf("Waiting for timeline semaphore failed.\n");
+			exit(-1);
+		}
+	}
 }
 
 VulkanRenderer::~VulkanRenderer() {

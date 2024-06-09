@@ -128,6 +128,9 @@ struct VulkanRenderer {
 
 	uint64_t get_current_frame();
 
+	//Called to ensure CPU doesn't get too far ahead of the current frames in flight
+	void cpu_sync();
+
 	//Called during the main simulation whenever we want to draw something
 	void ps1_draw(Key<BufferView> mesh_key, Key<Material> material_key, const std::span<InstanceData>& instance_datas);
 

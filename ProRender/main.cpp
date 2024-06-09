@@ -30,8 +30,6 @@
 #include "tinyfiledialogs.h"
 #include "utils.h"
 #include <algorithm>
-#define _USE_MATH_DEFINES
-#include <math.h>
 
 struct Configuration {
 	uint32_t window_width;
@@ -337,12 +335,12 @@ int main(int argc, char* argv[]) {
 					main_cam->pitch += mouse_motion_y * SENSITIVITY;
 				}
 
-				while (main_cam->yaw < -2.0f * M_PI) main_cam->yaw += (float)(2.0 * M_PI);
-				while (main_cam->yaw > 2.0f * M_PI) main_cam->yaw -= (float)(2.0 * M_PI);
-				while (main_cam->roll < -2.0f * M_PI) main_cam->roll += (float)(2.0 * M_PI);
-				while (main_cam->roll > 2.0f * M_PI) main_cam->roll -= (float)(2.0 * M_PI);
-				if (main_cam->pitch < -M_PI / 2.0f) main_cam->pitch = (float)(-M_PI / 2.0);
-				if (main_cam->pitch > M_PI / 2.0f) main_cam->pitch = (float)(M_PI / 2.0);
+				while (main_cam->yaw < -2.0f * PI) main_cam->yaw += (float)(2.0 * PI);
+				while (main_cam->yaw > 2.0f * PI) main_cam->yaw -= (float)(2.0 * PI);
+				while (main_cam->roll < -2.0f * PI) main_cam->roll += (float)(2.0 * PI);
+				while (main_cam->roll > 2.0f * PI) main_cam->roll -= (float)(2.0 * PI);
+				if (main_cam->pitch < -PI / 2.0f) main_cam->pitch = (float)(-PI / 2.0);
+				if (main_cam->pitch > PI / 2.0f) main_cam->pitch = (float)(PI / 2.0);
 			}
 
 			float4x4 view_matrix = main_cam->make_view_matrix();
@@ -431,7 +429,7 @@ int main(int argc, char* argv[]) {
 		{
 			using namespace hlslpp;
 
-			static int number = 10;
+			static int number = 1000;
 
 			std::vector<InstanceData> tforms;
 			tforms.reserve(number);
@@ -486,17 +484,18 @@ int main(int argc, char* argv[]) {
 			renderer.ps1_draw(plane_mesh_key, bird_material_key, std::span(tforms));
 
 			rotation += delta_time;
-			while (rotation > 2.0f * M_PI) rotation -= (float)(2.0 * M_PI);
+			while (rotation > 2.0f * PI) rotation -= (float)(2.0 * PI);
 		}
 
 		//Draw
 		{
-			uint64_t current_frame = renderer.get_current_frame();
+			static uint64_t current_frame = 0;
 			VkCommandBuffer frame_cb = vgd.get_graphics_command_buffer();
 			
+			renderer.cpu_sync();
+
 			//Per-frame checking of pending images to see if they're ready
 			vgd.tick_image_uploads(frame_cb, renderer.descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
-		
 
 			SyncData sync = {};
 			SwapchainFramebuffer window_framebuffer = window.acquire_next_image(vgd, sync, current_frame);
@@ -510,6 +509,7 @@ int main(int argc, char* argv[]) {
 			
 			vgd.return_command_buffer(frame_cb, current_frame + 1, renderer.frames_completed_semaphore);
 			window.present_framebuffer(vgd, window_framebuffer, sync);
+			current_frame += 1;
 		}
 		
 		//End-of-frame bookkeeping
