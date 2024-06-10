@@ -10,6 +10,7 @@ add_executable (
 	"VulkanWindow.cpp"
 	"VulkanRenderer.cpp"
 	"ImguiRenderer.cpp"
+	"utils.cpp"
 	"header_libs.cpp"
 
 	"${CMAKE_SOURCE_DIR}/external/tinyfiledialogs.c"

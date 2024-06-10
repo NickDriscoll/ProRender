@@ -3,10 +3,12 @@
 #include "imgui.hlsl"
 
 ImguiVertexOutput main(uint idx : SV_VertexID) {
-    float2 pos = imgui_positions[idx / 8].positions[idx % 8];
-
+    //float2 pos = imgui_positions[idx / 8].positions[idx % 8];
     float2 uv = imgui_uvs[idx / 8].uvs[idx % 8];
     uint packed_color = imgui_colors[idx / 16].colors[idx % 16];
+
+    uint64_t pos_addr = pc.positions_address;
+    vk::RawBufferLoad<ImguiPositionBlock>(pc.positions_address, 8);
     
     //Color is stored as a packed uint so we have to do bit-twiddling to get the float4 color value we actually want
     float4 color = float4(

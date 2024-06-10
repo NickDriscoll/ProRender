@@ -179,6 +179,7 @@ struct VulkanGraphicsDevice {
 
 	Key<VulkanBuffer> create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VmaAllocationCreateInfo& allocation_info);
 	VulkanBuffer* get_buffer(Key<VulkanBuffer> key);
+	VkDeviceAddress get_buffer_device_address(Key<VulkanBuffer> key);
 	void destroy_buffer(Key<VulkanBuffer> key);
 
 	Key<VkSemaphore> create_semaphore(VkSemaphoreCreateInfo& info);

@@ -25,6 +25,15 @@ struct ImguiVertexOutput {
     float4 color : COLOR;
 };
 
+[[vk::push_constant]]
+struct PushConstants {
+    uint atlas_idx;
+    uint sampler_idx;
+    uint64_t positions_address;
+    uint64_t uvs_address;
+    uint64_t colors_address;
+} pc;
+
 [[vk::binding(3, 0)]]
 StructuredBuffer<ImguiPositionBlock> imgui_positions;
 
