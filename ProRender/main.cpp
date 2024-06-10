@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
 
 	Configuration my_config = {
 		.window_width = 1920,
-		.window_height = 1080	
+		.window_height = 1080
 	};
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);	//Initialize SDL

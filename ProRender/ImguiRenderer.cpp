@@ -1,4 +1,5 @@
 #include "ImguiRenderer.h"
+#include "utils.h"
 #include <bit>
 #include <inttypes.h>
 
@@ -10,6 +11,7 @@ ImguiRenderer::ImguiRenderer(
 	Key<VkRenderPass> renderpass,
 	VkDescriptorSet& descriptor_set
 ) {
+	PRORENDER_UNUSED_PARAMETER(descriptor_set);
     vgd = v;
     sampler_idx = sampler;
 
@@ -78,82 +80,18 @@ ImguiRenderer::ImguiRenderer(
 
 		//Get buffer device address :)
 		{
-			VkBufferDeviceAddressInfo info = {};
-			info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-			
-			info.buffer = vgd->get_buffer(position_buffer)->buffer;
-			this->position_address = vkGetBufferDeviceAddress(vgd->device, &info);
+
+			this->position_address = vgd->get_buffer_device_address(position_buffer);
+			this->uv_address = vgd->get_buffer_device_address(uv_buffer);
+			this->color_address = vgd->get_buffer_device_address(color_buffer);
+
 			printf("Imgui positions address\t\t== 0x%" PRIx64 "\n", this->position_address);
-
-			info.buffer = vgd->get_buffer(uv_buffer)->buffer;
-			this->uv_address = vkGetBufferDeviceAddress(vgd->device, &info);
 			printf("Imgui uvs address\t\t== 0x%" PRIx64 "\n", this->uv_address);
-
-			info.buffer = vgd->get_buffer(color_buffer)->buffer;
-			this->color_address = vkGetBufferDeviceAddress(vgd->device, &info);
 			printf("Imgui colors address\t\t== 0x%" PRIx64 "\n", this->color_address);
 		}
 
         index_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, alloc_info);
     }
-
-	//Update bindless descriptor set with imgui related bindings
-	{
-		std::vector<VkWriteDescriptorSet> descriptor_writes;
-
-        VkDescriptorBufferInfo im_pos_buffer_info = {
-            .buffer = vgd->get_buffer(position_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
-    
-        VkWriteDescriptorSet im_pos_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 3,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &im_pos_buffer_info
-        };
-        descriptor_writes.push_back(im_pos_write);
-    
-        VkDescriptorBufferInfo im_uv_buffer_info = {
-            .buffer = vgd->get_buffer(uv_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
-    
-        VkWriteDescriptorSet im_uv_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 4,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &im_uv_buffer_info
-        };
-        descriptor_writes.push_back(im_uv_write);
-    
-        VkDescriptorBufferInfo im_col_buffer_info = {
-            .buffer = vgd->get_buffer(color_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
-    
-        VkWriteDescriptorSet im_col_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 5,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &im_col_buffer_info
-        };
-        descriptor_writes.push_back(im_col_write);
-
-		vkUpdateDescriptorSets(vgd->device, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
-	}
 
 	//Create graphics pipeline
 	{
@@ -273,7 +211,13 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 	vkCmdBindIndexBuffer(frame_cb, gpu_imgui_indices->buffer, current_index_offset * sizeof(ImDrawIdx), VK_INDEX_TYPE_UINT16);
 	vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd->get_graphics_pipeline(graphics_pipeline)->pipeline);
 
-	uint32_t pcs[] = { atlas_idx, sampler_idx };
+	uint64_t atlas_and_sampler_idx = ((uint64_t)sampler_idx << 32) | (uint64_t)atlas_idx;
+	uint64_t pcs[] = {
+		atlas_and_sampler_idx,
+		position_address,
+		uv_address,
+		color_address
+	};
 	
 	//Create intermediate buffers for Imgui vertex attributes
 	std::vector<uint8_t> imgui_positions;

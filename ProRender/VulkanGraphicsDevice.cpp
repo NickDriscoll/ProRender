@@ -800,6 +800,14 @@ VulkanBuffer* VulkanGraphicsDevice::get_buffer(Key<VulkanBuffer> key) {
 	return _buffers.get(key);
 }
 
+VkDeviceAddress VulkanGraphicsDevice::get_buffer_device_address(Key<VulkanBuffer> key) {
+	VkBufferDeviceAddressInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+	
+	info.buffer = _buffers.get(key)->buffer;
+	return vkGetBufferDeviceAddress(device, &info);
+}
+
 void VulkanGraphicsDevice::destroy_buffer(Key<VulkanBuffer> key) {
 	VulkanBuffer* b = _buffers.get(key);
 	if (b) {
