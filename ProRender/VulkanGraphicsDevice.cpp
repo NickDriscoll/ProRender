@@ -800,7 +800,7 @@ VulkanBuffer* VulkanGraphicsDevice::get_buffer(Key<VulkanBuffer> key) {
 	return _buffers.get(key);
 }
 
-VkDeviceAddress VulkanGraphicsDevice::get_buffer_device_address(Key<VulkanBuffer> key) {
+VkDeviceAddress VulkanGraphicsDevice::buffer_device_address(Key<VulkanBuffer> key) {
 	VkBufferDeviceAddressInfo info = {};
 	info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
 	

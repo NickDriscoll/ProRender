@@ -15,21 +15,27 @@
 #define MAX_INSTANCES 1024*1024
 
 enum DescriptorBindings : uint32_t {
-	SAMPLED_IMAGES = 0,
-	SAMPLERS = 1,
-	FRAME_UNIFORMS = 2,
-	IMGUI_POSITIONS = 3,
-	IMGUI_UVS = 4,
-	IMGUI_COLORS = 5,
-	VERTEX_POSITIONS = 6,
-	VERTEX_UVS = 7,
-	CAMERA_BUFFER = 8,
-	MESH_BUFFER = 9,
-	MATERIAL_BUFFER = 10,
-	INSTANCE_DATA_BUFFER = 11
+	SAMPLED_IMAGES,
+	SAMPLERS,
+	FRAME_UNIFORMS,
+	IMGUI_POSITIONS,
+	IMGUI_UVS,
+	IMGUI_COLORS,
+	VERTEX_POSITIONS,
+	VERTEX_UVS,
+	CAMERA_BUFFER,
+	MESH_BUFFER,
+	MATERIAL_BUFFER,
+	INSTANCE_DATA_BUFFER,
 };
 
 struct FrameUniforms {
+	uint64_t positions_addr;
+	uint64_t uvs_addr;
+	uint64_t cameras_addr;
+	uint64_t meshes_addr;
+	uint64_t materials_addr;
+	uint64_t instance_data_addr;
 	hlslpp::float4x4 clip_from_screen;
 };
 
@@ -166,6 +172,9 @@ private:
 	//std::unordered_map<Key<Material>, Key<GPUMaterial>> _material_map;
 	std::unordered_map<uint64_t, uint64_t> _material_map;
 	bool _material_dirty_flag = false;
+
+	//This can't go in FrameUniforms for obvious reasons
+	uint64_t _frame_uniforms_addr;
 
 	uint64_t _current_frame = 0; //Frame counter
 
