@@ -2,13 +2,18 @@
 #include "structs.hlsl"
 #include "imgui.hlsl"
 
-ImguiVertexOutput main(uint idx : SV_VertexID) {
-    //float2 pos = imgui_positions[idx / 8].positions[idx % 8];
-    float2 uv = imgui_uvs[idx / 8].uvs[idx % 8];
-    uint packed_color = imgui_colors[idx / 16].colors[idx % 16];
+template<typename T>
+T raw_buffer_load(uint64_t base_addr, uint blocksize, uint idx) {
+    uint items_per_block = 64 / sizeof(T);
+    uint64_t addr = base_addr + blocksize * (idx / items_per_block);
+    addr += sizeof(T) * (idx % items_per_block);
+    return vk::RawBufferLoad<T>(addr);
+}
 
-    uint64_t pos_addr = pc.positions_address;
-    vk::RawBufferLoad<ImguiPositionBlock>(pc.positions_address, 8);
+ImguiVertexOutput main(uint idx : SV_VertexID) {
+    float2 pos = raw_buffer_load<float2>(pc.positions_address, sizeof(ImguiPositionBlock), idx);
+    float2 uv = raw_buffer_load<float2>(pc.uvs_address, sizeof(ImguiUvBlock), idx);
+    uint packed_color = raw_buffer_load<uint>(pc.colors_address, sizeof(ImguiColorBlock), idx);
     
     //Color is stored as a packed uint so we have to do bit-twiddling to get the float4 color value we actually want
     float4 color = float4(

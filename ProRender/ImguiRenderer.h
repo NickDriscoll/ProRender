@@ -10,6 +10,14 @@ struct ImguiFrame {
 	uint32_t index_size;
 };
 
+struct ImguiPushConstants {
+	uint32_t atlas_idx;
+	uint32_t sampler_idx;
+	uint64_t position_address;
+	uint64_t uv_address;
+	uint64_t color_address;
+};
+
 struct ImguiRenderer {
     
 	void draw(VkCommandBuffer& frame_cb, uint64_t frame_counter);
