@@ -211,12 +211,12 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 	vkCmdBindIndexBuffer(frame_cb, gpu_imgui_indices->buffer, current_index_offset * sizeof(ImDrawIdx), VK_INDEX_TYPE_UINT16);
 	vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd->get_graphics_pipeline(graphics_pipeline)->pipeline);
 
-	uint64_t atlas_and_sampler_idx = ((uint64_t)sampler_idx << 32) | (uint64_t)atlas_idx;
-	uint64_t pcs[] = {
-		atlas_and_sampler_idx,
-		position_address,
-		uv_address,
-		color_address
+	ImguiPushConstants pcs = {
+		.atlas_idx = atlas_idx,
+		.sampler_idx = sampler_idx,
+		.position_address = position_address,
+		.uv_address = uv_address,
+		.color_address = color_address
 	};
 	
 	//Create intermediate buffers for Imgui vertex attributes
@@ -263,8 +263,15 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 			};
 			vkCmdSetScissor(frame_cb, 0, 1, &scissor);
 			
-			pcs[0] = (uint32_t)draw_command.TextureId;
-			vkCmdPushConstants(frame_cb, *vgd->get_pipeline_layout(graphics_pipeline_layout), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 8, pcs);
+			pcs.atlas_idx = (uint32_t)draw_command.TextureId;
+			vkCmdPushConstants(
+				frame_cb,
+				*vgd->get_pipeline_layout(graphics_pipeline_layout),
+				VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+				0,
+				sizeof(ImguiPushConstants),
+				&pcs
+			);
 
 			vkCmdDrawIndexed(frame_cb, draw_command.ElemCount, 1, draw_command.IdxOffset + idx_offset, draw_command.VtxOffset + current_vertex_offset + vtx_offset, 0);
 		}
