@@ -81,9 +81,9 @@ ImguiRenderer::ImguiRenderer(
 		//Get buffer device address :)
 		{
 
-			this->position_address = vgd->get_buffer_device_address(position_buffer);
-			this->uv_address = vgd->get_buffer_device_address(uv_buffer);
-			this->color_address = vgd->get_buffer_device_address(color_buffer);
+			this->position_address = vgd->buffer_device_address(position_buffer);
+			this->uv_address = vgd->buffer_device_address(uv_buffer);
+			this->color_address = vgd->buffer_device_address(color_buffer);
 
 			printf("Imgui positions address\t\t== 0x%" PRIx64 "\n", this->position_address);
 			printf("Imgui uvs address\t\t== 0x%" PRIx64 "\n", this->uv_address);
