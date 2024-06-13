@@ -79,16 +79,9 @@ ImguiRenderer::ImguiRenderer(
         color_buffer = vgd->create_buffer(buffer_size, vertex_buffer_flags, alloc_info);
 
 		//Get buffer device address :)
-		{
-
-			this->position_address = vgd->buffer_device_address(position_buffer);
-			this->uv_address = vgd->buffer_device_address(uv_buffer);
-			this->color_address = vgd->buffer_device_address(color_buffer);
-
-			printf("Imgui positions address\t\t== 0x%" PRIx64 "\n", this->position_address);
-			printf("Imgui uvs address\t\t== 0x%" PRIx64 "\n", this->uv_address);
-			printf("Imgui colors address\t\t== 0x%" PRIx64 "\n", this->color_address);
-		}
+		this->position_address = vgd->buffer_device_address(position_buffer);
+		this->uv_address = vgd->buffer_device_address(uv_buffer);
+		this->color_address = vgd->buffer_device_address(color_buffer);
 
         index_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, alloc_info);
     }
@@ -96,17 +89,14 @@ ImguiRenderer::ImguiRenderer(
 	//Create graphics pipeline
 	{
 		VulkanInputAssemblyState ia_states[] = {
-			{},
 			{}
 		};
 
 		VulkanTesselationState tess_states[] = {
-			{},
 			{}
 		};
 
 		VulkanViewportState vs_states[] = {
-			{},
 			{}
 		};
 
@@ -114,18 +104,13 @@ ImguiRenderer::ImguiRenderer(
 			{
 				.cullMode = VK_CULL_MODE_NONE
 			},
-			{}
 		};
 
 		VulkanMultisampleState ms_states[] = {
-			{},
 			{}
 		};
 
 		VulkanDepthStencilState ds_states[] = {
-			{
-				.depthTestEnable = VK_FALSE
-			},
 			{
 				.depthTestEnable = VK_FALSE
 			}
@@ -133,10 +118,6 @@ ImguiRenderer::ImguiRenderer(
 
 		VulkanColorBlendAttachmentState blend_attachment_state = {};
 		VulkanColorBlendState blend_states[] = {
-			{
-				.attachmentCount = 1,
-				.pAttachments = &blend_attachment_state
-			},
 			{
 				.attachmentCount = 1,
 				.pAttachments = &blend_attachment_state
@@ -218,6 +199,13 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 		.uv_address = uv_address,
 		.color_address = color_address
 	};
+	ImGuiIO& io = ImGui::GetIO();
+	pcs.clip_matrix = hlslpp::float4x4(
+		2.0f / (float)io.DisplaySize.x, 0.0f, 0.0f, -1.0f,
+		0.0f, 2.0f / (float)io.DisplaySize.y, 0.0f, -1.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f
+	);
 	
 	//Create intermediate buffers for Imgui vertex attributes
 	std::vector<uint8_t> imgui_positions;

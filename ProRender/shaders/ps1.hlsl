@@ -1,4 +1,8 @@
 
+[[vk::push_constant]]
+struct {
+    uint camera_idx;
+} pc;
 
 struct Ps1VertexOutput {
     float4 position : SV_POSITION;

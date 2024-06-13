@@ -14,7 +14,7 @@
 #define MAX_INDIRECT_DRAWS 100000
 #define MAX_INSTANCES 1024*1024
 
-enum DescriptorBindings : uint32_t {
+enum DescriptorBindings : uint8_t {
 	SAMPLED_IMAGES,
 	SAMPLERS,
 	FRAME_UNIFORMS,
@@ -27,6 +27,11 @@ enum DescriptorBindings : uint32_t {
 	MESH_BUFFER,
 	MATERIAL_BUFFER,
 	INSTANCE_DATA_BUFFER,
+};
+
+struct RenderPushConstants {
+	uint32_t camera_idx;
+	uint64_t uniforms_addr;
 };
 
 struct FrameUniforms {

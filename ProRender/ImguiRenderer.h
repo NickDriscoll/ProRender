@@ -1,4 +1,5 @@
 #include "VulkanGraphicsDevice.h"
+#include "hlsl++.h"
 #include <imgui.h>
 
 #define U64_MAX 0xFFFFFFFFFFFFFFFF
@@ -16,6 +17,8 @@ struct ImguiPushConstants {
 	uint64_t position_address;
 	uint64_t uv_address;
 	uint64_t color_address;
+    uint64_t uniforms_address;
+    hlslpp::float4x4 clip_matrix;
 };
 
 struct ImguiRenderer {

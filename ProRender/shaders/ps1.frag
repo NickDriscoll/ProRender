@@ -2,11 +2,6 @@
 #include "sampled_image_bindings.hlsl"
 #include "instance_data.hlsl"
 
-[[vk::push_constant]]
-struct {
-    uint camera_idx;
-} pc;
-
 float4 main(Ps1VertexOutput in_vtx) : SV_Target0 {
     GPUInstanceData inst_data = instance_data[in_vtx.instance_idx];
     GPUMaterial material = materials[inst_data.material_idx];

@@ -23,8 +23,11 @@ ImguiVertexOutput main(uint idx : SV_VertexID) {
         (float)((packed_color >> 24) & 0xFF) / 255.0
     );
 
+    //float4x4 clip_matrix = frame_uniforms.clip_from_screen;
+    float4x4 clip_matrix = pc.clip_matrix;
+
     ImguiVertexOutput vo;
-    vo.position = mul(float4(pos, 0.0, 1.0), frame_uniforms.clip_from_screen);
+    vo.position = mul(float4(pos, 0.0, 1.0), clip_matrix);
     vo.uv = uv;
     vo.color = color;
 
