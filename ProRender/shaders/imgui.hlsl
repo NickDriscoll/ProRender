@@ -32,6 +32,8 @@ struct PushConstants {
     uint64_t positions_address;
     uint64_t uvs_address;
     uint64_t colors_address;
+    uint64_t uniforms_address;
+    float4x4 clip_matrix;
 } pc;
 
 [[vk::binding(3, 0)]]

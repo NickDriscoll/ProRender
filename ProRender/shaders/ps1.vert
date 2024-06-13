@@ -3,11 +3,6 @@
 #include "instance_data.hlsl"
 #include "ps1.hlsl"
 
-[[vk::push_constant]]
-struct {
-    uint camera_idx;
-} pc;
-
 Ps1VertexOutput main(uint vtx_id : SV_VertexID, uint inst_idx : SV_INSTANCEID) {
 
     GPUInstanceData inst_data = instance_data[inst_idx];
