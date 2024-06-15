@@ -1,5 +1,5 @@
 #include "imgui.hlsl"
-#include "structs.hlsl"
+#include "util.hlsl"
 #include "sampled_image_bindings.hlsl"
 
 float4 main(ImguiVertexOutput input) : SV_Target0 {

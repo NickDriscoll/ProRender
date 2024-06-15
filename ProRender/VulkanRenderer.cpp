@@ -274,7 +274,6 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
         camera_buffer = vgd->create_buffer(FRAMES_IN_FLIGHT * MAX_CAMERAS * sizeof(GPUCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, alloc_info);
         frame_uniforms.cameras_addr = vgd->buffer_device_address(camera_buffer);
     
-
         //Create material buffer
         _material_buffer = vgd->create_buffer(MAX_MATERIALS * sizeof(GPUMaterial), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, alloc_info);
         frame_uniforms.materials_addr = vgd->buffer_device_address(_material_buffer);
@@ -683,13 +682,6 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
         memcpy(ptr, _gpu_meshes.data(), _gpu_meshes.size() * sizeof(GPUMesh));
     }
 
-    frame_uniforms.clip_from_screen = hlslpp::float4x4(
-        2.0f / (float)framebuffer.width, 0.0f, 0.0f, -1.0f,
-        0.0f, 2.0f / (float)framebuffer.height, 0.0f, -1.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f
-    );
-
     //Update per-frame uniforms
     //TODO: This is currently doing nothing to account for multiple in-flight frames
     {
@@ -796,8 +788,8 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
 
         //Bind push constants for this pass
         RenderPushConstants pcs = {
-            .camera_idx = 0,
-            .uniforms_addr = _frame_uniforms_addr
+            .uniforms_addr = _frame_uniforms_addr,
+            .camera_idx = 0
         };
         vkCmdPushConstants(frame_cb, *vgd->get_pipeline_layout(pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(RenderPushConstants), &pcs);
 

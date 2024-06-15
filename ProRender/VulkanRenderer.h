@@ -30,8 +30,8 @@ enum DescriptorBindings : uint8_t {
 };
 
 struct RenderPushConstants {
-	uint32_t camera_idx;
 	uint64_t uniforms_addr;
+	uint32_t camera_idx;
 };
 
 struct FrameUniforms {
@@ -41,7 +41,6 @@ struct FrameUniforms {
 	uint64_t meshes_addr;
 	uint64_t materials_addr;
 	uint64_t instance_data_addr;
-	hlslpp::float4x4 clip_from_screen;
 };
 
 struct Camera {

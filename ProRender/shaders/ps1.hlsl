@@ -1,6 +1,7 @@
 
 [[vk::push_constant]]
 struct {
+    uint64_t uniforms_addr;
     uint camera_idx;
 } pc;
 

@@ -2,6 +2,7 @@
 #include "camera_bindings.hlsl"
 #include "instance_data.hlsl"
 #include "ps1.hlsl"
+#include "util.hlsl"
 
 Ps1VertexOutput main(uint vtx_id : SV_VertexID, uint inst_idx : SV_INSTANCEID) {
 
@@ -9,9 +10,12 @@ Ps1VertexOutput main(uint vtx_id : SV_VertexID, uint inst_idx : SV_INSTANCEID) {
     GPUMesh mesh = meshes[inst_data.mesh_idx];
     uint position_offset = mesh.position_start;
     uint uv_offset = mesh.uv_start;
+    
+    uint64_t pos_baseaddr = vk::RawBufferLoad<uint64_t>(pc.uniforms_addr);
+    float4 pos = raw_buffer_load<float4>(pos_baseaddr, sizeof(VertexPositionBlock), vtx_id + position_offset);
 
-    float4 pos = vertex_positions[(vtx_id + position_offset) / POSITION_BLOCK_SIZE].positions[(vtx_id + position_offset) % POSITION_BLOCK_SIZE];
-    float2 uv = vertex_uvs[(vtx_id + uv_offset) / UV_BLOCK_SIZE].uvs[(vtx_id + uv_offset) % UV_BLOCK_SIZE];
+    uint64_t uv_baseaddr = vk::RawBufferLoad<uint64_t>(pc.uniforms_addr + sizeof(uint64_t));
+    float2 uv = raw_buffer_load<float2>(uv_baseaddr, sizeof(VertexUvBlock), vtx_id + uv_offset);
 
     Camera cam = cameras[pc.camera_idx];
 
