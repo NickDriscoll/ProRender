@@ -2,9 +2,9 @@
 #include "imgui.hlsl"
 
 ImguiVertexOutput main(uint idx : SV_VertexID) {
-    float2 pos = raw_buffer_load<float2>(pc.positions_address, sizeof(ImguiPositionBlock), idx);
-    float2 uv = raw_buffer_load<float2>(pc.uvs_address, sizeof(ImguiUvBlock), idx);
-    uint packed_color = raw_buffer_load<uint>(pc.colors_address, sizeof(ImguiColorBlock), idx);
+    float2 pos = raw_block_load<float2>(pc.positions_address, sizeof(ImguiPositionBlock), idx);
+    float2 uv = raw_block_load<float2>(pc.uvs_address, sizeof(ImguiUvBlock), idx);
+    uint packed_color = raw_block_load<uint>(pc.colors_address, sizeof(ImguiColorBlock), idx);
     
     //Color is stored as a packed uint so we have to do bit-twiddling to get the float4 color value we actually want
     float4 color = float4(
