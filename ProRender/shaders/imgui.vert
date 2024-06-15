@@ -1,14 +1,5 @@
-#include "frame_uniform_bindings.hlsl"
-#include "structs.hlsl"
+#include "util.hlsl"
 #include "imgui.hlsl"
-
-template<typename T>
-T raw_buffer_load(uint64_t base_addr, uint blocksize, uint idx) {
-    uint items_per_block = 64 / sizeof(T);
-    uint64_t addr = base_addr + blocksize * (idx / items_per_block);
-    addr += sizeof(T) * (idx % items_per_block);
-    return vk::RawBufferLoad<T>(addr);
-}
 
 ImguiVertexOutput main(uint idx : SV_VertexID) {
     float2 pos = raw_buffer_load<float2>(pc.positions_address, sizeof(ImguiPositionBlock), idx);
@@ -23,7 +14,6 @@ ImguiVertexOutput main(uint idx : SV_VertexID) {
         (float)((packed_color >> 24) & 0xFF) / 255.0
     );
 
-    //float4x4 clip_matrix = frame_uniforms.clip_from_screen;
     float4x4 clip_matrix = pc.clip_matrix;
 
     ImguiVertexOutput vo;
