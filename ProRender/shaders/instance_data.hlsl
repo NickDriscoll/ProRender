@@ -6,6 +6,3 @@ struct GPUInstanceData {
 	uint _pad0;
 	uint _pad1;
 };
-
-[[vk::binding(11, 0)]]
-StructuredBuffer<GPUInstanceData> instance_data;

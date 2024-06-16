@@ -66,7 +66,7 @@ struct GPUMaterial {
 	uint32_t texture_indices[MAX_MATERIAL_TEXTURES] = {std::numeric_limits<uint32_t>::max()};
 	hlslpp::float4 base_color;
 	uint32_t sampler_idx;
-	uint32_t _pad0 = 0, _pad1 = 0;
+	uint32_t _pad0 = 0, _pad1 = 0, _pad2 = 0;
 };
 
 struct GPUInstanceData {

@@ -11,7 +11,5 @@ struct GPUMaterial {
     uint sampler_idx;
     uint _pad0;
     uint _pad1;
+    uint _pad2;
 };
-
-[[vk::binding(10, 0)]]
-StructuredBuffer<GPUMaterial> materials;

@@ -6,6 +6,3 @@ struct FrameUniforms {
 	uint64_t materials_addr;
 	uint64_t instancedata_addr;
 };
-
-[[vk::binding(2, 0)]]
-ConstantBuffer<FrameUniforms> frame_uniforms;
