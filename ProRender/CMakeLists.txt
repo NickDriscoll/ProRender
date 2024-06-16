@@ -86,7 +86,7 @@ foreach(file ${files})
 	add_custom_command(
 		TARGET ProRender
 		POST_BUILD
-		COMMAND "$ENV{VULKAN_SDK}/bin/dxc" -spirv -T vs_6_7 -Fo "${CMAKE_SOURCE_DIR}/bin/shaders/${filename}.spv" "${file}"
+		COMMAND "$ENV{VULKAN_SDK}/bin/dxc" -Zi -spirv -T vs_6_7 -Fo "${CMAKE_SOURCE_DIR}/bin/shaders/${filename}.spv" "${file}"
 		VERBATIM)
 endforeach()
 
@@ -98,7 +98,7 @@ foreach(file ${files})
 	add_custom_command(
 		TARGET ProRender
 		POST_BUILD
-		COMMAND "$ENV{VULKAN_SDK}/bin/dxc" -spirv -T ps_6_7 -Fo "${CMAKE_SOURCE_DIR}/bin/shaders/${filename}.spv" "${file}"
+		COMMAND "$ENV{VULKAN_SDK}/bin/dxc" -Zi -spirv -T ps_6_7 -Fo "${CMAKE_SOURCE_DIR}/bin/shaders/${filename}.spv" "${file}"
 		VERBATIM)
 endforeach()
 
