@@ -112,76 +112,6 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
                 .immutable_samplers = _samplers.data()
             });
 
-            //Frame uniforms
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-            });
-
-            //Imgui positions
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
-            });
-
-            //Imgui UVs
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
-            });
-
-            //Imgui colors
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
-            });
-
-            //Vertex positions
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
-            });
-
-            //Vertex uvs
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT
-            });
-
-            //Camera buffer
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-            });
-
-            //Mesh buffer
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-            });
-
-            //Material buffer
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-            });
-
-            //Instance data buffer
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptor_count = 1,
-                .stage_flags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-            });
-
             descriptor_set_layout_id = vgd->create_descriptor_set_layout(bindings);
 
             std::vector<VkPushConstantRange> ranges = {
@@ -205,14 +135,6 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
                     },
                     {
                         .type = VK_DESCRIPTOR_TYPE_SAMPLER,
-                        .descriptorCount = 16
-                    },
-                    {
-                        .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                        .descriptorCount = 256
-                    },
-                    {
-                        .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                         .descriptorCount = 16
                     }
                 };
@@ -278,7 +200,6 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
         _material_buffer = vgd->create_buffer(MAX_MATERIALS * sizeof(GPUMaterial), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, alloc_info);
         frame_uniforms.materials_addr = vgd->buffer_device_address(_material_buffer);
     
-
         //Create indirect draw buffer
         _indirect_draw_buffer = vgd->create_buffer(FRAMES_IN_FLIGHT * MAX_INDIRECT_DRAWS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, alloc_info);
     
@@ -290,132 +211,6 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
         _mesh_buffer = vgd->create_buffer(MAX_MESHES * sizeof(GPUMesh), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, alloc_info);
         frame_uniforms.meshes_addr = vgd->buffer_device_address(_mesh_buffer);
     }
-
-	//Write static descriptors
-	{
-		std::vector<VkWriteDescriptorSet> descriptor_writes;
-        
-        VkDescriptorBufferInfo uniform_buffer_info = {
-            .buffer = vgd->get_buffer(frame_uniforms_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
-        
-        VkWriteDescriptorSet uniform_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 2,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .pBufferInfo = &uniform_buffer_info
-        };
-        descriptor_writes.push_back(uniform_write);
-        
-        VkDescriptorBufferInfo vert_pos_buffer_info = {
-            .buffer = vgd->get_buffer(vertex_position_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
-        
-        VkWriteDescriptorSet vert_pos_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 6,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &vert_pos_buffer_info
-        };
-        descriptor_writes.push_back(vert_pos_write);
-        
-        VkDescriptorBufferInfo vert_uv_buffer_info = {
-            .buffer = vgd->get_buffer(vertex_uv_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
-        
-        VkWriteDescriptorSet vert_uv_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 7,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &vert_uv_buffer_info
-        };
-        descriptor_writes.push_back(vert_uv_write);
-        
-        VkDescriptorBufferInfo camera_buffer_info = {
-            .buffer = vgd->get_buffer(camera_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
-        
-        VkWriteDescriptorSet camera_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 8,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &camera_buffer_info
-        };
-        descriptor_writes.push_back(camera_write);
-        
-        VkDescriptorBufferInfo mesh_buffer_info = {
-            .buffer = vgd->get_buffer(_mesh_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
-        
-        VkWriteDescriptorSet mesh_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 9,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &mesh_buffer_info
-        };
-        descriptor_writes.push_back(mesh_write);
-        
-        VkDescriptorBufferInfo material_buffer_info = {
-            .buffer = vgd->get_buffer(_material_buffer)->buffer,
-            .offset = 0,
-            .range = VK_WHOLE_SIZE
-        };
-        
-        VkWriteDescriptorSet material_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 10,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &material_buffer_info
-        };
-        descriptor_writes.push_back(material_write);
-        
-        VkDescriptorBufferInfo instance_buffer_info = {
-            .buffer = vgd->get_buffer(_instance_buffer)->buffer,
-            .offset = 0,
-            .range = MAX_INSTANCES * sizeof(GPUInstanceData)
-        };
-        
-        VkWriteDescriptorSet instance_write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptor_set,
-            .dstBinding = 11,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &instance_buffer_info
-        };
-        descriptor_writes.push_back(instance_write);
-
-        vkUpdateDescriptorSets(vgd->device, static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
-	}
 
     //Create hardcoded graphics pipelines
 	{

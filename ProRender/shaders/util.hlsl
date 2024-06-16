@@ -1,6 +1,5 @@
 static const float PI = acos(-1);   //Most accurate Pi possible
 
-
 template<typename T>
 T raw_block_load(uint64_t base_addr, uint blocksize, uint idx) {
     uint items_per_block = 64 / sizeof(T);
