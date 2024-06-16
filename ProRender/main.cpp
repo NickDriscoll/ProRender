@@ -201,6 +201,7 @@ int main(int argc, char* argv[]) {
 		//The distance the mouse has moved on each axis
 		float mouse_motion_x = 0.0;
 		float mouse_motion_y = 0.0;
+		static bool show_demo = true;
 		{
     		ImGuiIO& io = ImGui::GetIO();
 			io.DeltaTime = delta_time;
@@ -244,6 +245,9 @@ int main(int argc, char* argv[]) {
 						break;
 					case SDLK_SPACE:
 						know_plane_image = false;
+						break;
+					case SDLK_ESCAPE:
+						show_demo = true;
 						break;
 					}
 
@@ -360,7 +364,6 @@ int main(int argc, char* argv[]) {
 
 		//Dear ImGUI update part
 		{
-			static bool show_demo = true;
 			if (show_demo)
 				ImGui::ShowDemoWindow(&show_demo);
 
