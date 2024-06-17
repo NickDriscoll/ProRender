@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
 	//User config structure
 
 	Configuration my_config = {
-		.window_width = 1920,
+		.window_width = 1440,
 		.window_height = 1080
 	};
 
@@ -87,8 +87,7 @@ int main(int argc, char* argv[]) {
 		renderer.point_sampler_idx,
 		ImVec2((float)window.x_resolution, (float)window.y_resolution),
 		renderer.pipeline_layout_id,
-		window.swapchain_renderpass,
-		renderer.descriptor_set
+		window.swapchain_renderpass
 	);
 	app_timer.print("Dear ImGUI Initialization");
 	app_timer.start();

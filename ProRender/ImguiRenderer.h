@@ -31,8 +31,7 @@ struct ImguiRenderer {
 		uint32_t sampler,
 		ImVec2 window_size,
 		Key<VkPipelineLayout> pipeline_layout_id,
-		Key<VkRenderPass> renderpass,
-		VkDescriptorSet& descriptor_set
+		Key<VkRenderPass> renderpass
 	);
     ~ImguiRenderer();
 

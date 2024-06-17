@@ -8,10 +8,8 @@ ImguiRenderer::ImguiRenderer(
 	uint32_t sampler,
 	ImVec2 window_size,
 	Key<VkPipelineLayout> pipeline_layout_id,
-	Key<VkRenderPass> renderpass,
-	VkDescriptorSet& descriptor_set
+	Key<VkRenderPass> renderpass
 ) {
-	PRORENDER_UNUSED_PARAMETER(descriptor_set);
     vgd = v;
     sampler_idx = sampler;
 
