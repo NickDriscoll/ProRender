@@ -84,9 +84,8 @@ int main(int argc, char* argv[]) {
 	//Initialize Dear ImGui
 	ImguiRenderer imgui_renderer = ImguiRenderer(
 		&vgd,
-		renderer.point_sampler_idx,
+		ImmutableSamplers::NEAREST,
 		ImVec2((float)window.x_resolution, (float)window.y_resolution),
-		renderer.pipeline_layout_id,
 		window.swapchain_renderpass
 	);
 	app_timer.print("Dear ImGUI Initialization");
@@ -121,8 +120,8 @@ int main(int argc, char* argv[]) {
 			miyamoto_image_batch_id = vgd.load_image_files(names, formats);
 			bird_image_batch_id = vgd.load_image_files(names2, formats);
 			hlslpp::float4 base_color(1.0, 1.0, 1.0, 1.0);
-			miyamoto_material_key = renderer.push_material(miyamoto_image_batch_id, renderer.standard_sampler_idx, base_color);
-			bird_material_key = renderer.push_material(bird_image_batch_id, renderer.standard_sampler_idx, base_color);
+			miyamoto_material_key = renderer.push_material(miyamoto_image_batch_id, ImmutableSamplers::STANDARD, base_color);
+			bird_material_key = renderer.push_material(bird_image_batch_id, ImmutableSamplers::STANDARD, base_color);
 		}
 
 		float plane_pos[] = {
@@ -488,7 +487,7 @@ int main(int argc, char* argv[]) {
 			renderer.cpu_sync();
 
 			//Per-frame checking of pending images to see if they're ready
-			vgd.tick_image_uploads(frame_cb, renderer.descriptor_set, DescriptorBindings::SAMPLED_IMAGES);
+			vgd.tick_image_uploads(frame_cb);
 
 			SyncData sync = {};
 			SwapchainFramebuffer window_framebuffer = window.acquire_next_image(vgd, sync, current_frame);

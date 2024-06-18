@@ -30,7 +30,6 @@ struct ImguiRenderer {
 		VulkanGraphicsDevice* v,
 		uint32_t sampler,
 		ImVec2 window_size,
-		Key<VkPipelineLayout> pipeline_layout_id,
 		Key<VkRenderPass> renderpass
 	);
     ~ImguiRenderer();
@@ -47,7 +46,6 @@ private:
 	VkDeviceAddress uv_address;
 	VkDeviceAddress color_address;
 
-	Key<VkPipelineLayout> graphics_pipeline_layout;
 	Key<VulkanGraphicsPipeline> graphics_pipeline;
 
 	ImguiFrame frames[FRAMES_IN_FLIGHT] = {};

@@ -56,108 +56,6 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
     _materials.alloc(MAX_MATERIALS);
     _gpu_materials.alloc(MAX_MATERIALS);
     _gpu_meshes.alloc(MAX_MESHES);
-
-    //Create bindless descriptor set
-    {
-        {
-            //Create immutable samplers
-            {
-                VkSamplerCreateInfo info = {
-                    .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-                    .magFilter = VK_FILTER_LINEAR,
-                    .minFilter = VK_FILTER_LINEAR,
-                    .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-                    .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                    .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                    .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                    .anisotropyEnable = VK_TRUE,
-                    .maxAnisotropy = 16.0,
-                    .minLod = 0.0,
-                    .maxLod = VK_LOD_CLAMP_NONE,
-                };
-                _samplers.push_back(vgd->create_sampler(info));
-                standard_sampler_idx = 0;
-
-                info = {
-                    .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-                    .magFilter = VK_FILTER_NEAREST,
-                    .minFilter = VK_FILTER_NEAREST,
-                    .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-                    .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                    .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                    .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                    .anisotropyEnable = VK_FALSE,
-                    .maxAnisotropy = 1.0,
-                    .minLod = 0.0,
-                    .maxLod = VK_LOD_CLAMP_NONE,
-                };
-                _samplers.push_back(vgd->create_sampler(info));
-                point_sampler_idx = 1;
-            }
-
-            std::vector<VulkanDescriptorLayoutBinding> bindings;
-
-            //Images
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                .descriptor_count = 1024*1024,
-                .stage_flags = VK_SHADER_STAGE_FRAGMENT_BIT
-            });
-
-            //Samplers
-            bindings.push_back({
-                .descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLER,
-                .descriptor_count = static_cast<uint32_t>(_samplers.size()),
-                .stage_flags = VK_SHADER_STAGE_FRAGMENT_BIT,
-                .immutable_samplers = _samplers.data()
-            });
-
-            descriptor_set_layout_id = vgd->create_descriptor_set_layout(bindings);
-        }
-
-        //Create bindless descriptor set
-        {
-            {
-                VkDescriptorPoolSize sizes[] = {
-                    {
-                        .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                        .descriptorCount = 1024*1024,
-                    },
-                    {
-                        .type = VK_DESCRIPTOR_TYPE_SAMPLER,
-                        .descriptorCount = 16
-                    }
-                };
-
-                VkDescriptorPoolCreateInfo info = {
-                    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-                    .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-                    .maxSets = 1,
-                    .poolSizeCount = 4,
-                    .pPoolSizes = sizes
-                };
-
-                if (vkCreateDescriptorPool(vgd->device, &info, vgd->alloc_callbacks, &descriptor_pool) != VK_SUCCESS) {
-                    printf("Creating descriptor pool failed.\n");
-                    exit(-1);
-                }
-            }
-
-            {
-                VkDescriptorSetAllocateInfo info = {
-                    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-                    .descriptorPool = descriptor_pool,
-                    .descriptorSetCount = 1,
-                    .pSetLayouts = vgd->get_descriptor_set_layout(descriptor_set_layout_id)
-                };
-
-                if (vkAllocateDescriptorSets(vgd->device, &info, &descriptor_set) != VK_SUCCESS) {
-                    printf("Allocating descriptor set failed.\n");
-                    exit(-1);
-                }
-            }
-        }
-    }
     
     //Allocate memory for vertex data
     {
@@ -204,58 +102,8 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
 
     //Create hardcoded graphics pipelines
 	{
-		VulkanInputAssemblyState ia_states[] = {
-			{}
-		};
-
-		VulkanTesselationState tess_states[] = {
-			{}
-		};
-
-		VulkanViewportState vs_states[] = {
-			{}
-		};
-
-		VulkanRasterizationState rast_states[] = {
-			{
-                .cullMode = VK_CULL_MODE_NONE
-            }
-		};
-
-		VulkanMultisampleState ms_states[] = {
-			{}
-		};
-
-		VulkanDepthStencilState ds_states[] = {
-			{
-				.depthTestEnable = VK_FALSE
-			}
-		};
-
-		VulkanColorBlendAttachmentState blend_attachment_state = {};
-		VulkanColorBlendState blend_states[] = {
-			{
-				.attachmentCount = 1,
-				.pAttachments = &blend_attachment_state
-			},
-			{
-				.attachmentCount = 1,
-				.pAttachments = &blend_attachment_state
-			}
-		};
-
-		const char* spv[] = { "shaders/ps1.vert.spv", "shaders/ps1.frag.spv" };
-
-        std::vector<VkPushConstantRange> ranges = {
-            {
-                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                .offset = 0,
-                .size = 128
-            }
-        };
-
-        pipeline_layout_id = vgd->create_pipeline_layout(descriptor_set_layout_id, ranges);
         
+		const char* spv[] = { "shaders/ps1.vert.spv", "shaders/ps1.frag.spv" };
         VulkanGraphicsPipelineConfig config = VulkanGraphicsPipelineConfig();
         config.rasterization_state.cullMode = VK_CULL_MODE_NONE;
         config.depth_stencil_state.depthTestEnable = VK_FALSE;
@@ -266,7 +114,6 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
 		Key<VulkanGraphicsPipeline> pipelines[] = {0};
 		vgd->create_graphics_pipelines(
             configs,
-			pipeline_layout_id,
 			pipelines
 		);
 
@@ -571,8 +418,6 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
 			vkCmdSetScissor(frame_cb, 0, 1, &scissor);
 		}
 
-		vkCmdBindDescriptorSets(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, *vgd->get_pipeline_layout(pipeline_layout_id), 0, 1, &descriptor_set, 0, nullptr);
-
 		//Bind global index buffer
 		vkCmdBindIndexBuffer(frame_cb, vgd->get_buffer(index_buffer)->buffer, 0, VK_INDEX_TYPE_UINT16);
 		
@@ -584,7 +429,7 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
             .uniforms_addr = _frame_uniforms_addr,
             .camera_idx = 0
         };
-        vkCmdPushConstants(frame_cb, *vgd->get_pipeline_layout(pipeline_layout_id), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(RenderPushConstants), &pcs);
+        vkCmdPushConstants(frame_cb, vgd->get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(RenderPushConstants), &pcs);
 
         VkDeviceSize indirect_offset = (_current_frame % FRAMES_IN_FLIGHT) * MAX_INDIRECT_DRAWS * sizeof(VkDrawIndexedIndirectCommand);
         vkCmdDrawIndexedIndirect(frame_cb, vgd->get_buffer(_indirect_draw_buffer)->buffer, indirect_offset, static_cast<uint32_t>(_draw_calls.size()), sizeof(VkDrawIndexedIndirectCommand));
@@ -606,9 +451,7 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
 }
 
 void VulkanRenderer::cpu_sync() {
-    
-	
-	//Wait for command buffer to finish execution before submitting
+    //Wait for command buffer to finish execution before submitting
 	//Prevents CPU from getting too far ahead
 	if (_current_frame >= FRAMES_IN_FLIGHT) {
         VkSemaphore* graphics_tl_sem = vgd->get_semaphore(frames_completed_semaphore);
@@ -626,11 +469,6 @@ void VulkanRenderer::cpu_sync() {
 }
 
 VulkanRenderer::~VulkanRenderer() {
-	for (uint32_t i = 0; i < _samplers.size(); i++) {
-		vkDestroySampler(vgd->device, _samplers[i], vgd->alloc_callbacks);
-	}
-
-	vkDestroyDescriptorPool(vgd->device, descriptor_pool, vgd->alloc_callbacks);
     vgd->destroy_buffer(_instance_buffer);
     vgd->destroy_buffer(_mesh_buffer);
     vgd->destroy_buffer(_indirect_draw_buffer);

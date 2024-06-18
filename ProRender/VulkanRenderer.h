@@ -14,21 +14,6 @@
 #define MAX_INDIRECT_DRAWS 100000
 #define MAX_INSTANCES 1024*1024
 
-enum DescriptorBindings : uint8_t {
-	SAMPLED_IMAGES,
-	SAMPLERS,
-	FRAME_UNIFORMS,
-	IMGUI_POSITIONS,
-	IMGUI_UVS,
-	IMGUI_COLORS,
-	VERTEX_POSITIONS,
-	VERTEX_UVS,
-	CAMERA_BUFFER,
-	MESH_BUFFER,
-	MATERIAL_BUFFER,
-	INSTANCE_DATA_BUFFER,
-};
-
 struct RenderPushConstants {
 	uint64_t uniforms_addr;
 	uint32_t camera_idx;
@@ -100,11 +85,6 @@ struct VulkanRenderer {
 	Key<VulkanGraphicsPipeline> ps1_pipeline;
 
 	Key<VkSemaphore> frames_completed_semaphore;
-
-	Key<VkDescriptorSetLayout> descriptor_set_layout_id;
-	Key<VkPipelineLayout> pipeline_layout_id;
-	VkDescriptorPool descriptor_pool;
-	VkDescriptorSet descriptor_set;
 
 	//Buffer of per-frame uniform data
 	FrameUniforms frame_uniforms;

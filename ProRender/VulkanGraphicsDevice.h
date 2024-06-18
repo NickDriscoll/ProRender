@@ -12,6 +12,17 @@
 #define FRAMES_IN_FLIGHT 2		//Number of simultaneous frames the GPU could be working on
 #define PIPELINE_CACHE_FILENAME ".shadercache"
 
+enum DescriptorBindings : uint8_t {
+	SAMPLED_IMAGES,
+	SAMPLERS
+};
+
+enum ImmutableSamplers : uint8_t {
+	STANDARD,
+	NEAREST,
+	FULL_ANISO = STANDARD
+};
+
 constexpr VkComponentMapping COMPONENT_MAPPING_DEFAULT = {
 	.r = VK_COMPONENT_SWIZZLE_R,
 	.g = VK_COMPONENT_SWIZZLE_G,
@@ -153,14 +164,8 @@ struct VulkanGraphicsDevice {
 	VkCommandBuffer borrow_transfer_command_buffer();
 	void return_transfer_command_buffer(VkCommandBuffer cb);
 
-	Key<VkDescriptorSetLayout> create_descriptor_set_layout(std::vector<VulkanDescriptorLayoutBinding>& descriptor_sets);
-	VkDescriptorSetLayout* get_descriptor_set_layout(Key<VkDescriptorSetLayout> id);
-	Key<VkPipelineLayout> create_pipeline_layout(Key<VkDescriptorSetLayout> descriptor_set_layout_id, std::vector<VkPushConstantRange>& push_constants);
-	VkPipelineLayout* get_pipeline_layout(Key<VkPipelineLayout> id);
-
 	void create_graphics_pipelines(
 		const std::vector<VulkanGraphicsPipelineConfig>& pipeline_configs,
-		Key<VkPipelineLayout> pipeline_layout_handle,
 		Key<VulkanGraphicsPipeline>* out_pipelines_handles
 	);
 	VulkanGraphicsPipeline* get_graphics_pipeline(Key<VulkanGraphicsPipeline> key);
@@ -186,9 +191,10 @@ struct VulkanGraphicsDevice {
 		const std::vector<const char*> filenames,
 		const std::vector<VkFormat> image_formats
 	);
-	void tick_image_uploads(VkCommandBuffer render_cb, VkDescriptorSet descriptor_set, uint32_t binding);
+	void tick_image_uploads(VkCommandBuffer render_cb);
 	uint64_t completed_image_batches();
 	void destroy_image(Key<VulkanAvailableImage> key);
+	VkPipelineLayout get_pipeline_layout();
 
 	Key<VkFramebuffer> create_framebuffer(VkFramebufferCreateInfo& info);
 	VkFramebuffer* get_framebuffer(Key<VkFramebuffer> key);
@@ -229,11 +235,13 @@ private:
 	slotmap<VulkanImageUploadBatch> _image_upload_batches;
 	std::mutex _image_upload_mutex;
 	std::deque<ImageDeletion> _image_deletion_queue;
+	VkDescriptorPool _descriptor_pool;
 	VkDescriptorSet _image_descriptor_set;
+	VkDescriptorSetLayout _image_descriptor_set_layout;
+	VkPipelineLayout _pipeline_layout;
+	std::vector<VkSampler> _immutable_samplers;
 
 
-	slotmap<VkDescriptorSetLayout> _descriptor_set_layouts;
-	slotmap<VkPipelineLayout> _pipeline_layouts;
 	slotmap<VkFramebuffer> _framebuffers;
 	slotmap<VkRenderPass> _render_passes;
 	slotmap<VkSemaphore> _semaphores;

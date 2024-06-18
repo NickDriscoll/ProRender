@@ -7,7 +7,6 @@ ImguiRenderer::ImguiRenderer(
 	VulkanGraphicsDevice* v,
 	uint32_t sampler,
 	ImVec2 window_size,
-	Key<VkPipelineLayout> pipeline_layout_id,
 	Key<VkRenderPass> renderpass
 ) {
     vgd = v;
@@ -86,8 +85,6 @@ ImguiRenderer::ImguiRenderer(
 
 	//Create graphics pipeline
 	{
-		graphics_pipeline_layout = pipeline_layout_id;
-
 		const char* spv[] = { "shaders/imgui.vert.spv", "shaders/imgui.frag.spv" };
 
 		VulkanGraphicsPipelineConfig pipeline_config = VulkanGraphicsPipelineConfig();
@@ -101,7 +98,6 @@ ImguiRenderer::ImguiRenderer(
 		};
 		vgd->create_graphics_pipelines(
 			configs,
-			pipeline_layout_id,
 			&graphics_pipeline
 		);
 	}
@@ -217,7 +213,7 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 			pcs.atlas_idx = (uint32_t)draw_command.TextureId;
 			vkCmdPushConstants(
 				frame_cb,
-				*vgd->get_pipeline_layout(graphics_pipeline_layout),
+				vgd->get_pipeline_layout(),
 				VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
 				0,
 				sizeof(ImguiPushConstants),
@@ -236,7 +232,6 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 	memcpy(gpu_pos_ptr + vector_offset, imgui_positions.data(), imgui_positions.size());
 	memcpy(gpu_uv_ptr + vector_offset, imgui_uvs.data(), imgui_uvs.size());
 	memcpy(gpu_col_ptr + int_offset, imgui_colors.data(), imgui_colors.size());
-	
 }
 
 uint32_t ImguiRenderer::get_atlas_idx() { return atlas_idx; }
