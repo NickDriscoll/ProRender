@@ -245,6 +245,16 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
 		};
 
 		const char* spv[] = { "shaders/ps1.vert.spv", "shaders/ps1.frag.spv" };
+
+        std::vector<VkPushConstantRange> ranges = {
+            {
+                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                .offset = 0,
+                .size = 128
+            }
+        };
+
+        pipeline_layout_id = vgd->create_pipeline_layout(descriptor_set_layout_id, ranges);
         
         VulkanGraphicsPipelineConfig config = VulkanGraphicsPipelineConfig();
         config.rasterization_state.cullMode = VK_CULL_MODE_NONE;
