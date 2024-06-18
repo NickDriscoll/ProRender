@@ -158,9 +158,6 @@ struct VulkanGraphicsDevice {
 	Key<VkPipelineLayout> create_pipeline_layout(Key<VkDescriptorSetLayout> descriptor_set_layout_id, std::vector<VkPushConstantRange>& push_constants);
 	VkPipelineLayout* get_pipeline_layout(Key<VkPipelineLayout> id);
 
-	//For convenience, a global bindless descriptor set API
-	
-
 	void create_graphics_pipelines(
 		const std::vector<VulkanGraphicsPipelineConfig>& pipeline_configs,
 		Key<VkPipelineLayout> pipeline_layout_handle,
@@ -180,6 +177,7 @@ struct VulkanGraphicsDevice {
 
 	VkSampler create_sampler(VkSamplerCreateInfo& info);
 
+	//Image uploading system
 	uint64_t load_raw_images(
 		const std::vector<RawImage> raw_images,
 		const std::vector<VkFormat> image_formats
@@ -231,6 +229,7 @@ private:
 	slotmap<VulkanImageUploadBatch> _image_upload_batches;
 	std::mutex _image_upload_mutex;
 	std::deque<ImageDeletion> _image_deletion_queue;
+	VkDescriptorSet _image_descriptor_set;
 
 
 	slotmap<VkDescriptorSetLayout> _descriptor_set_layouts;

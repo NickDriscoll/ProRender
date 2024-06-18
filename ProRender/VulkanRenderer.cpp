@@ -113,16 +113,6 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
             });
 
             descriptor_set_layout_id = vgd->create_descriptor_set_layout(bindings);
-
-            std::vector<VkPushConstantRange> ranges = {
-                {
-                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                    .offset = 0,
-                    .size = 128
-                }
-            };
-
-            pipeline_layout_id = vgd->create_pipeline_layout(descriptor_set_layout_id, ranges);
         }
 
         //Create bindless descriptor set

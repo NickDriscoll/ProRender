@@ -117,12 +117,9 @@ int main(int argc, char* argv[]) {
 			std::vector<VkFormat> formats = {
 				VK_FORMAT_R8G8B8A8_SRGB
 			};
-			std::vector<VkFormat> formats2 = {
-				VK_FORMAT_R8G8B8A8_SRGB
-			};
 			plane_image_count = static_cast<uint32_t>(names.size());
 			miyamoto_image_batch_id = vgd.load_image_files(names, formats);
-			bird_image_batch_id = vgd.load_image_files(names2, formats2);
+			bird_image_batch_id = vgd.load_image_files(names2, formats);
 			hlslpp::float4 base_color(1.0, 1.0, 1.0, 1.0);
 			miyamoto_material_key = renderer.push_material(miyamoto_image_batch_id, renderer.standard_sampler_idx, base_color);
 			bird_material_key = renderer.push_material(bird_image_batch_id, renderer.standard_sampler_idx, base_color);
