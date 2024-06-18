@@ -68,7 +68,7 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
 
         VkDeviceSize buffer_size = 1024 * 1024;
         vertex_position_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, alloc_info);
-        vertex_uv_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, alloc_info);
+        vertex_uv_buffer = vgd->create_buffer(2 * buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, alloc_info);
         
         //Cache buffer devices addresses
         frame_uniforms.positions_addr = vgd->buffer_device_address(vertex_position_buffer);

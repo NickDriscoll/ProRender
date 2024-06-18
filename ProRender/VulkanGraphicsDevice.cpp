@@ -500,7 +500,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
                     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
                     .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
                     .maxSets = 1,
-                    .poolSizeCount = 4,
+                    .poolSizeCount = 2,
                     .pPoolSizes = sizes
                 };
 
@@ -613,6 +613,14 @@ VulkanGraphicsDevice::~VulkanGraphicsDevice() {
 	for (VkFramebuffer& fb : _framebuffers) {
 		vkDestroyFramebuffer(device, fb, alloc_callbacks);
 	}
+
+	for (VkSampler s : _immutable_samplers) {
+		vkDestroySampler(device, s, alloc_callbacks);
+	}
+
+	vkDestroyDescriptorPool(device, _descriptor_pool, alloc_callbacks);
+	vkDestroyPipelineLayout(device, _pipeline_layout, alloc_callbacks);
+	vkDestroyDescriptorSetLayout(device, _image_descriptor_set_layout, alloc_callbacks);
 
 	vkDestroyCommandPool(device, transfer_command_pool, alloc_callbacks);
 	vkDestroyCommandPool(device, graphics_command_pool, alloc_callbacks);
