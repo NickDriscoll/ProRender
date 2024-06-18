@@ -1,4 +1,5 @@
 #include "volk.h"
+#include "slotmap.h"
 
 struct VulkanGraphicsPipeline {
 	VkPipeline pipeline;
@@ -6,9 +7,9 @@ struct VulkanGraphicsPipeline {
 
 //Might not even be necessary?
 //Shouldn't need this bc we are opinionated about vertex pulling
-// struct VulkanVertexInputState {
+struct VulkanVertexInputState {
 
-// };
+};
 
 struct VulkanInputAssemblyState {
     VkPipelineInputAssemblyStateCreateFlags    flags = 0;
@@ -87,3 +88,23 @@ struct VulkanColorBlendState {
     float                                         blendConstants[4]     = {1.0, 1.0, 1.0, 1.0};
 };
 
+struct VulkanGraphicsPipelineConfig {
+    VulkanVertexInputState vertex_input_state = {};
+    VulkanInputAssemblyState input_assembly_state = {};
+    VulkanTesselationState tesselation_state = {};
+    VulkanViewportState viewport_state = {};
+    VulkanRasterizationState rasterization_state = {};
+    VulkanMultisampleState multisample_state = {};
+    VulkanDepthStencilState depth_stencil_state = {};
+    VulkanColorBlendState blend_state = {};
+    VulkanColorBlendAttachmentState default_attachment = {};
+    const char** spv_sources;
+    Key<VkRenderPass> render_pass;
+
+    VulkanGraphicsPipelineConfig() {
+		blend_state = {
+            .attachmentCount = 1,
+            .pAttachments = &default_attachment
+        };
+    }
+};

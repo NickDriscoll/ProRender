@@ -254,22 +254,20 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
 			}
 		};
 
-		const char* shaders[] = { "shaders/ps1.vert.spv", "shaders/ps1.frag.spv" };
+		const char* spv[] = { "shaders/ps1.vert.spv", "shaders/ps1.frag.spv" };
+        
+        VulkanGraphicsPipelineConfig config = VulkanGraphicsPipelineConfig();
+        config.rasterization_state.cullMode = VK_CULL_MODE_NONE;
+        config.depth_stencil_state.depthTestEnable = VK_FALSE;
+        config.render_pass = swapchain_renderpass;
+        config.spv_sources = spv;
 
+        std::vector<VulkanGraphicsPipelineConfig> configs = {config};
 		Key<VulkanGraphicsPipeline> pipelines[] = {0};
 		vgd->create_graphics_pipelines(
+            configs,
 			pipeline_layout_id,
-			swapchain_renderpass,
-			shaders,
-			ia_states,
-			tess_states,
-			vs_states,
-			rast_states,
-			ms_states,
-			ds_states,
-			blend_states,
-			pipelines,
-			1
+			pipelines
 		);
 
 		ps1_pipeline = pipelines[0];

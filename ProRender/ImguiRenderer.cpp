@@ -86,58 +86,23 @@ ImguiRenderer::ImguiRenderer(
 
 	//Create graphics pipeline
 	{
-		VulkanInputAssemblyState ia_states[] = {
-			{}
-		};
-
-		VulkanTesselationState tess_states[] = {
-			{}
-		};
-
-		VulkanViewportState vs_states[] = {
-			{}
-		};
-
-		VulkanRasterizationState rast_states[] = {
-			{
-				.cullMode = VK_CULL_MODE_NONE
-			},
-		};
-
-		VulkanMultisampleState ms_states[] = {
-			{}
-		};
-
-		VulkanDepthStencilState ds_states[] = {
-			{
-				.depthTestEnable = VK_FALSE
-			}
-		};
-
-		VulkanColorBlendAttachmentState blend_attachment_state = {};
-		VulkanColorBlendState blend_states[] = {
-			{
-				.attachmentCount = 1,
-				.pAttachments = &blend_attachment_state
-			}
-		};
-
-		const char* shaders[] = { "shaders/imgui.vert.spv", "shaders/imgui.frag.spv" };
-
 		graphics_pipeline_layout = pipeline_layout_id;
+
+		const char* spv[] = { "shaders/imgui.vert.spv", "shaders/imgui.frag.spv" };
+
+		VulkanGraphicsPipelineConfig pipeline_config = VulkanGraphicsPipelineConfig();
+		pipeline_config.rasterization_state.cullMode = VK_CULL_MODE_NONE;
+		pipeline_config.depth_stencil_state.depthTestEnable = VK_FALSE;
+		pipeline_config.render_pass = renderpass;
+		pipeline_config.spv_sources = spv;
+
+		std::vector<VulkanGraphicsPipelineConfig> configs = {
+			pipeline_config	
+		};
 		vgd->create_graphics_pipelines(
+			configs,
 			pipeline_layout_id,
-			renderpass,
-			shaders,
-			ia_states,
-			tess_states,
-			vs_states,
-			rast_states,
-			ms_states,
-			ds_states,
-			blend_states,
-			&graphics_pipeline,
-			1
+			&graphics_pipeline
 		);
 	}
 

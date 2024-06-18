@@ -162,18 +162,9 @@ struct VulkanGraphicsDevice {
 	
 
 	void create_graphics_pipelines(
+		const std::vector<VulkanGraphicsPipelineConfig>& pipeline_configs,
 		Key<VkPipelineLayout> pipeline_layout_handle,
-		Key<VkRenderPass> render_pass_handle,
-		const char** spv_sources,
-		VulkanInputAssemblyState* ia_state,
-		VulkanTesselationState* tess_state,
-		VulkanViewportState* vp_state,
-		VulkanRasterizationState* raster_state,
-		VulkanMultisampleState* ms_state,
-		VulkanDepthStencilState* ds_state,
-		VulkanColorBlendState* blend_state,
-		Key<VulkanGraphicsPipeline>* out_pipelines_handles,
-		uint32_t pipeline_count
+		Key<VulkanGraphicsPipeline>* out_pipelines_handles
 	);
 	VulkanGraphicsPipeline* get_graphics_pipeline(Key<VulkanGraphicsPipeline> key);
 

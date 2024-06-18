@@ -542,18 +542,9 @@ void VulkanGraphicsDevice::return_transfer_command_buffer(VkCommandBuffer cb) {
 }
 
 void VulkanGraphicsDevice::create_graphics_pipelines(
+	const std::vector<VulkanGraphicsPipelineConfig>& pipeline_configs,
 	Key<VkPipelineLayout> pipeline_layout_handle,
-	Key<VkRenderPass> render_pass_handle,
-	const char** spv_sources,
-	VulkanInputAssemblyState* ia_state,
-	VulkanTesselationState* tess_state,
-	VulkanViewportState* vp_state,
-	VulkanRasterizationState* raster_state,
-	VulkanMultisampleState* ms_state,
-	VulkanDepthStencilState* ds_state,
-	VulkanColorBlendState* blend_state,
-	Key<VulkanGraphicsPipeline>* out_pipelines_handles,
-	uint32_t pipeline_count
+	Key<VulkanGraphicsPipeline>* out_pipelines_handles
 ) {
 	//Non-varying pipeline elements
 
@@ -570,49 +561,49 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 	dynamic_info.pDynamicStates = dyn_states;
 
 	std::vector<VkPipelineShaderStageCreateInfo> shader_stage_infos;
-	shader_stage_infos.reserve(2 * pipeline_count);
+	shader_stage_infos.reserve(2 * pipeline_configs.size());
 
 	std::vector<VkPipelineInputAssemblyStateCreateInfo> ia_infos;
-	ia_infos.reserve(pipeline_count);
+	ia_infos.reserve(pipeline_configs.size());
 
 	std::vector<VkPipelineTessellationStateCreateInfo> tess_infos;
-	tess_infos.reserve(pipeline_count);
+	tess_infos.reserve(pipeline_configs.size());
 
 	std::vector<VkPipelineViewportStateCreateInfo> vs_infos;
-	vs_infos.reserve(pipeline_count);
+	vs_infos.reserve(pipeline_configs.size());
 
 	std::vector<VkPipelineRasterizationStateCreateInfo> rast_infos;
-	rast_infos.reserve(pipeline_count);
+	rast_infos.reserve(pipeline_configs.size());
 
 	std::vector<VkPipelineMultisampleStateCreateInfo> multi_infos;
-	multi_infos.reserve(pipeline_count);
+	multi_infos.reserve(pipeline_configs.size());
 
 	std::vector<VkPipelineDepthStencilStateCreateInfo> ds_infos;
-	ds_infos.reserve(pipeline_count);
+	ds_infos.reserve(pipeline_configs.size());
 
 	std::vector<VkPipelineColorBlendStateCreateInfo> blend_infos;
-	blend_infos.reserve(pipeline_count);
+	blend_infos.reserve(pipeline_configs.size());
 
 	std::vector<VkGraphicsPipelineCreateInfo> pipeline_infos;
-	pipeline_infos.reserve(pipeline_count);
+	pipeline_infos.reserve(pipeline_configs.size());
 
 	std::vector<VkPipelineColorBlendAttachmentState> blend_attachment_states;
 	{
 		uint32_t total_attachment_count = 0;
-		for (uint32_t i = 0; i < pipeline_count; i++) {
-			total_attachment_count += blend_state[i].attachmentCount;
+		for (uint32_t i = 0; i < pipeline_configs.size(); i++) {
+			total_attachment_count += pipeline_configs[i].blend_state.attachmentCount;
 		}
 		blend_attachment_states.reserve(total_attachment_count);
 	}
 
 	//Varying pipeline elements
 	uint32_t blend_attachment_state_offset = 0;
-	for (uint32_t i = 0; i < pipeline_count; i++) {
+	for (uint32_t i = 0; i < pipeline_configs.size(); i++) {
 
 		//Shader stages
 		//TODO: This assumes that graphics pipelines just have a vertex and fragment shader
-		VkShaderModule vertex_shader = this->load_shader_module(spv_sources[2 * i]);
-		VkShaderModule fragment_shader = this->load_shader_module(spv_sources[2 * i + 1]);
+		VkShaderModule vertex_shader = this->load_shader_module(pipeline_configs[i].spv_sources[2 * i]);
+		VkShaderModule fragment_shader = this->load_shader_module(pipeline_configs[i].spv_sources[2 * i + 1]);
 		{
 			VkPipelineShaderStageCreateInfo vert_info = {};
 			vert_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -633,75 +624,75 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 		//Input assembly state
 		VkPipelineInputAssemblyStateCreateInfo ia_info = {};
 		ia_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-		ia_info.topology = ia_state[i].topology;
-		ia_info.flags = ia_state[i].flags;
-		ia_info.primitiveRestartEnable = ia_state[i].primitiveRestartEnable;
+		ia_info.topology = pipeline_configs[i].input_assembly_state.topology;
+		ia_info.flags = pipeline_configs[i].input_assembly_state.flags;
+		ia_info.primitiveRestartEnable = pipeline_configs[i].input_assembly_state.primitiveRestartEnable;
 		ia_infos.push_back(ia_info);
 
 		//Tesselation state
 		VkPipelineTessellationStateCreateInfo tess_info = {};
 		tess_info.sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
-		tess_info.flags = tess_state[i].flags;
-		tess_info.patchControlPoints = tess_state[i].patchControlPoints;
+		tess_info.flags = pipeline_configs[i].tesselation_state.flags;
+		tess_info.patchControlPoints = pipeline_configs[i].tesselation_state.patchControlPoints;
 		tess_infos.push_back(tess_info);
 
 		//Viewport and scissor state
 		//These will _always_ be dynamic pipeline states
 		VkPipelineViewportStateCreateInfo viewport_info = {};
 		viewport_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-		viewport_info.flags = vp_state[i].flags;
-		viewport_info.viewportCount = vp_state[i].viewportCount;
-		viewport_info.pViewports = vp_state[i].pViewports;
-		viewport_info.scissorCount = vp_state[i].scissorCount;
-		viewport_info.pScissors = vp_state[i].pScissors;
+		viewport_info.flags = pipeline_configs[i].viewport_state.flags;
+		viewport_info.viewportCount = pipeline_configs[i].viewport_state.viewportCount;
+		viewport_info.pViewports = pipeline_configs[i].viewport_state.pViewports;
+		viewport_info.scissorCount = pipeline_configs[i].viewport_state.scissorCount;
+		viewport_info.pScissors = pipeline_configs[i].viewport_state.pScissors;
 		vs_infos.push_back(viewport_info);
 
 		//Rasterization state info
 		VkPipelineRasterizationStateCreateInfo rast_info = {};
 		rast_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-		rast_info.flags = raster_state[i].flags;
-		rast_info.depthClampEnable = raster_state[i].depthClampEnable;
-		rast_info.rasterizerDiscardEnable = raster_state[i].rasterizerDiscardEnable;
-		rast_info.polygonMode = raster_state[i].polygonMode;
-		rast_info.cullMode = raster_state[i].cullMode;
-		rast_info.frontFace = raster_state[i].frontFace;
-		rast_info.depthBiasEnable = raster_state[i].depthBiasEnable;
-		rast_info.depthBiasClamp = raster_state[i].depthBiasClamp;
-		rast_info.depthBiasSlopeFactor = raster_state[i].depthBiasSlopeFactor;
-		rast_info.depthBiasConstantFactor = raster_state[i].depthBiasConstantFactor;
-		rast_info.lineWidth = raster_state[i].lineWidth;
+		rast_info.flags = pipeline_configs[i].rasterization_state.flags;
+		rast_info.depthClampEnable = pipeline_configs[i].rasterization_state.depthClampEnable;
+		rast_info.rasterizerDiscardEnable = pipeline_configs[i].rasterization_state.rasterizerDiscardEnable;
+		rast_info.polygonMode = pipeline_configs[i].rasterization_state.polygonMode;
+		rast_info.cullMode = pipeline_configs[i].rasterization_state.cullMode;
+		rast_info.frontFace = pipeline_configs[i].rasterization_state.frontFace;
+		rast_info.depthBiasEnable = pipeline_configs[i].rasterization_state.depthBiasEnable;
+		rast_info.depthBiasClamp = pipeline_configs[i].rasterization_state.depthBiasClamp;
+		rast_info.depthBiasSlopeFactor = pipeline_configs[i].rasterization_state.depthBiasSlopeFactor;
+		rast_info.depthBiasConstantFactor = pipeline_configs[i].rasterization_state.depthBiasConstantFactor;
+		rast_info.lineWidth = pipeline_configs[i].rasterization_state.lineWidth;
 		rast_infos.push_back(rast_info);
 
 		//Multisample state
 		VkPipelineMultisampleStateCreateInfo multi_info = {};
 		multi_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		multi_info.flags = ms_state[i].flags;
-		multi_info.rasterizationSamples = ms_state[i].rasterizationSamples;
-		multi_info.sampleShadingEnable = ms_state[i].sampleShadingEnable;
-		multi_info.pSampleMask = ms_state[i].pSampleMask;
-		multi_info.minSampleShading = ms_state[i].minSampleShading;
-		multi_info.alphaToCoverageEnable = ms_state[i].alphaToCoverageEnable,
-		multi_info.alphaToOneEnable = ms_state[i].alphaToOneEnable;
+		multi_info.flags = pipeline_configs[i].multisample_state.flags;
+		multi_info.rasterizationSamples = pipeline_configs[i].multisample_state.rasterizationSamples;
+		multi_info.sampleShadingEnable = pipeline_configs[i].multisample_state.sampleShadingEnable;
+		multi_info.pSampleMask = pipeline_configs[i].multisample_state.pSampleMask;
+		multi_info.minSampleShading = pipeline_configs[i].multisample_state.minSampleShading;
+		multi_info.alphaToCoverageEnable = pipeline_configs[i].multisample_state.alphaToCoverageEnable,
+		multi_info.alphaToOneEnable = pipeline_configs[i].multisample_state.alphaToOneEnable;
 		multi_infos.push_back(multi_info);
 
 		//Depth stencil state
 		VkPipelineDepthStencilStateCreateInfo depth_stencil_info = {};
 		depth_stencil_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-		depth_stencil_info.flags = ds_state[i].flags;
-		depth_stencil_info.depthTestEnable = ds_state[i].depthTestEnable;
-		depth_stencil_info.depthWriteEnable = ds_state[i].depthWriteEnable;
-		depth_stencil_info.depthCompareOp = ds_state[i].depthCompareOp;
-		depth_stencil_info.depthBoundsTestEnable = ds_state[i].depthBoundsTestEnable;
-		depth_stencil_info.stencilTestEnable = ds_state[i].stencilTestEnable;
-		depth_stencil_info.front = ds_state[i].front;
-		depth_stencil_info.back = ds_state[i].back;
-		depth_stencil_info.minDepthBounds = ds_state[i].minDepthBounds;
-		depth_stencil_info.maxDepthBounds = ds_state[i].maxDepthBounds;
+		depth_stencil_info.flags = pipeline_configs[i].depth_stencil_state.flags;
+		depth_stencil_info.depthTestEnable = pipeline_configs[i].depth_stencil_state.depthTestEnable;
+		depth_stencil_info.depthWriteEnable = pipeline_configs[i].depth_stencil_state.depthWriteEnable;
+		depth_stencil_info.depthCompareOp = pipeline_configs[i].depth_stencil_state.depthCompareOp;
+		depth_stencil_info.depthBoundsTestEnable = pipeline_configs[i].depth_stencil_state.depthBoundsTestEnable;
+		depth_stencil_info.stencilTestEnable = pipeline_configs[i].depth_stencil_state.stencilTestEnable;
+		depth_stencil_info.front = pipeline_configs[i].depth_stencil_state.front;
+		depth_stencil_info.back = pipeline_configs[i].depth_stencil_state.back;
+		depth_stencil_info.minDepthBounds = pipeline_configs[i].depth_stencil_state.minDepthBounds;
+		depth_stencil_info.maxDepthBounds = pipeline_configs[i].depth_stencil_state.maxDepthBounds;
 		ds_infos.push_back(depth_stencil_info);
 
-		uint32_t current_attachment_count = blend_state[i].attachmentCount;
+		uint32_t current_attachment_count = pipeline_configs[i].blend_state.attachmentCount;
 		for (uint32_t j = 0; j < current_attachment_count; j++) {
-			const VulkanColorBlendAttachmentState state = blend_state[i].pAttachments[j];
+			const VulkanColorBlendAttachmentState state = pipeline_configs[i].blend_state.pAttachments[j];
 
 			VkPipelineColorBlendAttachmentState blend_attachment_state = {};
 			blend_attachment_state.blendEnable = state.blendEnable;
@@ -719,15 +710,15 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 
 		VkPipelineColorBlendStateCreateInfo blend_info = {};
 		blend_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-		blend_info.flags = blend_state[i].flags;
-		blend_info.logicOpEnable = blend_state[i].logicOpEnable;
-		blend_info.logicOp = blend_state[i].logicOp;
+		blend_info.flags = pipeline_configs[i].blend_state.flags;
+		blend_info.logicOpEnable = pipeline_configs[i].blend_state.logicOpEnable;
+		blend_info.logicOp = pipeline_configs[i].blend_state.logicOp;
 		blend_info.attachmentCount = current_attachment_count;
 		blend_info.pAttachments = blend_attachment_state_ptr;
-		blend_info.blendConstants[0] = blend_state[i].blendConstants[0];
-		blend_info.blendConstants[1] = blend_state[i].blendConstants[1];
-		blend_info.blendConstants[2] = blend_state[i].blendConstants[2];
-		blend_info.blendConstants[3] = blend_state[i].blendConstants[3];
+		blend_info.blendConstants[0] = pipeline_configs[i].blend_state.blendConstants[0];
+		blend_info.blendConstants[1] = pipeline_configs[i].blend_state.blendConstants[1];
+		blend_info.blendConstants[2] = pipeline_configs[i].blend_state.blendConstants[2];
+		blend_info.blendConstants[3] = pipeline_configs[i].blend_state.blendConstants[3];
 		blend_infos.push_back(blend_info);
 
 		VkGraphicsPipelineCreateInfo info = {};
@@ -744,20 +735,20 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 		info.pColorBlendState = &blend_infos[i];
 		info.pDynamicState = &dynamic_info;
 		info.layout = *_pipeline_layouts.get(pipeline_layout_handle);
-		info.renderPass = *_render_passes.get(render_pass_handle);
+		info.renderPass = *_render_passes.get(pipeline_configs[i].render_pass);
 		info.subpass = 0;
 		pipeline_infos.push_back(info);
 	}
 
 	std::vector<VkPipeline> pipelines;
-	pipelines.resize(pipeline_count);
+	pipelines.resize(pipeline_configs.size());
 
-	if (vkCreateGraphicsPipelines(device, pipeline_cache, pipeline_count, pipeline_infos.data(), alloc_callbacks, pipelines.data()) != VK_SUCCESS) {
+	if (vkCreateGraphicsPipelines(device, pipeline_cache, (uint32_t)pipeline_configs.size(), pipeline_infos.data(), alloc_callbacks, pipelines.data()) != VK_SUCCESS) {
 		printf("Creating graphics pipeline.\n");
 		exit(-1);
 	}
 
-	for (uint32_t i = 0; i < pipeline_count; i++) {
+	for (uint32_t i = 0; i < pipeline_configs.size(); i++) {
 		out_pipelines_handles[i] = _graphics_pipelines.insert({
 			.pipeline = pipelines[i]
 		});
