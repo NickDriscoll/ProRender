@@ -2,7 +2,6 @@
 #include <filesystem>
 #include "stb_image.h"
 #include "timer.h"
-#include "tinyfiledialogs.h"
 
 VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	Timer timer = Timer("VGD initialization");

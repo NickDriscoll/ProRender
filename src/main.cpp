@@ -27,7 +27,6 @@
 #include "ImguiRenderer.h"
 #include "vma.h"
 #include "timer.h"
-#include "tinyfiledialogs.h"
 #include "utils.h"
 #include <algorithm>
 
@@ -70,10 +69,11 @@ int main(int argc, char* argv[]) {
 	
 	//Init the vulkan window
 	VkSurfaceKHR window_surface;
-	if (SDL_Vulkan_CreateSurface(sdl_window, vgd.instance, vgd.alloc_callbacks, &window_surface) == SDL_FALSE) {
-		printf("Creating VkSurface failed.\n");
-		exit(-1);
-	}
+	// if (SDL_Vulkan_CreateSurface(sdl_window, vgd.instance, vgd.alloc_callbacks, &window_surface) == SDL_FALSE) {
+	// 	printf("Creating VkSurface failed.\n");
+	// 	exit(-1);
+	// }
+	ASSERT_OR_CRASH(SDL_Vulkan_CreateSurface(sdl_window, vgd.instance, vgd.alloc_callbacks, &window_surface));
 	VulkanWindow window(vgd, window_surface);
 	app_timer.print("Window creation");
 	app_timer.start();

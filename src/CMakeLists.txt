@@ -23,7 +23,8 @@ add_executable (
 )
 
 #set_property(TARGET ProRender PROPERTY CXX_STANDARD 20)
-add_compile_definitions(ImTextureID=int)
+target_compile_definitions(ProRender PRIVATE ImTextureID=int)
+target_compile_definitions(ProRender PRIVATE _CRT_SECURE_NO_WARNINGS)
 
 #Turn on highest warning level + warnings as errors for this target
 if(MSVC)
