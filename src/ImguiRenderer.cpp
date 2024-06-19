@@ -41,10 +41,7 @@ ImguiRenderer::ImguiRenderer(
 		info.semaphoreCount = 1;
 		info.pSemaphores = vgd->get_semaphore(vgd->image_upload_semaphore);
 		info.pValues = &batch_id;
-		if (vkWaitSemaphores(vgd->device, &info, U64_MAX) != VK_SUCCESS) {
-			printf("Waiting for graphics timeline semaphore failed.\n");
-			exit(-1);
-		}
+		VKASSERT_OR_CRASH(vkWaitSemaphores(vgd->device, &info, U64_MAX));
 	
 		uint32_t tex_index = 0;
 		for (auto it = vgd->available_images.begin(); it != vgd->available_images.end(); ++it) {

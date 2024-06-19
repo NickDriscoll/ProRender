@@ -69,11 +69,7 @@ int main(int argc, char* argv[]) {
 	
 	//Init the vulkan window
 	VkSurfaceKHR window_surface;
-	// if (SDL_Vulkan_CreateSurface(sdl_window, vgd.instance, vgd.alloc_callbacks, &window_surface) == SDL_FALSE) {
-	// 	printf("Creating VkSurface failed.\n");
-	// 	exit(-1);
-	// }
-	ASSERT_OR_CRASH(SDL_Vulkan_CreateSurface(sdl_window, vgd.instance, vgd.alloc_callbacks, &window_surface));
+	ASSERT_OR_CRASH(SDL_Vulkan_CreateSurface(sdl_window, vgd.instance, vgd.alloc_callbacks, &window_surface), SDL_TRUE);
 	VulkanWindow window(vgd, window_surface);
 	app_timer.print("Window creation");
 	app_timer.start();

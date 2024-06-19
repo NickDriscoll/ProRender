@@ -2,6 +2,7 @@
 #include <filesystem>
 #include "stb_image.h"
 #include "timer.h"
+#include "utils.h"
 
 VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	Timer timer = Timer("VGD initialization");
@@ -19,10 +20,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	_graphics_pipelines.alloc(32);
 
 	//Initialize volk
-	if (volkInitialize() != VK_SUCCESS) {
-		printf("RIP\n");
-		exit(-1);
-	}
+	VKASSERT_OR_CRASH(volkInitialize());
 	timer.print("Volk initialization");
 	timer.start();
 
@@ -65,10 +63,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		timer.print("Vulkan instance params");
 		timer.start();
 
-		if (vkCreateInstance(&inst_info, alloc_callbacks, &instance) != VK_SUCCESS) {
-			printf("Instance creation failed.\n");
-			exit(-1);
-		}
+		VKASSERT_OR_CRASH(vkCreateInstance(&inst_info, alloc_callbacks, &instance));
 		timer.print("just the vkCreateInstance() call");
 		timer.start();
 	}
@@ -86,18 +81,12 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	{
 		uint32_t physical_device_count = 0;
 		//Getting physical device count by passing nullptr as last param
-		if (vkEnumeratePhysicalDevices(instance, &physical_device_count, nullptr) != VK_SUCCESS) {
-			printf("Querying physical device count failed.\n");
-			exit(-1);
-		}
+		VKASSERT_OR_CRASH(vkEnumeratePhysicalDevices(instance, &physical_device_count, nullptr));
 		printf("%i physical devices available.\n", physical_device_count);
 
 		std::vector<VkPhysicalDevice> devices;
 		devices.resize(physical_device_count);
-		if (vkEnumeratePhysicalDevices(instance, &physical_device_count, devices.data()) != VK_SUCCESS) {
-			printf("Querying physical devices failed.\n");
-			exit(-1);
-		}
+		VKASSERT_OR_CRASH(vkEnumeratePhysicalDevices(instance, &physical_device_count, devices.data()));
 
 		const VkPhysicalDeviceType TYPES[] = { VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, VK_PHYSICAL_DEVICE_TYPE_CPU };
 		for (uint32_t j = 0; j < 3; j++) {
@@ -249,10 +238,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		device_info.pEnabledFeatures = nullptr;
 
 		timer.start();
-		if (vkCreateDevice(physical_device, &device_info, alloc_callbacks, &device) != VK_SUCCESS) {
-			printf("Creating logical device failed.\n");
-			exit(-1);
-		}
+		VKASSERT_OR_CRASH(vkCreateDevice(physical_device, &device_info, alloc_callbacks, &device));
 		timer.print("Just calling vkCreateDevice()");
 		timer.start();
 	}
@@ -276,10 +262,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		vkfns.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
 		info.pVulkanFunctions = &vkfns;
 
-		if (vmaCreateAllocator(&info, &allocator) != VK_SUCCESS) {
-			printf("Creating memory allocator failed.\n");
-			exit(-1);
-		}
+		VKASSERT_OR_CRASH(vmaCreateAllocator(&info, &allocator));
 	}
 	timer.print("VMA initialized");
 	timer.start();
@@ -292,10 +275,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		pool_info.queueFamilyIndex = graphics_queue_family_idx;
 
-		if (vkCreateCommandPool(device, &pool_info, alloc_callbacks, &graphics_command_pool) != VK_SUCCESS) {
-			printf("Creating main command pool failed.\n");
-			exit(-1);
-		}
+		VKASSERT_OR_CRASH(vkCreateCommandPool(device, &pool_info, alloc_callbacks, &graphics_command_pool));
 	}
 	timer.print("Graphics command pool creation");
 	timer.start();
@@ -308,10 +288,7 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		pool_info.queueFamilyIndex = transfer_queue_family_idx;
 
-		if (vkCreateCommandPool(device, &pool_info, alloc_callbacks, &transfer_command_pool) != VK_SUCCESS) {
-			printf("Creating main command pool failed.\n");
-			exit(-1);
-		}
+		VKASSERT_OR_CRASH(vkCreateCommandPool(device, &pool_info, alloc_callbacks, &transfer_command_pool));
 	}
 	timer.print("Transfer command pool creation");
 	timer.start();
