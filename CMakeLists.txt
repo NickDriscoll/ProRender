@@ -21,4 +21,4 @@ add_subdirectory("external/fastgltf")
 add_subdirectory("external/SDL")
 
 # This project's project sources
-add_subdirectory("ProRender")
+add_subdirectory("src")
