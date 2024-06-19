@@ -87,7 +87,7 @@ int main(int argc, char* argv[]) {
 	app_timer.start();
 
     //Create main camera
-	Key<Camera> main_viewport_camera = renderer.cameras.insert({ .position = { 1.0f, -2.0f, 5.0f }, .pitch = 1.3f });
+	Key<Camera> main_viewport_camera = renderer.cameras.insert({ .position = { 1.0f, -2.0f, 5.0f }, .pitch = -1.3f });
 	bool camera_control = false;
 	float mouse_saved_x = 0.0, mouse_saved_y = 0.0;
 
@@ -410,6 +410,18 @@ int main(int argc, char* argv[]) {
 		//Process resource deletion queue(s)
 		vgd.service_deletion_queues();
 
+		//Draw floor plane
+		{
+			hlslpp::float4x4 mat(
+				20.0f, 0.0f, 0.0f, 0.0f,
+				0.0f, 20.0f, 0.0f, 0.0f,
+				0.0f, 0.0f, 20.0f, 0.0f,
+				0.0f, 0.0f, 0.0f, 1.0f
+			);
+			InstanceData mats[] = {mat};
+			renderer.ps1_draw(plane_mesh_key, miyamoto_material_key, std::span(mats));
+		}
+
 		//Queue the static plane to be drawn
 		Timer plane_update_timer;
 		plane_update_timer.start();
@@ -434,7 +446,7 @@ int main(int argc, char* argv[]) {
 				float4x4 matrix(
 					1.0, 0.0, 0.0, 0.0,
 					0.0, 1.0, 0.0, 0.0,
-					0.0, 0.0, 1.0, (float)i * 3.0f,
+					0.0, 0.0, 1.0, (float)i * 3.0f + 20.0f,
 					0.0, 0.0, 0.0, 1.0
 				);
 				tforms.push_back(
@@ -459,7 +471,7 @@ int main(int argc, char* argv[]) {
 				float4x4 matrix(
 					1.0, 0.0, 0.0, 30.0,
 					0.0, 1.0, 0.0, 0.0,
-					0.0, 0.0, 1.0, (float)i * 3.0f,
+					0.0, 0.0, 1.0, (float)i * 3.0f + 20.0f,
 					0.0, 0.0, 0.0, 1.0
 				);
 				tforms.push_back(
