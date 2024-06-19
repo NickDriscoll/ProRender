@@ -28,7 +28,6 @@ struct ImguiRenderer {
 
     ImguiRenderer(
 		VulkanGraphicsDevice* v,
-		uint32_t sampler,
 		ImVec2 window_size,
 		Key<VkRenderPass> renderpass
 	);

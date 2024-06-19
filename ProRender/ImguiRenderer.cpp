@@ -5,12 +5,11 @@
 
 ImguiRenderer::ImguiRenderer(
 	VulkanGraphicsDevice* v,
-	uint32_t sampler,
 	ImVec2 window_size,
 	Key<VkRenderPass> renderpass
 ) {
     vgd = v;
-    sampler_idx = sampler;
+    sampler_idx = ImmutableSamplers::NEAREST;
 
     //Initialize Dear ImGui
 	{

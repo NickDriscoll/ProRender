@@ -8,7 +8,6 @@
 
 #define MAX_CAMERAS 64
 #define MAX_MATERIALS 1024
-#define MAX_MATERIAL_TEXTURES 8
 #define MAX_VERTEX_ATTRIBS 1024
 #define MAX_MESHES 1024*1024
 #define MAX_INDIRECT_DRAWS 100000
@@ -47,6 +46,7 @@ struct GPUMesh {
 	uint32_t uv_start;
 };
 
+#define MAX_MATERIAL_TEXTURES 8
 struct GPUMaterial {
 	uint32_t texture_indices[MAX_MATERIAL_TEXTURES] = {std::numeric_limits<uint32_t>::max()};
 	hlslpp::float4 base_color;

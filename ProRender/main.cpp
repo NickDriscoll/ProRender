@@ -84,7 +84,6 @@ int main(int argc, char* argv[]) {
 	//Initialize Dear ImGui
 	ImguiRenderer imgui_renderer = ImguiRenderer(
 		&vgd,
-		ImmutableSamplers::NEAREST,
 		ImVec2((float)window.x_resolution, (float)window.y_resolution),
 		window.swapchain_renderpass
 	);
