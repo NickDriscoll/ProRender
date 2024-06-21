@@ -20,6 +20,7 @@
 #include <SDL3/SDL_main.h>
 #include <SDL3/SDL_vulkan.h>
 #include <fastgltf/core.hpp>
+#include <fastgltf/tools.hpp>
 #include "volk.h"
 #include "stb_image.h"
 #include "VulkanWindow.h"
@@ -35,6 +36,8 @@ struct Configuration {
 	uint32_t window_height;
 };
 
+template <>
+struct fastgltf::ElementTraits<hlslpp::float3> : fastgltf::ElementTraitsBase<hlslpp::float3, AccessorType::Vec3, float> {};
 
 int main(int argc, char* argv[]) {
 	PRORENDER_UNUSED_PARAMETER(argc);
@@ -85,11 +88,6 @@ int main(int argc, char* argv[]) {
 	);
 	app_timer.print("Dear ImGUI Initialization");
 	app_timer.start();
-
-    //Create main camera
-	Key<Camera> main_viewport_camera = renderer.cameras.insert({ .position = { 1.0f, -2.0f, 5.0f }, .pitch = -1.3f });
-	bool camera_control = false;
-	float mouse_saved_x = 0.0, mouse_saved_y = 0.0;
 
 	//Load simple 3D plane
 	uint64_t miyamoto_image_batch_id;
@@ -144,28 +142,60 @@ int main(int argc, char* argv[]) {
 	app_timer.start();
 
 	//Load something from a glTF
-	// {
-	// 	using namespace fastgltf;
+	Key<BufferView> boombox_mesh;
+	{
+		using namespace fastgltf;
 
-	// 	std::filesystem::path glb_path = "models/BoomBox.glb";
-	// 	Parser parser;
-	// 	GltfDataBuffer data;
-	// 	data.loadFromFile(glb_path);
-	// 	Expected<Asset> asset = parser.loadGltfBinary(&data, glb_path.parent_path());
+		std::filesystem::path glb_path = "models/BoomBox.glb";
+		Parser parser;
+		GltfDataBuffer data;
+		data.loadFromFile(glb_path);
+		Expected<Asset> asset = parser.loadGltfBinary(&data, glb_path.parent_path());
 
-	// 	printf("Printing node names in \"%s\" ...\n", glb_path.string().c_str());
-	// 	for (Node& node : asset->nodes) {
-	// 		printf("\t%s\n", node.name.c_str());
+		printf("Printing node names in \"%s\" ...\n", glb_path.string().c_str());
 
-	// 		if (node.meshIndex.has_value()) {
-	// 			size_t mesh_idx = node.meshIndex.value();
-	// 			Mesh& mesh = asset->meshes[mesh_idx];
+		std::vector<float> positions;
+		std::vector<uint16_t> indices;
+		for (Node& node : asset->nodes) {
+			printf("\t%s\n", node.name.c_str());
 
-	// 		}
-	// 	}
-	// }
-	// app_timer.print("Loaded glTF");
-	// app_timer.start();
+			if (node.meshIndex.has_value()) {
+				size_t mesh_idx = node.meshIndex.value();
+				Mesh& mesh = asset->meshes[mesh_idx];
+
+				//Just loading the first primitive for now
+				Primitive& prim = mesh.primitives[0];
+
+				//Loading vertex position data
+				uint64_t accessor_index = prim.findAttribute("POSITION")->second;
+				Accessor& accessor = asset->accessors[accessor_index];
+				positions.reserve(4 * accessor.count);
+				auto iterator = fastgltf::iterateAccessor<hlslpp::float3>(asset.get(), accessor);
+				for (auto it = iterator.begin(); it != iterator.end(); ++it) {
+					hlslpp::float3 p = *it;
+					positions.emplace_back(static_cast<float>(p.x));
+					positions.emplace_back(static_cast<float>(p.y));
+					positions.emplace_back(static_cast<float>(p.z));
+					positions.emplace_back(1.0f);
+				}
+				
+				//Loading index data
+
+
+				break;
+			}
+		}
+
+		//Upload extracted data to GPU
+		boombox_mesh = renderer.push_vertex_positions(std::span(positions));
+	}
+	app_timer.print("Loaded glTF");
+	app_timer.start();
+
+    //Create main camera
+	Key<Camera> main_viewport_camera = renderer.cameras.insert({ .position = { 1.0f, -2.0f, 5.0f }, .pitch = -1.3f });
+	bool camera_control = false;
+	float mouse_saved_x = 0.0, mouse_saved_y = 0.0;
 
 	//Freecam input variables
 	bool move_back = false;
@@ -176,6 +206,8 @@ int main(int argc, char* argv[]) {
 	bool move_up = false;
 	bool camera_rolling = false;
 	bool camera_boost = false;
+
+	bool do_imgui = true;
 
 	init_timer.print("App init");
 	
@@ -237,7 +269,7 @@ int main(int argc, char* argv[]) {
 						know_plane_image = false;
 						break;
 					case SDLK_ESCAPE:
-						show_demo = true;
+						do_imgui = !do_imgui;
 						break;
 					}
 
@@ -282,10 +314,6 @@ int main(int argc, char* argv[]) {
 					break;
 				case SDL_EVENT_MOUSE_BUTTON_DOWN:
 					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), true);
-					break;
-				case SDL_EVENT_MOUSE_BUTTON_UP:
-					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), false);
-					
 					if (!io.WantCaptureMouse && event.button.button == SDL_BUTTON_RIGHT) {
 						camera_control = !camera_control;
 						SDL_SetRelativeMouseMode((SDL_bool)camera_control);
@@ -296,6 +324,9 @@ int main(int argc, char* argv[]) {
 							SDL_WarpMouseInWindow(sdl_window, mouse_saved_x, mouse_saved_y);
 						}
 					}
+					break;
+				case SDL_EVENT_MOUSE_BUTTON_UP:
+					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), false);
 					break;
 				case SDL_EVENT_MOUSE_WHEEL:
 					io.AddMouseWheelEvent(event.wheel.x, event.wheel.y);
@@ -353,7 +384,7 @@ int main(int argc, char* argv[]) {
 		}
 
 		//Dear ImGUI update part
-		{
+		 if (do_imgui) {
 			if (show_demo)
 				ImGui::ShowDemoWindow(&show_demo);
 
