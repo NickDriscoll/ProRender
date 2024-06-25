@@ -269,9 +269,13 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
         _mesh_dirty_flag = true;
         BufferView* position_data = _position_buffers.get(mesh_key);
         BufferView* uv_data = get_vertex_uvs(mesh_key);
+
+        uint32_t uv_start = 0;
+        if (uv_data != nullptr) uv_start = uv_data->start;
+
         GPUMesh g_mesh = {
             .position_start = position_data->start,
-            .uv_start = uv_data->start
+            .uv_start = uv_start
         };
         gpu_mesh_key = _gpu_meshes.insert(g_mesh);
         _mesh_map.insert(std::pair(mesh_key.value(), gpu_mesh_key.value()));
@@ -372,7 +376,7 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebu
             float aspect = (float)framebuffer.width / (float)framebuffer.height;
             float desired_fov = (float)(M_PI / 2.0);
             float nearplane = 0.1f;
-            float farplane = 1000.0f;
+            float farplane = 1000000.0f;
             float tan_fovy = tanf(desired_fov / 2.0f);
             gcam.projection_matrix = float4x4(
                 1.0f / (tan_fovy * aspect), 0.0f, 0.0f, 0.0f,
