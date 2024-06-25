@@ -38,6 +38,8 @@ struct Configuration {
 
 template <>
 struct fastgltf::ElementTraits<hlslpp::float3> : fastgltf::ElementTraitsBase<hlslpp::float3, AccessorType::Vec3, float> {};
+template <>
+struct fastgltf::ElementTraits<hlslpp::float4> : fastgltf::ElementTraitsBase<hlslpp::float4, AccessorType::Vec3, float> {};
 
 int main(int argc, char* argv[]) {
 	PRORENDER_UNUSED_PARAMETER(argc);
@@ -167,19 +169,28 @@ int main(int argc, char* argv[]) {
 				Primitive& prim = mesh.primitives[0];
 
 				//Loading vertex position data
-				uint64_t accessor_index = prim.findAttribute("POSITION")->second;
-				Accessor& accessor = asset->accessors[accessor_index];
-				positions.reserve(4 * accessor.count);
-				auto iterator = fastgltf::iterateAccessor<hlslpp::float3>(asset.get(), accessor);
-				for (auto it = iterator.begin(); it != iterator.end(); ++it) {
-					hlslpp::float3 p = *it;
-					positions.emplace_back(static_cast<float>(p.x));
-					positions.emplace_back(static_cast<float>(p.y));
-					positions.emplace_back(static_cast<float>(p.z));
-					positions.emplace_back(1.0f);
+				{
+					uint64_t accessor_index = prim.findAttribute("POSITION")->second;
+					Accessor& accessor = asset->accessors[accessor_index];
+					positions.reserve(4 * accessor.count);
+					auto iterator = fastgltf::iterateAccessor<hlslpp::float3>(asset.get(), accessor);
+					for (auto it = iterator.begin(); it != iterator.end(); ++it) {
+						hlslpp::float3 p = *it;
+						positions.emplace_back(static_cast<float>(p.x));
+						positions.emplace_back(static_cast<float>(p.y));
+						positions.emplace_back(static_cast<float>(p.z));
+						positions.emplace_back(1.0f);
+					}
 				}
 				
 				//Loading index data
+				{
+					uint64_t idx = prim.indicesAccessor.value();
+					Accessor& accessor = asset->accessors[idx];
+					indices.resize(accessor.count);
+
+					copyFromAccessor<uint16_t>(asset.get(), accessor, indices.data());
+				}
 
 
 				break;
@@ -188,6 +199,7 @@ int main(int argc, char* argv[]) {
 
 		//Upload extracted data to GPU
 		boombox_mesh = renderer.push_vertex_positions(std::span(positions));
+		renderer.push_indices16(boombox_mesh, std::span(indices));
 	}
 	app_timer.print("Loaded glTF");
 	app_timer.start();
@@ -451,6 +463,18 @@ int main(int argc, char* argv[]) {
 			);
 			InstanceData mats[] = {mat};
 			renderer.ps1_draw(plane_mesh_key, miyamoto_material_key, std::span(mats));
+		}
+
+		//Draw boombox on floor
+		{
+			hlslpp::float4x4 mat(
+				1.0, 0.0, 0.0, 0.0,
+				0.0, 1.0, 0.0, 0.0,
+				0.0, 0.0, 1.0, 0.0,
+				0.0, 0.0, 0.0, 1.0	
+			);
+			InstanceData mats[] = {mat};
+			renderer.ps1_draw(boombox_mesh, miyamoto_material_key, std::span(mats));
 		}
 
 		//Queue the static plane to be drawn
