@@ -37,9 +37,9 @@ struct Configuration {
 };
 
 template <>
-struct fastgltf::ElementTraits<hlslpp::float3> : fastgltf::ElementTraitsBase<hlslpp::float3, AccessorType::Vec3, float> {};
+struct fastgltf::ElementTraits<hlslpp::float2> : fastgltf::ElementTraitsBase<hlslpp::float2, AccessorType::Vec2, float> {};
 template <>
-struct fastgltf::ElementTraits<hlslpp::float4> : fastgltf::ElementTraitsBase<hlslpp::float4, AccessorType::Vec3, float> {};
+struct fastgltf::ElementTraits<hlslpp::float3> : fastgltf::ElementTraitsBase<hlslpp::float3, AccessorType::Vec3, float> {};
 
 int main(int argc, char* argv[]) {
 	PRORENDER_UNUSED_PARAMETER(argc);
@@ -157,6 +157,7 @@ int main(int argc, char* argv[]) {
 		printf("Printing node names in \"%s\" ...\n", glb_path.string().c_str());
 
 		std::vector<float> positions;
+		std::vector<float> uvs;
 		std::vector<uint16_t> indices;
 		for (Node& node : asset->nodes) {
 			printf("\t%s\n", node.name.c_str());
@@ -167,19 +168,39 @@ int main(int argc, char* argv[]) {
 
 				//Just loading the first primitive for now
 				Primitive& prim = mesh.primitives[0];
+				for (auto& a : prim.attributes) {
+					printf("%s\n", a.first.c_str());
+				}
 
 				//Loading vertex position data
 				{
 					uint64_t accessor_index = prim.findAttribute("POSITION")->second;
 					Accessor& accessor = asset->accessors[accessor_index];
 					positions.reserve(4 * accessor.count);
+					printf("Position count: %i\n", (int)accessor.count);
 					auto iterator = fastgltf::iterateAccessor<hlslpp::float3>(asset.get(), accessor);
+					int i = 0;
 					for (auto it = iterator.begin(); it != iterator.end(); ++it) {
 						hlslpp::float3 p = *it;
-						positions.emplace_back(static_cast<float>(p.x));
-						positions.emplace_back(static_cast<float>(p.y));
-						positions.emplace_back(static_cast<float>(p.z));
+						positions.emplace_back(p[0]);
+						positions.emplace_back(p[1]);
+						positions.emplace_back(p[2]);
 						positions.emplace_back(1.0f);
+						i += 1;
+					}
+				}
+
+				//Load vertex uv data
+				{
+					uint64_t accessor_index = prim.findAttribute("TEXCOORD_0")->second;
+					Accessor& accessor = asset->accessors[accessor_index];
+					uvs.reserve(2 * accessor.count);
+					printf("UV count: %i\n", (int)accessor.count);
+					auto iterator = fastgltf::iterateAccessor<hlslpp::float2>(asset.get(), accessor);
+					for (auto it = iterator.begin(); it != iterator.end(); ++it) {
+						hlslpp::float2 p = *it;
+						uvs.emplace_back(p[0]);
+						uvs.emplace_back(p[1]);
 					}
 				}
 				
@@ -187,11 +208,27 @@ int main(int argc, char* argv[]) {
 				{
 					uint64_t idx = prim.indicesAccessor.value();
 					Accessor& accessor = asset->accessors[idx];
-					indices.resize(accessor.count);
-
-					copyFromAccessor<uint16_t>(asset.get(), accessor, indices.data());
+					indices.reserve(accessor.count);
+					auto iterator = fastgltf::iterateAccessor<uint16_t>(asset.get(), accessor);
+					for (auto it = iterator.begin(); it != iterator.end(); ++it) {
+						uint16_t p = *it;
+						indices.emplace_back(p);
+					}
 				}
 
+				//Load material
+				if (prim.materialIndex.has_value()) {
+					fastgltf::Material& mat = asset->materials[prim.materialIndex.value()];
+					PBRData& pbr = mat.pbrData;
+					
+					//Load base color texture
+					if (pbr.baseColorTexture.has_value()) {
+						TextureInfo& info = pbr.baseColorTexture.value();
+						size_t tex_idx = info.textureIndex;
+						Texture& tex = asset->textures[info.textureIndex];
+						Image& im = asset->images[tex.imageIndex.value()];
+					}
+				}
 
 				break;
 			}
@@ -199,13 +236,21 @@ int main(int argc, char* argv[]) {
 
 		//Upload extracted data to GPU
 		boombox_mesh = renderer.push_vertex_positions(std::span(positions));
+		renderer.push_vertex_uvs(boombox_mesh, std::span(uvs));
 		renderer.push_indices16(boombox_mesh, std::span(indices));
 	}
 	app_timer.print("Loaded glTF");
 	app_timer.start();
 
     //Create main camera
-	Key<Camera> main_viewport_camera = renderer.cameras.insert({ .position = { 1.0f, -2.0f, 5.0f }, .pitch = -1.3f });
+	Key<Camera> main_viewport_camera = renderer.cameras.insert(
+		{ 
+			.position = { -1.53f, 0.569f, 1.16f },
+			.yaw = 1.339f,
+			.pitch = 0.37f,
+			.roll = 0.0f
+		}
+	);
 	bool camera_control = false;
 	float mouse_saved_x = 0.0, mouse_saved_y = 0.0;
 
@@ -326,6 +371,9 @@ int main(int argc, char* argv[]) {
 					break;
 				case SDL_EVENT_MOUSE_BUTTON_DOWN:
 					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), true);
+					break;
+				case SDL_EVENT_MOUSE_BUTTON_UP:
+					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), false);
 					if (!io.WantCaptureMouse && event.button.button == SDL_BUTTON_RIGHT) {
 						camera_control = !camera_control;
 						SDL_SetRelativeMouseMode((SDL_bool)camera_control);
@@ -336,9 +384,6 @@ int main(int argc, char* argv[]) {
 							SDL_WarpMouseInWindow(sdl_window, mouse_saved_x, mouse_saved_y);
 						}
 					}
-					break;
-				case SDL_EVENT_MOUSE_BUTTON_UP:
-					io.AddMouseButtonEvent(SDL2ToImGuiMouseButton(event.button.button), false);
 					break;
 				case SDL_EVENT_MOUSE_WHEEL:
 					io.AddMouseWheelEvent(event.wheel.x, event.wheel.y);
@@ -399,6 +444,14 @@ int main(int argc, char* argv[]) {
 		 if (do_imgui) {
 			if (show_demo)
 				ImGui::ShowDemoWindow(&show_demo);
+
+			{
+				Camera* camera = renderer.cameras.get(main_viewport_camera);
+				ImGui::Text("Camera position: (%f, %f, %f)", camera->position[0], camera->position[1], camera->position[2]);
+				ImGui::Text("Camera pitch: %f", camera->pitch);
+				ImGui::Text("Camera yaw: %f", camera->yaw);
+				ImGui::Text("Camera roll: %f", camera->roll);
+			}
 
 			ImGuiWindowFlags window_flags = 0;
 			ImGui::Begin("Texture inspector", nullptr, window_flags);
@@ -483,7 +536,8 @@ int main(int argc, char* argv[]) {
 		{
 			using namespace hlslpp;
 
-			static int number = 1000;
+			//static int number = 1000;
+			static int number = 1;
 
 			std::vector<InstanceData> tforms;
 			tforms.reserve(number);

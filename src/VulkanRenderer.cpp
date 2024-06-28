@@ -105,7 +105,7 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
         
 		const char* spv[] = { "shaders/ps1.vert.spv", "shaders/ps1.frag.spv" };
         VulkanGraphicsPipelineConfig config = VulkanGraphicsPipelineConfig();
-        config.rasterization_state.cullMode = VK_CULL_MODE_NONE;
+        //config.rasterization_state.cullMode = VK_CULL_MODE_NONE;
         config.depth_stencil_state.depthTestEnable = VK_FALSE;
         config.render_pass = swapchain_renderpass;
         config.spv_sources = spv;
@@ -139,6 +139,7 @@ Key<BufferView> VulkanRenderer::push_vertex_positions(std::span<float> data) {
     };
 
     vertex_position_offset += (uint32_t)data.size();
+    
     return _position_buffers.insert(b);
 }
 
@@ -269,6 +270,8 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
         _mesh_dirty_flag = true;
         BufferView* position_data = _position_buffers.get(mesh_key);
         BufferView* uv_data = get_vertex_uvs(mesh_key);
+
+        if (position_data == nullptr) return;
 
         uint32_t uv_start = 0;
         if (uv_data != nullptr) uv_start = uv_data->start;

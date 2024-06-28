@@ -18,8 +18,10 @@ Ps1VertexOutput main(uint vtx_id : SV_VertexID, uint inst_idx : SV_INSTANCEID) {
     uint position_offset = vk::RawBufferLoad<uint>(mesh_baseaddr + sizeof(GPUMesh) * mesh_idx);
     uint uv_offset = vk::RawBufferLoad<uint>(mesh_baseaddr + sizeof(GPUMesh) * mesh_idx + sizeof(uint));
     
-    float4 pos = raw_block_load<float4>(pos_baseaddr, sizeof(VertexPositionBlock), vtx_id + position_offset);
-    float2 uv = raw_block_load<float2>(uv_baseaddr, sizeof(VertexUvBlock), vtx_id + uv_offset);
+    uint position_float4_offset = (vtx_id + (position_offset / 4));
+    uint uv_float2_offset = (vtx_id + (uv_offset / 2));
+    float4 pos = raw_block_load<float4>(pos_baseaddr, sizeof(VertexPositionBlock), position_float4_offset);
+    float2 uv = raw_block_load<float2>(uv_baseaddr, sizeof(VertexUvBlock), uv_float2_offset);
 
     //For some reason float4x4's memory ordering is different than when using descriptors
     float4x4 view_matrix = vk::RawBufferLoad<float4x4>(cam_baseaddr);

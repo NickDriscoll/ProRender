@@ -9,9 +9,11 @@
 #define MAX_CAMERAS 64
 #define MAX_MATERIALS 1024
 #define MAX_VERTEX_ATTRIBS 1024
-#define MAX_MESHES 1024*1024
+#define MAX_MESHES 128*1024
 #define MAX_INDIRECT_DRAWS 100000
 #define MAX_INSTANCES 1024*1024
+
+#define VERTEX_POSITION_BLOCK_SIZE 4
 
 struct RenderPushConstants {
 	uint64_t uniforms_addr;

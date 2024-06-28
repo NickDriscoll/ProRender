@@ -15,4 +15,5 @@ float4 main(Ps1VertexOutput in_vtx) : SV_Target0 {
     float4 color_sample = sampled_images[tex_idx].Sample(samplers[sampler_idx], in_vtx.uv);
 
     return float4(color_sample.rgb, 1.0);
+    //return float4(1.0, 0.0, 0.0, 1.0);
 }
