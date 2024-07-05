@@ -80,13 +80,18 @@ struct RawImage {
 	uint8_t* data;
 };
 
+//A JPEG or PNG image
+struct CompressedImage {
+	std::vector<uint8_t> bytes;
+};
+
 struct VulkanPendingImage {
 	uint64_t batch_id;
 	uint32_t original_idx;
 	VulkanImage vk_image;
 };
 
-struct VulkanAvailableImage {
+struct VulkanBindlessImage {
 	uint64_t batch_id;
 	uint32_t original_idx;
 	VulkanImage vk_image;
@@ -101,6 +106,12 @@ struct VulkanImageUploadBatch {
 struct RawImageBatchParameters {
 	const uint64_t id;
 	const std::vector<RawImage> raw_images;
+	const std::vector<VkFormat> image_formats;
+};
+
+struct CompressedImageBatchParameters {
+	const uint64_t id;
+	const std::vector<CompressedImage> images;
 	const std::vector<VkFormat> image_formats;
 };
 
@@ -119,10 +130,6 @@ struct CommandBufferReturn {
 	VkCommandBuffer cb;
 	uint64_t wait_value;	//Could be zero if the semaphore is binary
 	Key<VkSemaphore> wait_semaphore;
-};
-
-struct DescriptorLayout {
-	
 };
 
 struct SyncData {
@@ -153,7 +160,7 @@ struct VulkanGraphicsDevice {
 	VkCommandPool transfer_command_pool;
 	Key<VkSemaphore> image_upload_semaphore;			//Timeline semaphore whose value increments by one for each image upload batch
 	
-	slotmap<VulkanAvailableImage> available_images;
+	slotmap<VulkanBindlessImage> bindless_images;
 
 	VmaAllocator allocator;		//Thank you, AMD
 	const VmaDeviceMemoryCallbacks* vma_alloc_callbacks;
@@ -186,13 +193,17 @@ struct VulkanGraphicsDevice {
 		const std::vector<RawImage> raw_images,
 		const std::vector<VkFormat> image_formats
 	);
+	uint64_t load_compressed_images(
+		const std::vector<CompressedImage> images,
+		const std::vector<VkFormat> formats
+	);
 	uint64_t load_image_files(
 		const std::vector<const char*> filenames,
 		const std::vector<VkFormat> image_formats
 	);
 	void tick_image_uploads(VkCommandBuffer render_cb);
 	uint64_t completed_image_batches();
-	void destroy_image(Key<VulkanAvailableImage> key);
+	void destroy_image(Key<VulkanBindlessImage> key);
 	VkPipelineLayout get_pipeline_layout();
 
 	Key<VkFramebuffer> create_framebuffer(VkFramebufferCreateInfo& info);
@@ -222,24 +233,33 @@ private:
 
 	//State related to image uploading system
 	bool _image_upload_running = true;
-	uint64_t _image_batches_requested = 0;
-	uint64_t _image_batches_completed = 0;
+	std::thread _image_upload_thread;
+	uint64_t _image_batches_requested = 0;		//Incremented when any of the ::load_* methods are called
+	uint64_t _image_batches_completed = 0;		//Incremented every iteration of the outer loop in ::tick_image_uploads()
+
 	std::queue<RawImageBatchParameters, std::deque<RawImageBatchParameters>> _raw_image_batch_queue;
 	std::mutex _raw_image_mutex;
+
+	std::queue<CompressedImageBatchParameters, std::deque<CompressedImageBatchParameters>> _compressed_image_batch_queue;
+	std::mutex _compressed_image_mutex;
+
 	std::queue<FileImageBatchParameters, std::deque<FileImageBatchParameters>> _image_file_batch_queue;
 	std::mutex _file_batch_mutex;
-	std::thread _image_upload_thread;
+
+
 	slotmap<VulkanPendingImage> _pending_images;
 	std::mutex _pending_image_mutex;
+
 	slotmap<VulkanImageUploadBatch> _image_upload_batches;
 	std::mutex _image_upload_mutex;
+
 	std::deque<ImageDeletion> _image_deletion_queue;
+
 	VkDescriptorPool _descriptor_pool;
 	VkDescriptorSet _image_descriptor_set;
 	VkDescriptorSetLayout _image_descriptor_set_layout;
 	VkPipelineLayout _pipeline_layout;
 	std::vector<VkSampler> _immutable_samplers;
-
 
 	slotmap<VkFramebuffer> _framebuffers;
 	slotmap<VkRenderPass> _render_passes;

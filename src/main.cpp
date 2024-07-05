@@ -145,6 +145,7 @@ int main(int argc, char* argv[]) {
 
 	//Load something from a glTF
 	Key<BufferView> boombox_mesh;
+	Key<Material> boombox_material;
 	{
 		using namespace fastgltf;
 
@@ -177,16 +178,13 @@ int main(int argc, char* argv[]) {
 					uint64_t accessor_index = prim.findAttribute("POSITION")->second;
 					Accessor& accessor = asset->accessors[accessor_index];
 					positions.reserve(4 * accessor.count);
-					printf("Position count: %i\n", (int)accessor.count);
 					auto iterator = fastgltf::iterateAccessor<hlslpp::float3>(asset.get(), accessor);
-					int i = 0;
 					for (auto it = iterator.begin(); it != iterator.end(); ++it) {
 						hlslpp::float3 p = *it;
 						positions.emplace_back(p[0]);
 						positions.emplace_back(p[1]);
 						positions.emplace_back(p[2]);
 						positions.emplace_back(1.0f);
-						i += 1;
 					}
 				}
 
@@ -195,7 +193,6 @@ int main(int argc, char* argv[]) {
 					uint64_t accessor_index = prim.findAttribute("TEXCOORD_0")->second;
 					Accessor& accessor = asset->accessors[accessor_index];
 					uvs.reserve(2 * accessor.count);
-					printf("UV count: %i\n", (int)accessor.count);
 					auto iterator = fastgltf::iterateAccessor<hlslpp::float2>(asset.get(), accessor);
 					for (auto it = iterator.begin(); it != iterator.end(); ++it) {
 						hlslpp::float2 p = *it;
@@ -224,9 +221,36 @@ int main(int argc, char* argv[]) {
 					//Load base color texture
 					if (pbr.baseColorTexture.has_value()) {
 						TextureInfo& info = pbr.baseColorTexture.value();
-						size_t tex_idx = info.textureIndex;
 						Texture& tex = asset->textures[info.textureIndex];
 						Image& im = asset->images[tex.imageIndex.value()];
+
+						const sources::BufferView* data_ptr = std::get_if<sources::BufferView>(&im.data);
+						ASSERT_OR_CRASH(data_ptr != nullptr, true);
+						ASSERT_OR_CRASH(data_ptr->mimeType == MimeType::JPEG || data_ptr->mimeType == MimeType::PNG, true);
+
+						fastgltf::BufferView& bv = asset->bufferViews[data_ptr->bufferViewIndex];
+						fastgltf::Buffer& buffer = asset->buffers[bv.bufferIndex];
+
+						const sources::ByteView* arr = std::get_if<sources::ByteView>(&buffer.data);
+						ASSERT_OR_CRASH(arr != nullptr, true);
+
+						std::vector<uint8_t> image_bytes_copy;
+						image_bytes_copy.resize(bv.byteLength);
+						memcpy(image_bytes_copy.data(), arr->bytes.data() + bv.byteOffset, bv.byteLength);
+						
+						CompressedImage image = { .bytes = image_bytes_copy};
+						PRORENDER_UNUSED_PARAMETER(image);
+						uint64_t batch_id = vgd.load_compressed_images({image}, {VK_FORMAT_R8G8B8A8_SRGB});
+
+						hlslpp::float4 base_color;
+						base_color[0] = pbr.baseColorFactor[0];
+						base_color[1] = pbr.baseColorFactor[1];
+						base_color[2] = pbr.baseColorFactor[2];
+						base_color[3] = pbr.baseColorFactor[3];
+
+						boombox_material = renderer.push_material(batch_id, ImmutableSamplers::STANDARD, base_color);
+
+						printf("Loading image \"%s\"\n", im.name.c_str());
 					}
 				}
 
@@ -245,9 +269,9 @@ int main(int argc, char* argv[]) {
     //Create main camera
 	Key<Camera> main_viewport_camera = renderer.cameras.insert(
 		{ 
-			.position = { -1.53f, 0.569f, 1.16f },
-			.yaw = 1.339f,
-			.pitch = 0.37f,
+			.position = { -6.92f, -12.922f, 33.767f },
+			.yaw = 0.756f,
+			.pitch = 0.549f,
 			.roll = 0.0f
 		}
 	);
@@ -460,8 +484,8 @@ int main(int argc, char* argv[]) {
 			ImGui::SliderInt("Display width", &dimension_max, 1, 1500);
 			ImGui::Separator();
 
-			for (auto it = vgd.available_images.begin(); it != vgd.available_images.end(); ++it) {
-				VulkanAvailableImage& image = *it;
+			for (auto it = vgd.bindless_images.begin(); it != vgd.bindless_images.end(); ++it) {
+				VulkanBindlessImage& image = *it;
 
 				ImGui::Text("From batch #%i", image.batch_id);
 
@@ -527,7 +551,7 @@ int main(int argc, char* argv[]) {
 				0.0, 0.0, 0.0, 1.0	
 			);
 			InstanceData mats[] = {mat};
-			renderer.ps1_draw(boombox_mesh, miyamoto_material_key, std::span(mats));
+			renderer.ps1_draw(boombox_mesh, boombox_material, std::span(mats));
 		}
 
 		//Queue the static plane to be drawn

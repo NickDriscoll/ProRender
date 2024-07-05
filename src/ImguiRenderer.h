@@ -34,8 +34,9 @@ struct ImguiRenderer {
     ~ImguiRenderer();
 
 private:
-	uint32_t atlas_idx;		//Texture atlas index in the bindless textures array
-	uint32_t sampler_idx;	//Point sampler index in the immutable samplers array
+	uint64_t atlas_batch_id;											//Checked every frame in draw to see if the font atlas loaded yet
+	uint32_t atlas_idx = std::numeric_limits<uint32_t>::max();			//Texture atlas index in the bindless textures array
+	uint32_t sampler_idx;												//Point sampler index in the immutable samplers array
 
 	Key<VulkanBuffer> position_buffer;
 	Key<VulkanBuffer> uv_buffer;

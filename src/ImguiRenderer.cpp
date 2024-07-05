@@ -22,38 +22,39 @@ ImguiRenderer::ImguiRenderer(
 		uint8_t* tex_pixels = nullptr;
 		int tex_w, tex_h;
 		io.Fonts->GetTexDataAsRGBA32(&tex_pixels, &tex_w, &tex_h);
-		RawImage im = {
-			.width = (uint32_t)tex_w,
-			.height = (uint32_t)tex_h,
-			.data = tex_pixels
-		};
+		// RawImage im = {
+		// 	.width = (uint32_t)tex_w,
+		// 	.height = (uint32_t)tex_h,
+		// 	.data = tex_pixels
+		// };
 
-		std::vector<RawImage> images = std::vector<RawImage>{
-			im
-		};
-		std::vector<VkFormat> formats = std::vector<VkFormat>{
-			VK_FORMAT_R8G8B8A8_UNORM
-		};
-		uint64_t batch_id = vgd->load_raw_images(images, formats);
+		// std::vector<RawImage> images = std::vector<RawImage>{
+		// 	im
+		// };
+		// std::vector<VkFormat> formats = std::vector<VkFormat>{
+		// 	VK_FORMAT_R8G8B8A8_UNORM
+		// };
+		// atlas_batch_id = vgd->load_raw_images(images, formats);
 
-		VkSemaphoreWaitInfo info = {};
-		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-		info.semaphoreCount = 1;
-		info.pSemaphores = vgd->get_semaphore(vgd->image_upload_semaphore);
-		info.pValues = &batch_id;
-		VKASSERT_OR_CRASH(vkWaitSemaphores(vgd->device, &info, U64_MAX));
+		// VkSemaphoreWaitInfo info = {};
+		// info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+		// info.semaphoreCount = 1;
+		// info.pSemaphores = vgd->get_semaphore(vgd->image_upload_semaphore);
+		// info.pValues = &batch_id;
+		// VKASSERT_OR_CRASH(vkWaitSemaphores(vgd->device, &info, U64_MAX));
+		// io.Fonts->ClearTexData();
 	
-		uint32_t tex_index = 0;
-		for (auto it = vgd->available_images.begin(); it != vgd->available_images.end(); ++it) {
-			VulkanAvailableImage image = *it;
-			if (batch_id == image.batch_id) {
-				tex_index = it.slot_index();
-				break;
-			}
-		}
+		// uint32_t tex_index = 0;
+		// for (auto it = vgd->available_images.begin(); it != vgd->available_images.end(); ++it) {
+		// 	VulkanBindlessImage image = *it;
+		// 	if (batch_id == image.batch_id) {
+		// 		tex_index = it.slot_index();
+		// 		break;
+		// 	}
+		// }
 
-		atlas_idx = tex_index;
-		io.Fonts->SetTexID((ImTextureID)(uint64_t)tex_index);
+		// atlas_idx = tex_index;
+		// io.Fonts->SetTexID((ImTextureID)(uint64_t)tex_index);
 	}
 
     //Allocate memory for ImGUI vertex data
@@ -108,6 +109,34 @@ ImguiRenderer::~ImguiRenderer() {
 }
 
 void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
+	//Check if font atlas is available
+	// if (atlas_idx == std::numeric_limits<uint32_t>::max()) {
+	// 	VkSemaphoreWaitInfo info = {};
+	// 	info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+	// 	info.semaphoreCount = 1;
+	// 	info.pSemaphores = vgd->get_semaphore(vgd->image_upload_semaphore);
+	// 	info.pValues = &atlas_batch_id;
+	// 	VKASSERT_OR_CRASH(vkWaitSemaphores(vgd->device, &info, U64_MAX));
+		
+    // 	ImGuiIO& io = ImGui::GetIO();
+	// 	//io.Fonts->ClearTexData();
+	
+	// 	uint32_t tex_index = std::numeric_limits<uint32_t>::max();
+	// 	for (auto it = vgd->available_images.begin(); it != vgd->available_images.end(); ++it) {
+	// 		VulkanBindlessImage image = *it;
+	// 		if (atlas_batch_id == image.batch_id) {
+	// 			tex_index = it.slot_index();
+	// 			break;
+	// 		}
+	// 	}
+
+	// 	if (tex_index == std::numeric_limits<uint32_t>::max()) return;
+
+	// 	atlas_idx = tex_index;
+	// 	io.Fonts->SetTexID((ImTextureID)(uint64_t)tex_index);
+
+	// }
+
 	//Upload ImGUI triangle data and record ImGUI draw commands
 	
 	uint32_t frame_slot = frame_counter % FRAMES_IN_FLIGHT;

@@ -240,6 +240,7 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
         //If yes, reuse that data
         gpu_mat_key = _material_map[material_key.value()];
     } else {
+        printf("Drawing material that has not been loaded before...\n");
         //Otherwise we have to search for the image in the available images array
         //and upload its metadata to the GPU
         _material_dirty_flag = true;
@@ -248,12 +249,15 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
         mat.sampler_idx = material->sampler_idx;
         mat.base_color = material->base_color;
 
-        for (auto it = vgd->available_images.begin(); it != vgd->available_images.end(); ++it) {
-            VulkanAvailableImage& image = *it;
+        for (auto it = vgd->bindless_images.begin(); it != vgd->bindless_images.end(); ++it) {
+            VulkanBindlessImage& image = *it;
+            printf("Image batch id: %d\nMaterial batch id:%d\n", (int)image.batch_id, (int)material->batch_id);
             if (image.batch_id == material->batch_id) {
                 mat.texture_indices[0] = it.slot_index();
+                printf("Match!\n");
                 break;
             }
+            printf("\n");
         }
         assert(mat.texture_indices[0] != std::numeric_limits<uint32_t>::max());
 
