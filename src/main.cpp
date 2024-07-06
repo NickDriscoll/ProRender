@@ -239,7 +239,6 @@ int main(int argc, char* argv[]) {
 						memcpy(image_bytes_copy.data(), arr->bytes.data() + bv.byteOffset, bv.byteLength);
 						
 						CompressedImage image = { .bytes = image_bytes_copy};
-						PRORENDER_UNUSED_PARAMETER(image);
 						uint64_t batch_id = vgd.load_compressed_images({image}, {VK_FORMAT_R8G8B8A8_SRGB});
 
 						hlslpp::float4 base_color;

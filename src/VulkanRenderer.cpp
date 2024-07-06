@@ -233,6 +233,13 @@ uint64_t VulkanRenderer::get_current_frame() {
 void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_key, const std::span<InstanceData>& instance_datas) {
     Material* material = _materials.get(material_key);
     if (material->batch_id > vgd->completed_image_batches()) return;     //Early exit if material's batch hasn't completed
+    {
+        static int last_seen = 0;
+        if (material->batch_id > last_seen) {
+            last_seen = (int)material->batch_id;
+            printf("Saw material with batch id %i with bindless_images having %i images..\n", (int)material->batch_id, (int)vgd->bindless_images.count());
+        }
+    }
 
     //Check if this material's images have already been loaded
     Key<GPUMaterial> gpu_mat_key;
@@ -240,7 +247,7 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
         //If yes, reuse that data
         gpu_mat_key = _material_map[material_key.value()];
     } else {
-        printf("Drawing material that has not been loaded before...\n");
+        printf("Drawing material that has not been loaded before from batch %i...\n", (int)material->batch_id);
         //Otherwise we have to search for the image in the available images array
         //and upload its metadata to the GPU
         _material_dirty_flag = true;

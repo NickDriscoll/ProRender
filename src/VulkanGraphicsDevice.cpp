@@ -1,4 +1,5 @@
 #include "VulkanGraphicsDevice.h"
+#include <algorithm>
 #include <filesystem>
 #include "stb_image.h"
 #include "timer.h"
@@ -969,6 +970,7 @@ VkSampler VulkanGraphicsDevice::create_sampler(VkSamplerCreateInfo& info) {
 
 void VulkanGraphicsDevice::submit_image_upload_batch(uint64_t id, const std::vector<RawImage>& raw_images, const std::vector<VkFormat>& image_formats) {
 	VulkanImageUploadBatch current_batch = {};
+	current_batch.id = id;
 
 	uint32_t image_count = (uint32_t)raw_images.size();
 	std::vector<uint32_t> mip_counts;
@@ -1201,6 +1203,24 @@ void VulkanGraphicsDevice::submit_image_upload_batch(uint64_t id, const std::vec
 		vkEndCommandBuffer(current_batch.command_buffer);
 	}
 
+	_pending_image_mutex.lock();
+	_image_upload_mutex.lock();
+	//Insert into pending images table
+	for (uint32_t i = 0; i < image_count; i++) {
+		VulkanPendingImage pending_image = {};
+		pending_image.vk_image.image = images[i];
+		pending_image.vk_image.image_view = image_views[i];
+		pending_image.vk_image.image_allocation = image_allocations[i];
+		pending_image.batch_id = current_batch.id;
+		pending_image.vk_image.mip_levels = mip_counts[i];
+		pending_image.vk_image.width = raw_images[i].width;
+		pending_image.vk_image.height = raw_images[i].height;
+		pending_image.vk_image.depth = 1;
+		pending_image.original_idx = i;
+
+		_pending_images.insert(pending_image);
+	}
+
 	//Submit upload command buffer
 	VkQueue q;
 	vkGetDeviceQueue(device, transfer_queue_family_idx, 0, &q);
@@ -1224,28 +1244,12 @@ void VulkanGraphicsDevice::submit_image_upload_batch(uint64_t id, const std::vec
 		VKASSERT_OR_CRASH(vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE));
 		current_batch.id = signal_value;
 
-		_image_upload_mutex.lock();
 		_image_upload_batches.insert(current_batch);
-		_image_upload_mutex.unlock();
 	}
-
-	//Insert into pending images table
-	for (uint32_t i = 0; i < image_count; i++) {
-		VulkanPendingImage pending_image = {};
-		pending_image.vk_image.image = images[i];
-		pending_image.vk_image.image_view = image_views[i];
-		pending_image.vk_image.image_allocation = image_allocations[i];
-		pending_image.batch_id = current_batch.id;
-		pending_image.vk_image.mip_levels = mip_counts[i];
-		pending_image.vk_image.width = raw_images[i].width;
-		pending_image.vk_image.height = raw_images[i].height;
-		pending_image.vk_image.depth = 1;
-		pending_image.original_idx = i;
-
-		_pending_image_mutex.lock();
-		_pending_images.insert(pending_image);
-		_pending_image_mutex.unlock();
-	}
+	_pending_image_mutex.unlock();
+	_image_upload_mutex.unlock();
+	
+	printf("[image thread] Submitted batch #%i\n", (int)id);
 }
 
 uint64_t VulkanGraphicsDevice::load_raw_images(
@@ -1299,11 +1303,13 @@ uint64_t VulkanGraphicsDevice::load_image_files(
 //Main function for image loading thread
 void VulkanGraphicsDevice::load_images_impl() {
 	while (_image_upload_running) {
+		std::vector<RawImageBatchParameters> final_parameters;
+
 		//Loading images from memory
 		while (_raw_image_batch_queue.size() > 0) {
-			RawImageBatchParameters& params = _raw_image_batch_queue.front();
+			RawImageBatchParameters params = _raw_image_batch_queue.front();
 
-			this->submit_image_upload_batch(params.id, params.raw_images, params.image_formats);
+			final_parameters.push_back(params);
 
 			//Remove processed parameters
 			_raw_image_mutex.lock();
@@ -1325,12 +1331,17 @@ void VulkanGraphicsDevice::load_images_impl() {
 				raw_images[i].height = height;
 			}
 
-			this->submit_image_upload_batch(params.id, raw_images, params.image_formats);
+			RawImageBatchParameters p = {
+				.id = params.id,
+				.raw_images = raw_images,
+				.image_formats = params.image_formats
+			};
+			final_parameters.push_back(p);
 
 			//Free loaded image memory
-			for (RawImage& image : raw_images) {
-				stbi_image_free(image.data);
-			}
+			// for (RawImage& image : raw_images) {
+			// 	stbi_image_free(image.data);
+			// }
 
 			_compressed_image_mutex.lock();
 			_compressed_image_batch_queue.pop();
@@ -1357,17 +1368,30 @@ void VulkanGraphicsDevice::load_images_impl() {
 				}
 			}
 
-			this->submit_image_upload_batch(params.id, raw_images, params.image_formats);
+			RawImageBatchParameters p = {
+				.id = params.id,
+				.raw_images = raw_images,
+				.image_formats = params.image_formats
+			};
+			final_parameters.push_back(p);
 
 			//Free loaded image memory
-			for (RawImage& image : raw_images) {
-				stbi_image_free(image.data);
-			}
+			// for (RawImage& image : raw_images) {
+			// 	stbi_image_free(image.data);
+			// }
 
 			//Remove processed parameters
 			_file_batch_mutex.lock();
 			_image_file_batch_queue.pop();
 			_file_batch_mutex.unlock();
+		}
+
+		//Call submit after batches have been collated
+		std::sort(final_parameters.begin(), final_parameters.end(), [](RawImageBatchParameters& p1, RawImageBatchParameters& p2) {
+			return p1.id < p2.id;
+		});
+		for (RawImageBatchParameters& p : final_parameters) {
+			this->submit_image_upload_batch(p.id, p.raw_images, p.image_formats);
 		}
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -1396,6 +1420,14 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb) {
 	for (auto batch_it = _image_upload_batches.begin(); batch_it != _image_upload_batches.end(); ++batch_it) {
 		VulkanImageUploadBatch& batch = *batch_it;
 		if (batch.id > gpu_batches_processed) continue;
+		{
+			static int last_seen = 0;
+			if (batch.id > last_seen) {
+				last_seen = (int)batch.id;
+				printf("Saw batch %i with pending image count of %i...\n", (int)batch.id, (int)_pending_images.count());
+			}
+		}
+		
 
 		//Make the transfer command buffer available again and destroy the staging buffer
 		return_transfer_command_buffer(batch.command_buffer);
@@ -1404,6 +1436,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb) {
 		for (auto pending_image_it = _pending_images.begin(); pending_image_it != _pending_images.end(); ++pending_image_it) {
 			VulkanPendingImage& pending_image = *pending_image_it;
 
+			printf("pending_image.batch_id == %i\nbatch.id == %i\n", (int)pending_image.batch_id, (int)batch.id);
 			if (pending_image.batch_id == batch.id) {
 				//Record Graphics queue acquire ownership of the image
 				{
@@ -1596,6 +1629,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb) {
 					
 					Key<VulkanBindlessImage> handle = bindless_images.insert(ava);
 					pending_images_to_delete.push_back(pending_image_it.slot_index());
+					printf("Pushed bindless image from batch %i into array\n", (int)batch.id);
 
 					uint32_t descriptor_index = EXTRACT_IDX(handle.value());
 
@@ -1617,6 +1651,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb) {
 				}
 			}
 		}
+		
 		_image_batches_completed += 1;
 		batches_to_delete.push_back(batch_it.slot_index());
 	}

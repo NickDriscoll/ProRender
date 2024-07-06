@@ -104,21 +104,21 @@ struct VulkanImageUploadBatch {
 };
 
 struct RawImageBatchParameters {
-	const uint64_t id;
-	const std::vector<RawImage> raw_images;
-	const std::vector<VkFormat> image_formats;
+	uint64_t id;
+	std::vector<RawImage> raw_images;
+	std::vector<VkFormat> image_formats;
 };
 
 struct CompressedImageBatchParameters {
-	const uint64_t id;
-	const std::vector<CompressedImage> images;
-	const std::vector<VkFormat> image_formats;
+	uint64_t id;
+	std::vector<CompressedImage> images;
+	std::vector<VkFormat> image_formats;
 };
 
 struct FileImageBatchParameters {
-	const uint64_t id;
-	const std::vector<const char*> filenames;
-	const std::vector<VkFormat> image_formats;
+	uint64_t id;
+	std::vector<const char*> filenames;
+	std::vector<VkFormat> image_formats;
 };
 
 struct SemaphoreWait {
