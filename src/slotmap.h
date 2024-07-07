@@ -69,16 +69,16 @@ struct slotmap {
         uint32_t* _generation_bits;
     };
     iterator begin() {
-        if (_count == 0) return iterator(_data.data(), _data.data(), largest_free_idx, generation_bits.data());
+        if (_count == 0) return iterator(_data.data(), _data.data(), _end_idx, generation_bits.data());
         T* current = _data.data();
         while ((generation_bits[current - _data.data()] & LIVE_BIT) == 0) {
             current += 1;
         }
-        return iterator(current, _data.data(), largest_free_idx, generation_bits.data());
+        return iterator(current, _data.data(), _end_idx, generation_bits.data());
     }
 
     iterator end() {
-        return iterator(_data.data() + largest_free_idx, _data.data(), largest_free_idx, generation_bits.data());
+        return iterator(_data.data() + _end_idx, _data.data(), _end_idx, generation_bits.data());
     }
 
     void alloc(uint32_t size);
@@ -95,7 +95,7 @@ private:
     std::vector<uint32_t> generation_bits = {};
     std::stack<uint32_t, std::vector<uint32_t>> free_indices;
     uint32_t _count = 0;
-    uint32_t largest_free_idx = 0;
+    uint32_t _end_idx = 0;
 };
 
 #ifdef SLOTMAP_IMPLEMENTATION
@@ -127,7 +127,7 @@ uint32_t slotmap<T, Tkey>::size() {
 template<typename T, typename Tkey>
 void slotmap<T, Tkey>::clear() {
     _count = 0;
-    largest_free_idx = 0;
+    _end_idx = 0;
     size_t size = _data.capacity();
     _data.clear();
     _data.resize(size);
@@ -164,7 +164,7 @@ template<typename T, typename Tkey>
 Tkey slotmap<T, Tkey>::insert(T thing) {
     uint32_t free_idx = free_indices.top();
     free_indices.pop();
-    if (free_idx >= largest_free_idx) largest_free_idx += 1;
+    if (free_idx >= _end_idx) _end_idx = free_idx + 1;
     _data[free_idx] = thing;
     generation_bits[free_idx] |= LIVE_BIT;
     uint32_t generation = generation_bits[free_idx];
@@ -180,11 +180,11 @@ void slotmap<T, Tkey>::remove(uint32_t idx) {
     generation_bits[idx] += 1;
     _count -= 1;
 
-    //Recalculate largest free index
-    if (largest_free_idx == idx + 1) {
+    //Recalculate end index
+    if (_end_idx == idx + 1) {
         uint32_t n = idx;
         while ((generation_bits[n] & LIVE_BIT) == 0) {
-            largest_free_idx = n;
+            _end_idx = n;
             if (n == 0) break;
             n -= 1;
         }
