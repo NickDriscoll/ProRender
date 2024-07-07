@@ -1242,7 +1242,6 @@ void VulkanGraphicsDevice::submit_image_upload_batch(uint64_t id, const std::vec
 		info.pWaitDstStageMask = flags;
 
 		VKASSERT_OR_CRASH(vkQueueSubmit(q, 1, &info, VK_NULL_HANDLE));
-		current_batch.id = signal_value;
 
 		_image_upload_batches.insert(current_batch);
 	}
@@ -1408,6 +1407,13 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb) {
 	}
 
 	uint64_t gpu_batches_processed = check_timeline_semaphore(image_upload_semaphore);
+	{
+		static int last_seen = 0;
+		if (gpu_batches_processed > last_seen) {
+			last_seen = (int)gpu_batches_processed;
+			printf("Saw batch %i with upload batch count of %i...\n", (int)gpu_batches_processed, (int)_image_upload_batches.count());
+		}
+	}
 
 	//Descriptor update state
 	std::vector<VkDescriptorImageInfo> desc_infos;
@@ -1419,15 +1425,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb) {
 	std::vector<uint32_t> batches_to_delete;
 	for (auto batch_it = _image_upload_batches.begin(); batch_it != _image_upload_batches.end(); ++batch_it) {
 		VulkanImageUploadBatch& batch = *batch_it;
-		if (batch.id > gpu_batches_processed) continue;
-		{
-			static int last_seen = 0;
-			if (batch.id > last_seen) {
-				last_seen = (int)batch.id;
-				printf("Saw batch %i with pending image count of %i...\n", (int)batch.id, (int)_pending_images.count());
-			}
-		}
-		
+		if (batch.id > gpu_batches_processed) continue;		
 
 		//Make the transfer command buffer available again and destroy the staging buffer
 		return_transfer_command_buffer(batch.command_buffer);
