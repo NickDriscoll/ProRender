@@ -75,7 +75,7 @@ struct MeshAttribute {
 
 struct Material {
 	hlslpp::float4 base_color;
-	uint64_t batch_id;		//The batch where this material's textures come from
+	uint64_t batch_id;		//The batch where this material's textures come from. Zero if no images
 	uint32_t sampler_idx;
 };
 
@@ -113,6 +113,7 @@ struct VulkanRenderer {
 	Key<MeshAttribute> push_indices16(Key<BufferView> position_key, std::span<uint16_t> data);
 	BufferView* get_indices16(Key<BufferView> position_key);
 
+	Key<Material> push_material(uint32_t sampler_idx, hlslpp::float4& base_color);
 	Key<Material> push_material(uint64_t batch_id, uint32_t sampler_idx, hlslpp::float4& base_color);
 	
 	uint32_t standard_sampler_idx;

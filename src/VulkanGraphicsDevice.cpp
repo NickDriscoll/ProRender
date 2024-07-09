@@ -1328,6 +1328,7 @@ void VulkanGraphicsDevice::load_images_impl() {
 				raw_images[i].data = stbi_load_from_memory(params.images[i].bytes.data(), static_cast<int>(params.images[i].bytes.size()), &width, &height, nullptr, STBI_rgb_alpha);
 				raw_images[i].width = width;
 				raw_images[i].height = height;
+				printf("Decompressed image from memory with dimensions (%i, %i)\n", width, height);
 			}
 
 			RawImageBatchParameters p = {

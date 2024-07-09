@@ -10,10 +10,11 @@ float4 main(Ps1VertexOutput in_vtx) : SV_Target0 {
     uint material_idx = vk::RawBufferLoad<uint>(instance_data_baseaddr + sizeof(GPUInstanceData) * in_vtx.instance_idx + mat_idx_offset);
 
     uint tex_idx = vk::RawBufferLoad<uint>(material_baseaddr + sizeof(GPUMaterial) * material_idx);
+    float4 base_color = vk::RawBufferLoad<float4>(material_baseaddr + sizeof(GPUMaterial) * material_idx + sizeof(uint) * MAX_MATERIAL_TEXTURES);
     uint sampler_idx = vk::RawBufferLoad<uint>(material_baseaddr + sizeof(GPUMaterial) * material_idx + sizeof(float4) + sizeof(uint) * MAX_MATERIAL_TEXTURES);
     
     float4 color_sample = sampled_images[tex_idx].Sample(samplers[sampler_idx], in_vtx.uv);
 
-    return float4(color_sample.rgb, 1.0);
+    return base_color * float4(color_sample.rgb, 1.0);
     //return float4(1.0, 0.0, 0.0, 1.0);
 }

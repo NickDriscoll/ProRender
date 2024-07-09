@@ -216,6 +216,10 @@ BufferView* VulkanRenderer::get_indices16(Key<BufferView> position_key) {
 
 }
 
+Key<Material> VulkanRenderer::push_material(uint32_t sampler_idx, hlslpp::float4& base_color) {
+    return this->push_material(0, sampler_idx, base_color);
+}
+
 Key<Material> VulkanRenderer::push_material(uint64_t batch_id, uint32_t sampler_idx, hlslpp::float4& base_color) {
     Material mat {
         .base_color = base_color,
@@ -256,17 +260,19 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
         mat.sampler_idx = material->sampler_idx;
         mat.base_color = material->base_color;
 
-        for (auto it = vgd->bindless_images.begin(); it != vgd->bindless_images.end(); ++it) {
-            VulkanBindlessImage& image = *it;
-            printf("Image batch id: %d\nMaterial batch id:%d\n", (int)image.batch_id, (int)material->batch_id);
-            if (image.batch_id == material->batch_id) {
-                mat.texture_indices[0] = it.slot_index();
-                printf("Match!\n");
-                break;
+        if (material->batch_id > 0) {
+            for (auto it = vgd->bindless_images.begin(); it != vgd->bindless_images.end(); ++it) {
+                VulkanBindlessImage& image = *it;
+                printf("Image batch id: %d\nMaterial batch id:%d\n", (int)image.batch_id, (int)material->batch_id);
+                if (image.batch_id == material->batch_id) {
+                    mat.texture_indices[0] = it.slot_index();
+                    printf("Match!\n");
+                    break;
+                }
+                printf("\n");
             }
-            printf("\n");
+            assert(mat.texture_indices[0] != std::numeric_limits<uint32_t>::max());
         }
-        assert(mat.texture_indices[0] != std::numeric_limits<uint32_t>::max());
 
         gpu_mat_key = _gpu_materials.insert(mat);
         _material_map.insert(std::pair(material_key.value(), gpu_mat_key.value()));

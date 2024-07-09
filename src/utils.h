@@ -9,7 +9,7 @@ static constexpr float PI = 3.141592653589793f;
 #define PRORENDER_UNUSED_PARAMETER(x) (void)x
 
 #define ASSERT_OR_CRASH(pred, expect)                                                               \
-    if ((pred) != expect) {                                                                      \
+    if ((pred) != (expect)) {                                                                      \
         char error_message_buffer[256];                \
         sprintf(error_message_buffer, "Fatal error occurred in %s at line %i", __FILE__, __LINE__); \
         tinyfd_messageBox("FATAL ERROR", error_message_buffer, "ok", "error", 1);           \

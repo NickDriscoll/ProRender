@@ -41,6 +41,146 @@ struct fastgltf::ElementTraits<hlslpp::float2> : fastgltf::ElementTraitsBase<hls
 template <>
 struct fastgltf::ElementTraits<hlslpp::float3> : fastgltf::ElementTraitsBase<hlslpp::float3, AccessorType::Vec3, float> {};
 
+struct Drawable {
+	Key<BufferView> mesh;
+	Key<Material> material;
+};
+
+struct GLBData {
+	std::vector<float> positions;
+	std::vector<float> uvs;
+	std::vector<uint16_t> indices;
+	hlslpp::float4 base_color;
+	std::vector<uint8_t> image_bytes;
+	VkFormat image_format;
+};
+
+GLBData load_ps1_glb(const std::filesystem::path& glb_path) {
+	using namespace fastgltf;
+
+	//std::filesystem::path glb_path = "models/BoomBox.glb";
+	Parser parser;
+	GltfDataBuffer data;
+	data.loadFromFile(glb_path);
+	Expected<Asset> asset = parser.loadGltfBinary(&data, glb_path.parent_path());
+
+	printf("Printing node names in \"%s\" ...\n", glb_path.string().c_str());
+
+	std::vector<float> positions;
+	std::vector<float> uvs;
+	std::vector<uint16_t> indices;
+	hlslpp::float4 base_color;
+	std::vector<uint8_t> image_bytes;
+	VkFormat image_format = VK_FORMAT_R8G8B8A8_UNORM;
+	for (Node& node : asset->nodes) {
+		printf("\t%s\n", node.name.c_str());
+
+		if (node.meshIndex.has_value()) {
+			size_t mesh_idx = node.meshIndex.value();
+			Mesh& mesh = asset->meshes[mesh_idx];
+
+			//Just loading the first primitive for now
+			Primitive& prim = mesh.primitives[0];
+			for (auto& a : prim.attributes) {
+				printf("%s\n", a.first.c_str());
+			}
+
+			//Loading vertex position data
+			{
+				uint64_t accessor_index = prim.findAttribute("POSITION")->second;
+				Accessor& accessor = asset->accessors[accessor_index];
+				positions.reserve(4 * accessor.count);
+				auto iterator = fastgltf::iterateAccessor<hlslpp::float3>(asset.get(), accessor);
+				for (auto it = iterator.begin(); it != iterator.end(); ++it) {
+					hlslpp::float3 p = *it;
+					positions.emplace_back(p[0]);
+					positions.emplace_back(p[1]);
+					positions.emplace_back(p[2]);
+					positions.emplace_back(1.0f);
+				}
+			}
+
+			//Load vertex uv data
+			{
+				uint64_t accessor_index = prim.findAttribute("TEXCOORD_0")->second;
+				Accessor& accessor = asset->accessors[accessor_index];
+				uvs.reserve(2 * accessor.count);
+				auto iterator = fastgltf::iterateAccessor<hlslpp::float2>(asset.get(), accessor);
+				for (auto it = iterator.begin(); it != iterator.end(); ++it) {
+					hlslpp::float2 p = *it;
+					uvs.emplace_back(p[0]);
+					uvs.emplace_back(p[1]);
+				}
+			}
+			
+			//Loading index data
+			{
+				uint64_t idx = prim.indicesAccessor.value();
+				Accessor& accessor = asset->accessors[idx];
+				indices.reserve(accessor.count);
+				auto iterator = fastgltf::iterateAccessor<uint16_t>(asset.get(), accessor);
+				for (auto it = iterator.begin(); it != iterator.end(); ++it) {
+					uint16_t p = *it;
+					indices.emplace_back(p);
+				}
+			}
+
+			//Load material
+			if (prim.materialIndex.has_value()) {
+				fastgltf::Material& mat = asset->materials[prim.materialIndex.value()];
+				PBRData& pbr = mat.pbrData;
+
+				base_color[0] = pbr.baseColorFactor[0];
+				base_color[1] = pbr.baseColorFactor[1];
+				base_color[2] = pbr.baseColorFactor[2];
+				base_color[3] = pbr.baseColorFactor[3];
+				
+				//Load base color texture
+				if (pbr.baseColorTexture.has_value()) {
+					TextureInfo& info = pbr.baseColorTexture.value();
+					Texture& tex = asset->textures[info.textureIndex];
+					Image& im = asset->images[tex.imageIndex.value()];
+
+					const sources::BufferView* data_ptr = std::get_if<sources::BufferView>(&im.data);
+					ASSERT_OR_CRASH(data_ptr != nullptr, true);
+					ASSERT_OR_CRASH(data_ptr->mimeType == MimeType::JPEG || data_ptr->mimeType == MimeType::PNG, true);
+
+					fastgltf::BufferView& bv = asset->bufferViews[data_ptr->bufferViewIndex];
+					fastgltf::Buffer& buffer = asset->buffers[bv.bufferIndex];
+
+					const sources::ByteView* arr = std::get_if<sources::ByteView>(&buffer.data);
+					ASSERT_OR_CRASH(arr != nullptr, true);
+
+					image_bytes.resize(bv.byteLength);
+					memcpy(image_bytes.data(), arr->bytes.data() + bv.byteOffset, bv.byteLength);
+					image_format = VK_FORMAT_R8G8B8A8_SRGB;
+
+					//boombox_material = renderer.push_material(batch_id, ImmutableSamplers::STANDARD, base_color);
+
+					printf("Loading image \"%s\"\n", im.name.c_str());
+				}
+			}
+
+			break;
+		}
+	}
+
+	//Upload extracted data to GPU
+	// boombox_mesh = renderer.push_vertex_positions(std::span(positions));
+	// renderer.push_vertex_uvs(boombox_mesh, std::span(uvs));
+	// renderer.push_indices16(boombox_mesh, std::span(indices));
+
+	GLBData g = {
+		.positions = positions,
+		.uvs = uvs,
+		.indices = indices,
+		.base_color = base_color,
+		.image_bytes = image_bytes,
+		.image_format = image_format
+	};
+	return g;
+}
+
 int main(int argc, char* argv[]) {
 	PRORENDER_UNUSED_PARAMETER(argc);
 	PRORENDER_UNUSED_PARAMETER(argv);
@@ -144,125 +284,44 @@ int main(int argc, char* argv[]) {
 	app_timer.start();
 
 	//Load something from a glTF
+	std::filesystem::path glb_paths[] ={
+		"models/Duck.glb"
+	};
+	std::vector<Drawable> glb_drawables;
+	for (auto& path : glb_paths) {
+		Key<BufferView> mesh;
+		Key<Material> material;
+
+		GLBData ps1_glb = load_ps1_glb(path);
+		if (ps1_glb.image_bytes.size() > 0) {
+			CompressedImage image = { .bytes = ps1_glb.image_bytes};
+			uint64_t batch_id = vgd.load_compressed_images({image}, {VK_FORMAT_R8G8B8A8_SRGB});
+			material = renderer.push_material(batch_id, ImmutableSamplers::STANDARD, ps1_glb.base_color);
+		} else {
+			material = renderer.push_material(ImmutableSamplers::STANDARD, ps1_glb.base_color);		
+		}
+		printf("Base color: (%f, %f, %f, %f)\n", ps1_glb.base_color[0], ps1_glb.base_color[1], ps1_glb.base_color[2], ps1_glb.base_color[3]);
+		mesh = renderer.push_vertex_positions(std::span(ps1_glb.positions));
+		renderer.push_vertex_uvs(mesh, std::span(ps1_glb.uvs));
+		renderer.push_indices16(mesh, std::span(ps1_glb.indices));
+		glb_drawables.push_back({
+			.mesh = mesh,
+			.material = material
+		});
+	}
+
 	Key<BufferView> boombox_mesh;
 	Key<Material> boombox_material;
 	{
-		using namespace fastgltf;
-
-		std::filesystem::path glb_path = "models/BoomBox.glb";
-		Parser parser;
-		GltfDataBuffer data;
-		data.loadFromFile(glb_path);
-		Expected<Asset> asset = parser.loadGltfBinary(&data, glb_path.parent_path());
-
-		printf("Printing node names in \"%s\" ...\n", glb_path.string().c_str());
-
-		std::vector<float> positions;
-		std::vector<float> uvs;
-		std::vector<uint16_t> indices;
-		for (Node& node : asset->nodes) {
-			printf("\t%s\n", node.name.c_str());
-
-			if (node.meshIndex.has_value()) {
-				size_t mesh_idx = node.meshIndex.value();
-				Mesh& mesh = asset->meshes[mesh_idx];
-
-				//Just loading the first primitive for now
-				Primitive& prim = mesh.primitives[0];
-				for (auto& a : prim.attributes) {
-					printf("%s\n", a.first.c_str());
-				}
-
-				//Loading vertex position data
-				{
-					uint64_t accessor_index = prim.findAttribute("POSITION")->second;
-					Accessor& accessor = asset->accessors[accessor_index];
-					positions.reserve(4 * accessor.count);
-					auto iterator = fastgltf::iterateAccessor<hlslpp::float3>(asset.get(), accessor);
-					for (auto it = iterator.begin(); it != iterator.end(); ++it) {
-						hlslpp::float3 p = *it;
-						positions.emplace_back(p[0]);
-						positions.emplace_back(p[1]);
-						positions.emplace_back(p[2]);
-						positions.emplace_back(1.0f);
-					}
-				}
-
-				//Load vertex uv data
-				{
-					uint64_t accessor_index = prim.findAttribute("TEXCOORD_0")->second;
-					Accessor& accessor = asset->accessors[accessor_index];
-					uvs.reserve(2 * accessor.count);
-					auto iterator = fastgltf::iterateAccessor<hlslpp::float2>(asset.get(), accessor);
-					for (auto it = iterator.begin(); it != iterator.end(); ++it) {
-						hlslpp::float2 p = *it;
-						uvs.emplace_back(p[0]);
-						uvs.emplace_back(p[1]);
-					}
-				}
-				
-				//Loading index data
-				{
-					uint64_t idx = prim.indicesAccessor.value();
-					Accessor& accessor = asset->accessors[idx];
-					indices.reserve(accessor.count);
-					auto iterator = fastgltf::iterateAccessor<uint16_t>(asset.get(), accessor);
-					for (auto it = iterator.begin(); it != iterator.end(); ++it) {
-						uint16_t p = *it;
-						indices.emplace_back(p);
-					}
-				}
-
-				//Load material
-				if (prim.materialIndex.has_value()) {
-					fastgltf::Material& mat = asset->materials[prim.materialIndex.value()];
-					PBRData& pbr = mat.pbrData;
-					
-					//Load base color texture
-					if (pbr.baseColorTexture.has_value()) {
-						TextureInfo& info = pbr.baseColorTexture.value();
-						Texture& tex = asset->textures[info.textureIndex];
-						Image& im = asset->images[tex.imageIndex.value()];
-
-						const sources::BufferView* data_ptr = std::get_if<sources::BufferView>(&im.data);
-						ASSERT_OR_CRASH(data_ptr != nullptr, true);
-						ASSERT_OR_CRASH(data_ptr->mimeType == MimeType::JPEG || data_ptr->mimeType == MimeType::PNG, true);
-
-						fastgltf::BufferView& bv = asset->bufferViews[data_ptr->bufferViewIndex];
-						fastgltf::Buffer& buffer = asset->buffers[bv.bufferIndex];
-
-						const sources::ByteView* arr = std::get_if<sources::ByteView>(&buffer.data);
-						ASSERT_OR_CRASH(arr != nullptr, true);
-
-						std::vector<uint8_t> image_bytes_copy;
-						image_bytes_copy.resize(bv.byteLength);
-						memcpy(image_bytes_copy.data(), arr->bytes.data() + bv.byteOffset, bv.byteLength);
-						
-						CompressedImage image = { .bytes = image_bytes_copy};
-						uint64_t batch_id = vgd.load_compressed_images({image}, {VK_FORMAT_R8G8B8A8_SRGB});
-
-						hlslpp::float4 base_color;
-						base_color[0] = pbr.baseColorFactor[0];
-						base_color[1] = pbr.baseColorFactor[1];
-						base_color[2] = pbr.baseColorFactor[2];
-						base_color[3] = pbr.baseColorFactor[3];
-
-						boombox_material = renderer.push_material(batch_id, ImmutableSamplers::STANDARD, base_color);
-
-						printf("Loading image \"%s\"\n", im.name.c_str());
-					}
-				}
-
-				break;
-			}
-		}
-
-		//Upload extracted data to GPU
-		boombox_mesh = renderer.push_vertex_positions(std::span(positions));
-		renderer.push_vertex_uvs(boombox_mesh, std::span(uvs));
-		renderer.push_indices16(boombox_mesh, std::span(indices));
+		GLBData boombox_glb = load_ps1_glb(std::filesystem::path("models/BoomBox.glb"));
+		CompressedImage image = { .bytes = boombox_glb.image_bytes};
+		uint64_t batch_id = vgd.load_compressed_images({image}, {VK_FORMAT_R8G8B8A8_SRGB});
+		boombox_material = renderer.push_material(batch_id, ImmutableSamplers::STANDARD, boombox_glb.base_color);
+		boombox_mesh = renderer.push_vertex_positions(std::span(boombox_glb.positions));
+		renderer.push_vertex_uvs(boombox_mesh, std::span(boombox_glb.uvs));
+		renderer.push_indices16(boombox_mesh, std::span(boombox_glb.indices));
 	}
-	app_timer.print("Loaded glTF");
+	app_timer.print("Loaded glbs");
 	app_timer.start();
 
     //Create main camera
@@ -418,7 +477,7 @@ int main(int argc, char* argv[]) {
 			ImGui::NewFrame();
 		}
 		
-		//float time = (float)app_timer.check() * 1.5f / 1000.0f;
+		float time = (float)app_timer.check() / 1000.0f;
 
 		//Move camera
 		{
@@ -541,15 +600,48 @@ int main(int argc, char* argv[]) {
 			renderer.ps1_draw(plane_mesh_key, miyamoto_material_key, std::span(mats));
 		}
 
+		for (uint32_t i = 0; i < glb_drawables.size(); i++) {
+			Drawable& d = glb_drawables[i];
+			
+			hlslpp::float4x4 mat(
+				1.0f, 0.0f, 0.0f, 10.0f * (float)i,
+				0.0f, 1.0f, 0.0f, 30.0f,
+				0.0f, 0.0f, 1.0f, 50.0f,
+				0.0f, 0.0f, 0.0f, 1.0f
+			);
+
+			float pitch = time;
+			float cospitch = cosf(pitch);
+			float sinpitch = sinf(pitch);
+			hlslpp::float4x4 pitch_matrix(
+				1.0, 0.0, 0.0, 0.0,
+				0.0, cospitch, -sinpitch, 0.0,
+				0.0, sinpitch, cospitch, 0.0,
+				0.0, 0.0, 0.0, 1.0
+			);
+
+			InstanceData mats[] = {hlslpp::mul(mat, pitch_matrix)};
+			renderer.ps1_draw(d.mesh, d.material, std::span(mats));
+		}
+
 		//Draw boombox on floor
 		{
 			hlslpp::float4x4 mat(
-				1.0, 0.0, 0.0, 0.0,
-				0.0, 1.0, 0.0, 0.0,
-				0.0, 0.0, 1.0, 0.0,
+				10.0, 0.0, 0.0, 100.0,
+				0.0, 10.0, 0.0, 0.0,
+				0.0, 0.0, 10.0, 0.0,
 				0.0, 0.0, 0.0, 1.0	
 			);
-			InstanceData mats[] = {mat};
+
+			float cosyaw = cosf(-1.5f * time);
+			float sinyaw = sinf(-1.5f * time);
+			hlslpp::float4x4 yaw_matrix(
+				cosyaw, -sinyaw, 0.0, 0.0,
+				sinyaw, cosyaw, 0.0, 0.0,
+				0.0, 0.0, 1.0, 0.0,
+				0.0, 0.0, 0.0, 1.0
+			);
+			InstanceData mats[] = {hlslpp::mul(yaw_matrix, mat)};
 			renderer.ps1_draw(boombox_mesh, boombox_material, std::span(mats));
 		}
 
@@ -559,8 +651,7 @@ int main(int argc, char* argv[]) {
 		{
 			using namespace hlslpp;
 
-			//static int number = 1000;
-			static int number = 1;
+			static int number = 1000;
 
 			std::vector<InstanceData> tforms;
 			tforms.reserve(number);
