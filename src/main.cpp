@@ -70,9 +70,6 @@ GLBData load_glb(const std::filesystem::path& glb_path) {
 	data.loadFromFile(glb_path);
 	Expected<Asset> asset = parser.loadGltfBinary(&data, glb_path.parent_path());
 
-	printf("Printing node names in \"%s\" ...\n", glb_path.string().c_str());
-
-
 	std::vector<GLBPrimitive> primitives;
 	for (Node& node : asset->nodes) {
 		std::vector<float> positions;
@@ -92,7 +89,6 @@ GLBData load_glb(const std::filesystem::path& glb_path) {
 			for (Primitive& prim : mesh.primitives) {
 				bool has_color = false;
 				for (auto& a : prim.attributes) {
-					printf("%s\n", a.first.c_str());
 					if (a.first == "COLOR_0") {
 						has_color = true;
 					}
@@ -316,7 +312,9 @@ int main(int argc, char* argv[]) {
 		"models/Box.glb",
 		"models/totoro_backup.glb",
 		"models/BoomBox.glb",
-		"models/WaterBottle.glb"
+		"models/spyro2.glb",
+		"models/WaterBottle.glb",
+		//"models/bistro.glb",
 	};
 	std::vector<DrawPrimitive> glb_drawables;
 	for (auto& path : glb_paths) {
@@ -347,19 +345,6 @@ int main(int argc, char* argv[]) {
 			.material = material
 		});
 	}
-
-	// Key<BufferView> boombox_mesh;
-	// Key<Material> boombox_material;
-	// {
-	// 	GLBData boombox_glb = load_glb(std::filesystem::path("models/BoomBox.glb"));
-	// 	GLBPrimitive& prim = boombox_glb.primitives[0];
-	// 	CompressedImage image = { .bytes = prim.color_image_bytes};
-	// 	uint64_t batch_id = vgd.load_compressed_images({image}, {VK_FORMAT_R8G8B8A8_SRGB});
-	// 	boombox_material = renderer.push_material(batch_id, ImmutableSamplers::STANDARD, prim.base_color);
-	// 	boombox_mesh = renderer.push_vertex_positions(std::span(prim.positions));
-	// 	renderer.push_vertex_uvs(boombox_mesh, std::span(prim.uvs));
-	// 	renderer.push_indices16(boombox_mesh, std::span(prim.indices));
-	// }
 	app_timer.print("Loaded glbs");
 	app_timer.start();
 
