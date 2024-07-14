@@ -119,6 +119,9 @@ struct VulkanRenderer {
 	uint32_t standard_sampler_idx;
 	uint32_t point_sampler_idx;
 
+	uint64_t default_textures_batch_id;
+	uint32_t default_color_idx;
+
 	uint64_t get_current_frame();
 
 	//Called to ensure CPU doesn't get too far ahead of the current frames in flight

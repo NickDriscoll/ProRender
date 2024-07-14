@@ -35,26 +35,6 @@ ImguiRenderer::ImguiRenderer(
 			VK_FORMAT_R8G8B8A8_UNORM
 		};
 		atlas_batch_id = vgd->load_raw_images(images, formats);
-
-		VkSemaphoreWaitInfo info = {};
-		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-		info.semaphoreCount = 1;
-		info.pSemaphores = vgd->get_semaphore(vgd->image_upload_semaphore);
-		info.pValues = &atlas_batch_id;
-		VKASSERT_OR_CRASH(vkWaitSemaphores(vgd->device, &info, U64_MAX));
-		io.Fonts->ClearTexData();
-	
-		uint32_t tex_index = 0;
-		for (auto it = vgd->bindless_images.begin(); it != vgd->bindless_images.end(); ++it) {
-			VulkanBindlessImage image = *it;
-			if (atlas_batch_id == image.batch_id) {
-				tex_index = it.slot_index();
-				break;
-			}
-		}
-
-		atlas_idx = tex_index;
-		io.Fonts->SetTexID((ImTextureID)(uint64_t)tex_index);
 	}
 
     //Allocate memory for ImGUI vertex data
@@ -109,14 +89,11 @@ ImguiRenderer::~ImguiRenderer() {
 }
 
 void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
+	ImGui::Render();
+
 	//Check if font atlas is available
 	if (atlas_idx == std::numeric_limits<uint32_t>::max()) {
-		VkSemaphoreWaitInfo info = {};
-		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-		info.semaphoreCount = 1;
-		info.pSemaphores = vgd->get_semaphore(vgd->image_upload_semaphore);
-		info.pValues = &atlas_batch_id;
-		VKASSERT_OR_CRASH(vkWaitSemaphores(vgd->device, &info, U64_MAX));
+		if (atlas_batch_id > vgd->completed_image_batches()) return;
 		
     	ImGuiIO& io = ImGui::GetIO();
 	
@@ -128,12 +105,11 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 				break;
 			}
 		}
-
-		if (tex_index == std::numeric_limits<uint32_t>::max()) return;
+		ASSERT_OR_CRASH(tex_index != std::numeric_limits<uint32_t>::max(), true);
 
 		atlas_idx = tex_index;
 		io.Fonts->SetTexID((ImTextureID)(uint64_t)tex_index);
-		//io.Fonts->ClearTexData();
+		io.Fonts->ClearTexData();
 	}
 
 	//Upload ImGUI triangle data and record ImGUI draw commands
@@ -143,7 +119,6 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 	ImguiFrame& current_frame = frames[frame_slot];
 	ImguiFrame& last_frame = frames[last_frame_slot];
 
-	ImGui::Render();
 	ImDrawData* draw_data = ImGui::GetDrawData();
 
 	//TODO: This local offset logic might only hold when FRAMES_IN_FLIGHT == 2

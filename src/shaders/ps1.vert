@@ -27,10 +27,10 @@ Ps1VertexOutput main(uint vtx_id : SV_VertexID, uint inst_idx : SV_INSTANCEID) {
     float4x4 view_matrix = vk::RawBufferLoad<float4x4>(cam_baseaddr);
     float4x4 projection_matrix = vk::RawBufferLoad<float4x4>(cam_baseaddr + sizeof(Camera) * pc.camera_idx + sizeof(float4x4));
 
-    float4 world_pos = mul(world_matrix, pos);
 
     Ps1VertexOutput output;
-    output.position = mul(projection_matrix, mul(view_matrix, world_pos));
+    output.world_position = mul(world_matrix, pos);
+    output.position = mul(projection_matrix, mul(view_matrix, output.world_position));
     output.uv = uv;
     output.instance_idx = inst_idx;
 

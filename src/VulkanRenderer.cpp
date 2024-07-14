@@ -100,6 +100,26 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
         frame_uniforms.meshes_addr = vgd->buffer_device_address(_mesh_buffer);
     }
 
+    //Create default textures
+    {
+        uint8_t color_bytes[] = {0xFF, 0xFF, 0xFF, 0xFF};
+		RawImage im = {
+			.width = (uint32_t)1,
+			.height = (uint32_t)1,
+			.data = color_bytes
+		};
+
+		std::vector<RawImage> images = std::vector<RawImage>{
+			im
+		};
+		std::vector<VkFormat> formats = std::vector<VkFormat>{
+			VK_FORMAT_R8G8B8A8_UNORM
+		};
+		default_textures_batch_id = vgd->load_raw_images(images, formats);
+        
+        default_color_idx = std::numeric_limits<uint32_t>::max();
+    }
+
     //Create hardcoded graphics pipelines
 	{
         
@@ -272,6 +292,10 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
                 printf("\n");
             }
             assert(mat.texture_indices[0] != std::numeric_limits<uint32_t>::max());
+        } else {
+            if (default_color_idx == std::numeric_limits<uint32_t>::max()) return;
+            //Material doesn't have textures, so use defaults
+            mat.texture_indices[0] = default_color_idx;
         }
 
         gpu_mat_key = _gpu_materials.insert(mat);
@@ -327,6 +351,17 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
 //Synchronizes CPU and GPU buffers, then
 //records and submits all rendering commands in one command buffer
 void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebuffer, SyncData& sync_data) {
+    if (default_color_idx == std::numeric_limits<uint32_t>::max()) {
+		if (default_textures_batch_id > vgd->completed_image_batches()) return;
+
+        for (auto it = vgd->bindless_images.begin(); it != vgd->bindless_images.end(); ++it) {
+            VulkanBindlessImage& image = *it;
+            if (image.batch_id == default_textures_batch_id) {
+                default_color_idx = it.slot_index();
+                break;
+            }
+        }
+    }
 
     //Upload material buffer if it changed
     if (_material_dirty_flag) {
