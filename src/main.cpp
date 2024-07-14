@@ -330,6 +330,12 @@ int main(int argc, char* argv[]) {
 		printf("Base color: (%f, %f, %f, %f)\n", prim.base_color[0], prim.base_color[1], prim.base_color[2], prim.base_color[3]);
 		mesh = renderer.push_vertex_positions(std::span(prim.positions));
 		renderer.push_vertex_uvs(mesh, std::span(prim.uvs));
+
+		if (prim.colors.size() > 0)
+		{
+			renderer.push_vertex_colors(mesh, std::span(prim.colors));
+		}
+
 		renderer.push_indices16(mesh, std::span(prim.indices));
 		glb_drawables.push_back({
 			.mesh = mesh,

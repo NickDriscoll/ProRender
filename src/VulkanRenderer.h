@@ -22,6 +22,7 @@ struct RenderPushConstants {
 
 struct FrameUniforms {
 	uint64_t positions_addr;
+	uint64_t colors_addr;
 	uint64_t uvs_addr;
 	uint64_t cameras_addr;
 	uint64_t meshes_addr;
@@ -46,6 +47,7 @@ struct GPUCamera {
 struct GPUMesh {
 	uint32_t position_start;
 	uint32_t uv_start;
+	uint32_t color_start;
 };
 
 #define MAX_MATERIAL_TEXTURES 8
@@ -99,6 +101,8 @@ struct VulkanRenderer {
 	//Vertex buffers
 	uint32_t vertex_position_offset = 0;
 	Key<VulkanBuffer> vertex_position_buffer;
+	uint32_t vertex_color_offset = 0;
+	Key<VulkanBuffer> vertex_color_buffer;
 	uint32_t vertex_uv_offset = 0;
 	Key<VulkanBuffer> vertex_uv_buffer;
 
@@ -108,6 +112,8 @@ struct VulkanRenderer {
 
 	Key<BufferView> push_vertex_positions(std::span<float> data);
 	BufferView* get_vertex_positions(Key<BufferView> key);
+	Key<MeshAttribute> push_vertex_colors(Key<BufferView> position_key, std::span<float> data);
+	BufferView* get_vertex_colors(Key<BufferView> key);
 	Key<MeshAttribute> push_vertex_uvs(Key<BufferView> position_key, std::span<float> data);
 	BufferView* get_vertex_uvs(Key<BufferView> key);
 	Key<MeshAttribute> push_indices16(Key<BufferView> position_key, std::span<uint16_t> data);
@@ -139,6 +145,7 @@ struct VulkanRenderer {
 private:
 	slotmap<BufferView> _position_buffers;
 	slotmap<MeshAttribute> _uv_buffers;
+	slotmap<MeshAttribute> _color_buffers;
 	slotmap<MeshAttribute> _index16_buffers;
 	slotmap<Material> _materials;
 	std::vector<VkSampler> _samplers;

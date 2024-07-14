@@ -1,8 +1,13 @@
 #define POSITION_BLOCK_SIZE 4
+#define COLOR_BLOCK_SIZE 4
 #define UV_BLOCK_SIZE 8
 
 struct VertexPositionBlock {
     float4 positions[POSITION_BLOCK_SIZE];
+};
+
+struct VertexColorBlock {
+    float4 colors[COLOR_BLOCK_SIZE];
 };
 
 struct VertexUvBlock {
@@ -12,4 +17,5 @@ struct VertexUvBlock {
 struct GPUMesh {
     uint position_start;
     uint uv_start;
+    uint color_start;
 };

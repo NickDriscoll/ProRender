@@ -51,6 +51,7 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
 
     cameras.alloc(MAX_CAMERAS);
     _position_buffers.alloc(MAX_VERTEX_ATTRIBS);
+    _color_buffers.alloc(MAX_VERTEX_ATTRIBS);
     _uv_buffers.alloc(MAX_VERTEX_ATTRIBS);
     _index16_buffers.alloc(MAX_VERTEX_ATTRIBS);
     _materials.alloc(MAX_MATERIALS);
@@ -68,10 +69,12 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
 
         VkDeviceSize buffer_size = 1024 * 1024;
         vertex_position_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, alloc_info);
-        vertex_uv_buffer = vgd->create_buffer(2 * buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, alloc_info);
+        vertex_color_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, alloc_info);
+        vertex_uv_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, alloc_info);
         
         //Cache buffer devices addresses
         frame_uniforms.positions_addr = vgd->buffer_device_address(vertex_position_buffer);
+        frame_uniforms.colors_addr = vgd->buffer_device_address(vertex_color_buffer);
         frame_uniforms.uvs_addr = vgd->buffer_device_address(vertex_uv_buffer);
         
         index_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, alloc_info);
@@ -165,6 +168,39 @@ Key<BufferView> VulkanRenderer::push_vertex_positions(std::span<float> data) {
 
 BufferView* VulkanRenderer::get_vertex_positions(Key<BufferView> key) {
     return _position_buffers.get(key);
+}
+
+Key<MeshAttribute> VulkanRenderer::push_vertex_colors(Key<BufferView> position_key, std::span<float> data) {
+    VulkanBuffer* buffer = vgd->get_buffer(vertex_color_buffer);
+    float* ptr = (float*)buffer->alloc_info.pMappedData;
+    ptr += vertex_color_offset;
+    memcpy(ptr, data.data(), data.size_bytes());
+
+    BufferView b = {
+        .start = vertex_color_offset,
+        .length = (uint32_t)data.size()
+    };
+
+    vertex_color_offset += (uint32_t)data.size();
+
+    MeshAttribute a = {
+        .position_key = position_key,
+        .view = b
+    };
+    return _color_buffers.insert(a);
+}
+
+BufferView* VulkanRenderer::get_vertex_colors(Key<BufferView> key) {
+
+    BufferView* result = nullptr;
+    for (MeshAttribute& att : _color_buffers) {
+        if (att.position_key.value() == key.value()) {
+            result = &att.view;
+            break;
+        }
+    }
+
+    return result;
 }
 
 Key<MeshAttribute> VulkanRenderer::push_vertex_uvs(Key<BufferView> position_key, std::span<float> data) {
@@ -311,15 +347,20 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
         _mesh_dirty_flag = true;
         BufferView* position_data = _position_buffers.get(mesh_key);
         BufferView* uv_data = get_vertex_uvs(mesh_key);
+        BufferView* color_data = get_vertex_colors(mesh_key);
 
         if (position_data == nullptr) return;
 
-        uint32_t uv_start = 0;
+        uint32_t uv_start = 0xFFFFFFFF;
         if (uv_data != nullptr) uv_start = uv_data->start;
+
+        uint32_t color_start = 0xFFFFFFFF;
+        if (color_data != nullptr) color_start = color_data->start;
 
         GPUMesh g_mesh = {
             .position_start = position_data->start,
-            .uv_start = uv_start
+            .uv_start = uv_start,
+            .color_start = color_start
         };
         gpu_mesh_key = _gpu_meshes.insert(g_mesh);
         _mesh_map.insert(std::pair(mesh_key.value(), gpu_mesh_key.value()));
@@ -534,6 +575,7 @@ VulkanRenderer::~VulkanRenderer() {
     vgd->destroy_buffer(_material_buffer);
     vgd->destroy_buffer(camera_buffer);
     vgd->destroy_buffer(frame_uniforms_buffer);
+    vgd->destroy_buffer(vertex_color_buffer);
     vgd->destroy_buffer(vertex_position_buffer);
     vgd->destroy_buffer(vertex_uv_buffer);
     vgd->destroy_buffer(index_buffer);
