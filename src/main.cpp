@@ -41,7 +41,7 @@ struct fastgltf::ElementTraits<hlslpp::float2> : fastgltf::ElementTraitsBase<hls
 template <>
 struct fastgltf::ElementTraits<hlslpp::float3> : fastgltf::ElementTraitsBase<hlslpp::float3, AccessorType::Vec3, float> {};
 
-struct Drawable {
+struct DrawPrimitive {
 	Key<BufferView> mesh;
 	Key<Material> material;
 };
@@ -59,6 +59,7 @@ struct GLBPrimitive {
 //Data extracted from a .glb file, ready to be ingested by a renderer
 struct GLBData {
 	std::vector<GLBPrimitive> primitives;
+	std::vector<uint16_t> prim_parents;
 };
 
 GLBData load_glb(const std::filesystem::path& glb_path) {
@@ -310,10 +311,14 @@ int main(int argc, char* argv[]) {
 
 	//Load something from a glTF
 	std::filesystem::path glb_paths[] ={
-		"models/Duck.glb",
+		//"models/Duck.glb",
+		"models/Lantern.glb",
 		"models/Box.glb",
+		"models/totoro_backup.glb",
+		"models/BoomBox.glb",
+		"models/WaterBottle.glb"
 	};
-	std::vector<Drawable> glb_drawables;
+	std::vector<DrawPrimitive> glb_drawables;
 	for (auto& path : glb_paths) {
 		Key<BufferView> mesh;
 		Key<Material> material;
@@ -343,18 +348,18 @@ int main(int argc, char* argv[]) {
 		});
 	}
 
-	Key<BufferView> boombox_mesh;
-	Key<Material> boombox_material;
-	{
-		GLBData boombox_glb = load_glb(std::filesystem::path("models/BoomBox.glb"));
-		GLBPrimitive& prim = boombox_glb.primitives[0];
-		CompressedImage image = { .bytes = prim.color_image_bytes};
-		uint64_t batch_id = vgd.load_compressed_images({image}, {VK_FORMAT_R8G8B8A8_SRGB});
-		boombox_material = renderer.push_material(batch_id, ImmutableSamplers::STANDARD, prim.base_color);
-		boombox_mesh = renderer.push_vertex_positions(std::span(prim.positions));
-		renderer.push_vertex_uvs(boombox_mesh, std::span(prim.uvs));
-		renderer.push_indices16(boombox_mesh, std::span(prim.indices));
-	}
+	// Key<BufferView> boombox_mesh;
+	// Key<Material> boombox_material;
+	// {
+	// 	GLBData boombox_glb = load_glb(std::filesystem::path("models/BoomBox.glb"));
+	// 	GLBPrimitive& prim = boombox_glb.primitives[0];
+	// 	CompressedImage image = { .bytes = prim.color_image_bytes};
+	// 	uint64_t batch_id = vgd.load_compressed_images({image}, {VK_FORMAT_R8G8B8A8_SRGB});
+	// 	boombox_material = renderer.push_material(batch_id, ImmutableSamplers::STANDARD, prim.base_color);
+	// 	boombox_mesh = renderer.push_vertex_positions(std::span(prim.positions));
+	// 	renderer.push_vertex_uvs(boombox_mesh, std::span(prim.uvs));
+	// 	renderer.push_indices16(boombox_mesh, std::span(prim.indices));
+	// }
 	app_timer.print("Loaded glbs");
 	app_timer.start();
 
@@ -382,6 +387,7 @@ int main(int argc, char* argv[]) {
 
 	bool do_imgui = true;
 	bool frame_advance = false;
+	float timescale = 1.0;
 
 	init_timer.print("App init");
 	
@@ -390,9 +396,11 @@ int main(int argc, char* argv[]) {
 	uint64_t current_tick = 0;
 	double last_frame_took = 0.0001;
 	while (running) {
+		static uint64_t current_frame = 0;
 		Timer frame_timer;
 		frame_timer.start();
 		float delta_time = (float)(last_frame_took / 1000.0);
+		if (delta_time > 0.20f) delta_time = 0.20f;
 		
 		//The distance the mouse has moved on each axis
 		float mouse_motion_x = 0.0;
@@ -441,7 +449,7 @@ int main(int argc, char* argv[]) {
 						camera_boost = true;
 						break;
 					case SDLK_SPACE:
-						frame_advance = false;
+						frame_advance = !frame_advance;
 						break;
 					case SDLK_BACKSLASH:
 						do_update_and_render = true;
@@ -515,7 +523,7 @@ int main(int argc, char* argv[]) {
 		}
 		
 		if (do_update_and_render) {
-			float simulation_time = (float)app_timer.check() / 1000.0f;
+			float simulation_time = timescale * (float)app_timer.check() / 1000.0f;
 			ImGui::NewFrame();
 
 			//Move camera
@@ -567,11 +575,13 @@ int main(int argc, char* argv[]) {
 					ImGui::ShowDemoWindow(&show_demo);
 
 				{
+					ImGui::Text("Frame number: %i", current_frame);
 					Camera* camera = renderer.cameras.get(main_viewport_camera);
 					ImGui::Text("Camera position: (%f, %f, %f)", camera->position[0], camera->position[1], camera->position[2]);
 					ImGui::Text("Camera pitch: %f", camera->pitch);
 					ImGui::Text("Camera yaw: %f", camera->yaw);
 					ImGui::Text("Camera roll: %f", camera->roll);
+					ImGui::SliderFloat("Timescale", &timescale, 0.0, 2.0);
 				}
 
 				ImGuiWindowFlags window_flags = 0;
@@ -640,48 +650,18 @@ int main(int argc, char* argv[]) {
 			}
 
 			for (uint32_t i = 0; i < glb_drawables.size(); i++) {
-				Drawable& d = glb_drawables[i];
+				DrawPrimitive& d = glb_drawables[i];
 				
-				hlslpp::float3 scale;
-				scale[0] = 0.25f;
-				scale[1] = 0.25f;
-				scale[2] = 0.25f;
-				hlslpp::float4x4 mat(
-					scale[0], 0.0f, 0.0f, 30.0f * (float)i,
-					0.0f, scale[1], 0.0f, 30.0f,
-					0.0f, 0.0f, scale[2], 50.0f,
+				hlslpp::float3 scale = {1.0, 1.0, 1.0};
+				hlslpp::float4x4 scale_mat(
+					scale[0], 0.0f, 0.0f, 1.0f,
+					0.0f, scale[1], 0.0f, 1.0f,
+					0.0f, 0.0f, scale[2], 1.0f,
 					0.0f, 0.0f, 0.0f, 1.0f
 				);
-
-				// float pitch = simulation_time;
-				// float cospitch = cosf(pitch);
-				// float sinpitch = sinf(pitch);
-				// hlslpp::float4x4 pitch_matrix(
-				// 	1.0, 0.0, 0.0, 0.0,
-				// 	0.0, cospitch, -sinpitch, 0.0,
-				// 	0.0, sinpitch, cospitch, 0.0,
-				// 	0.0, 0.0, 0.0, 1.0
-				// );
-
 				
-				float yaw = simulation_time;
-				float cosyaw = cosf(yaw);
-				float sinyaw = sinf(yaw);
-				hlslpp::float4x4 yaw_matrix(
-					cosyaw, -sinyaw, 0.0, 0.0,
-					sinyaw, cosyaw, 0.0, 0.0,
-					0.0, 0.0, 1.0, 0.0,
-					0.0, 0.0, 0.0, 1.0
-				);
-
-				InstanceData mats[] = {hlslpp::mul(mat, yaw_matrix)};
-				renderer.ps1_draw(d.mesh, d.material, std::span(mats));
-			}
-
-			//Draw boombox on floor
-			{
 				hlslpp::float4x4 mat(
-					10.0, 0.0, 0.0, 100.0,
+					10.0, 0.0, 0.0, (50.0f * i),
 					0.0, 10.0, 0.0, 0.0,
 					0.0, 0.0, 10.0, 0.0,
 					0.0, 0.0, 0.0, 1.0	
@@ -695,8 +675,8 @@ int main(int argc, char* argv[]) {
 					0.0, 0.0, 1.0, 0.0,
 					0.0, 0.0, 0.0, 1.0
 				);
-				InstanceData mats[] = {hlslpp::mul(yaw_matrix, mat)};
-				renderer.ps1_draw(boombox_mesh, boombox_material, std::span(mats));
+				InstanceData mats[] = {hlslpp::mul(yaw_matrix, hlslpp::mul(mat, scale_mat))};
+				renderer.ps1_draw(d.mesh, d.material, std::span(mats));
 			}
 
 			//Queue the static plane to be drawn
@@ -765,7 +745,6 @@ int main(int argc, char* argv[]) {
 
 			//Draw
 			{
-				static uint64_t current_frame = 0;
 				VkCommandBuffer frame_cb = vgd.get_graphics_command_buffer();
 				
 				renderer.cpu_sync();

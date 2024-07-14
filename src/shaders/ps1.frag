@@ -16,7 +16,8 @@ float4 main(Ps1VertexOutput in_vtx) : SV_Target0 {
     uint sampler_idx = vk::RawBufferLoad<uint>(material_baseaddr + sizeof(GPUMaterial) * material_idx + sizeof(float4) + sizeof(uint) * MAX_MATERIAL_TEXTURES);
     
     float4 color_sample = sampled_images[tex_idx].Sample(samplers[sampler_idx], in_vtx.uv);
-    float light_attenuation = max(0.01, dot(normalize(in_vtx.world_position), HARDCODED_LIGHT));
+    //float light_attenuation = max(0.01, dot(normalize(in_vtx.world_position), HARDCODED_LIGHT));
+    float light_attenuation = 1.0;
 
     float4 v_col = in_vtx.color;
     return base_color * v_col * float4(light_attenuation * color_sample.rgb, 1.0);

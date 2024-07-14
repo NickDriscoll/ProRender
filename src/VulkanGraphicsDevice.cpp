@@ -661,22 +661,22 @@ void VulkanGraphicsDevice::graphics_queue_submit(VkCommandBuffer cb, SyncData& s
 		ts_info.signalSemaphoreValueCount = signal_count;
 		ts_info.pSignalSemaphoreValues = sync_data.signal_values.data();
 
-		printf("\nNew call to graphics_queue_submit.\n");
-		for (uint32_t i = 0; i < wait_count; ++i) {
-			if (sync_data.wait_values[i] == 0) {
-				printf("Waiting on binary semaphore.\n");
-			} else {
-				printf("Waiting on timeline semaphore with value %i.\n", (int)sync_data.wait_values[i]);
-			}
-		}
+		// printf("\nNew call to graphics_queue_submit.\n");
+		// for (uint32_t i = 0; i < wait_count; ++i) {
+		// 	if (sync_data.wait_values[i] == 0) {
+		// 		printf("Waiting on binary semaphore.\n");
+		// 	} else {
+		// 		printf("Waiting on timeline semaphore with value %i.\n", (int)sync_data.wait_values[i]);
+		// 	}
+		// }
 
-		for (uint32_t i = 0; i < signal_count; ++i) {
-			if (sync_data.signal_values[i] == 0) {
-				printf("Signalling binary semaphore.\n");
-			} else {
-				printf("Signalling timeline semaphore with value %i.\n", (int)sync_data.signal_values[i]);
-			}
-		}
+		// for (uint32_t i = 0; i < signal_count; ++i) {
+		// 	if (sync_data.signal_values[i] == 0) {
+		// 		printf("Signalling binary semaphore.\n");
+		// 	} else {
+		// 		printf("Signalling timeline semaphore with value %i.\n", (int)sync_data.signal_values[i]);
+		// 	}
+		// }
 
 		//TODO: Reevaluate this line
 		VkPipelineStageFlags wait_flags[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
