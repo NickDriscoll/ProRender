@@ -103,26 +103,6 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
         frame_uniforms.meshes_addr = vgd->buffer_device_address(_mesh_buffer);
     }
 
-    //Create default textures
-    {
-        uint8_t color_bytes[] = {0xFF, 0xFF, 0xFF, 0xFF};
-		RawImage im = {
-			.width = (uint32_t)1,
-			.height = (uint32_t)1,
-			.data = color_bytes
-		};
-
-		std::vector<RawImage> images = std::vector<RawImage>{
-			im
-		};
-		std::vector<VkFormat> formats = std::vector<VkFormat>{
-			VK_FORMAT_R8G8B8A8_UNORM
-		};
-		default_textures_batch_id = vgd->load_raw_images(images, formats);
-        
-        default_color_idx = std::numeric_limits<uint32_t>::max();
-    }
-
     //Create hardcoded graphics pipelines
 	{
         
@@ -293,13 +273,14 @@ uint64_t VulkanRenderer::get_current_frame() {
 void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_key, const std::span<InstanceData>& instance_datas) {
     Material* material = _materials.get(material_key);
     if (material->batch_id > vgd->completed_image_batches()) return;     //Early exit if material's batch hasn't completed
-    {
-        static int last_seen = 0;
-        if (material->batch_id > last_seen) {
-            last_seen = (int)material->batch_id;
-            printf("Saw material with batch id %i with bindless_images having %i images..\n", (int)material->batch_id, (int)vgd->bindless_images.count());
-        }
-    }
+    
+    // {
+    //     static int last_seen = 0;
+    //     if (material->batch_id > last_seen) {
+    //         last_seen = (int)material->batch_id;
+    //         printf("Saw material with batch id %i with bindless_images having %i images..\n", (int)material->batch_id, (int)vgd->bindless_images.count());
+    //     }
+    // }
 
     //Check if this material's images have already been loaded
     Key<GPUMaterial> gpu_mat_key;
@@ -307,7 +288,7 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
         //If yes, reuse that data
         gpu_mat_key = _material_map[material_key.value()];
     } else {
-        printf("Drawing material that has not been loaded before from batch %i...\n", (int)material->batch_id);
+        //printf("Drawing material that has not been loaded before from batch %i...\n", (int)material->batch_id);
         //Otherwise we have to search for the image in the available images array
         //and upload its metadata to the GPU
         _material_dirty_flag = true;
@@ -319,19 +300,18 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
         if (material->batch_id > 0) {
             for (auto it = vgd->bindless_images.begin(); it != vgd->bindless_images.end(); ++it) {
                 VulkanBindlessImage& image = *it;
-                printf("Image batch id: %d\nMaterial batch id:%d\n", (int)image.batch_id, (int)material->batch_id);
+                //printf("Image batch id: %d\nMaterial batch id:%d\n", (int)image.batch_id, (int)material->batch_id);
                 if (image.batch_id == material->batch_id) {
                     mat.texture_indices[0] = it.slot_index();
-                    printf("Match!\n");
+                    //printf("Match!\n");
                     break;
                 }
-                printf("\n");
+                //printf("\n");
             }
             assert(mat.texture_indices[0] != std::numeric_limits<uint32_t>::max());
         } else {
-            if (default_color_idx == std::numeric_limits<uint32_t>::max()) return;
             //Material doesn't have textures, so use defaults
-            mat.texture_indices[0] = default_color_idx;
+            mat.texture_indices[0] = std::numeric_limits<uint32_t>::max();
         }
 
         gpu_mat_key = _gpu_materials.insert(mat);
@@ -378,32 +358,21 @@ void VulkanRenderer::ps1_draw(Key<BufferView> mesh_key, Key<Material> material_k
     }
 
     //Finally, record the actual indirect draw command
+    uint32_t in_flight_frame_slot = _current_frame % FRAMES_IN_FLIGHT;
     VkDrawIndexedIndirectCommand command = {
         .indexCount = index_data->length,
         .instanceCount = instance_count,
         .firstIndex = index_data->start,
         .vertexOffset = 0,
-        .firstInstance = _instances_so_far
+        .firstInstance = _instances_so_far + MAX_INSTANCES * in_flight_frame_slot
     };
     _instances_so_far += instance_count;
     _draw_calls.push_back(command);
 }
 
 //Synchronizes CPU and GPU buffers, then
-//records and submits all rendering commands in one command buffer
+//records and submits all rendering commands in frame_cb
 void VulkanRenderer::render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebuffer, SyncData& sync_data) {
-    if (default_color_idx == std::numeric_limits<uint32_t>::max()) {
-		if (default_textures_batch_id > vgd->completed_image_batches()) return;
-
-        for (auto it = vgd->bindless_images.begin(); it != vgd->bindless_images.end(); ++it) {
-            VulkanBindlessImage& image = *it;
-            if (image.batch_id == default_textures_batch_id) {
-                default_color_idx = it.slot_index();
-                break;
-            }
-        }
-    }
-
     //Upload material buffer if it changed
     if (_material_dirty_flag) {
         _material_dirty_flag = false;

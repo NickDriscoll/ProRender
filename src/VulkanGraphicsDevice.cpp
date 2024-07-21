@@ -1427,13 +1427,13 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb) {
 	}
 
 	uint64_t gpu_batches_processed = check_timeline_semaphore(image_upload_semaphore);
-	{
-		static int last_seen = 0;
-		if (gpu_batches_processed > last_seen) {
-			last_seen = (int)gpu_batches_processed;
-			printf("Saw batch %i with upload batch count of %i...\n", (int)gpu_batches_processed, (int)_image_upload_batches.count());
-		}
-	}
+	// {
+	// 	static int last_seen = 0;
+	// 	if (gpu_batches_processed > last_seen) {
+	// 		last_seen = (int)gpu_batches_processed;
+	// 		printf("Saw batch %i with upload batch count of %i...\n", (int)gpu_batches_processed, (int)_image_upload_batches.count());
+	// 	}
+	// }
 
 	//Descriptor update state
 	std::vector<VkDescriptorImageInfo> desc_infos;
@@ -1454,7 +1454,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb) {
 		for (auto pending_image_it = _pending_images.begin(); pending_image_it != _pending_images.end(); ++pending_image_it) {
 			VulkanPendingImage& pending_image = *pending_image_it;
 
-			printf("pending_image.batch_id == %i\nbatch.id == %i\n", (int)pending_image.batch_id, (int)batch.id);
+			//printf("pending_image.batch_id == %i\nbatch.id == %i\n", (int)pending_image.batch_id, (int)batch.id);
 			if (pending_image.batch_id == batch.id) {
 				//Record Graphics queue acquire ownership of the image
 				{
@@ -1649,7 +1649,7 @@ void VulkanGraphicsDevice::tick_image_uploads(VkCommandBuffer render_cb) {
 					
 					Key<VulkanBindlessImage> handle = bindless_images.insert(ava);
 					pending_images_to_delete.push_back(pending_image_it.slot_index());
-					printf("Pushed bindless image from batch %i into array\n", (int)batch.id);
+					//printf("Pushed bindless image from batch %i into array\n", (int)batch.id);
 
 					uint32_t descriptor_index = EXTRACT_IDX(handle.value());
 

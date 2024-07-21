@@ -46,6 +46,11 @@ struct DrawPrimitive {
 	Key<Material> material;
 };
 
+struct Ps1Object {
+	std::vector<DrawPrimitive> primitives;
+	std::vector<uint16_t> primitive_parents;
+};
+
 struct GLBPrimitive {
 	std::vector<float> positions;
 	std::vector<float> colors;
@@ -70,6 +75,7 @@ GLBData load_glb(const std::filesystem::path& glb_path) {
 	data.loadFromFile(glb_path);
 	Expected<Asset> asset = parser.loadGltfBinary(&data, glb_path.parent_path());
 
+	std::vector<size_t> seen_textures;
 	std::vector<GLBPrimitive> primitives;
 	for (Node& node : asset->nodes) {
 		std::vector<float> positions;
@@ -79,7 +85,6 @@ GLBData load_glb(const std::filesystem::path& glb_path) {
 		hlslpp::float4 base_color = {1.0, 1.0, 1.0, 1.0};
 		std::vector<uint8_t> image_bytes;
 		VkFormat image_format = VK_FORMAT_R8G8B8A8_UNORM;
-		printf("\t%s\n", node.name.c_str());
 
 		if (node.meshIndex.has_value()) {
 			size_t mesh_idx = node.meshIndex.value();
@@ -113,6 +118,7 @@ GLBData load_glb(const std::filesystem::path& glb_path) {
 				if (has_color) {
 					uint64_t accessor_index = prim.findAttribute("COLOR_0")->second;
 					Accessor& accessor = asset->accessors[accessor_index];
+					printf("GLB primitive has %i colors\n", (int)accessor.count);
 					colors.reserve(4 * accessor.count);
 					auto iterator = fastgltf::iterateAccessor<hlslpp::float3>(asset.get(), accessor);
 					for (auto it = iterator.begin(); it != iterator.end(); ++it) {
@@ -162,6 +168,9 @@ GLBData load_glb(const std::filesystem::path& glb_path) {
 					//Load base color texture
 					if (pbr.baseColorTexture.has_value()) {
 						TextureInfo& info = pbr.baseColorTexture.value();
+						// for (uint32_t i = 0; i < seen_textures.size(); ++i) {
+						// 	if (seen_textures[i] == info.textureIndex)
+						// }
 						Texture& tex = asset->textures[info.textureIndex];
 						Image& im = asset->images[tex.imageIndex.value()];
 
@@ -307,43 +316,49 @@ int main(int argc, char* argv[]) {
 
 	//Load something from a glTF
 	std::filesystem::path glb_paths[] ={
-		//"models/Duck.glb",
+		"models/WaterBottle.glb",
 		"models/Lantern.glb",
 		"models/Box.glb",
 		"models/totoro_backup.glb",
 		"models/BoomBox.glb",
 		"models/spyro2.glb",
-		"models/WaterBottle.glb",
-		//"models/bistro.glb",
+		//"models/samus.glb",
 	};
-	std::vector<DrawPrimitive> glb_drawables;
+	std::vector<Ps1Object> ps1_objects;
 	for (auto& path : glb_paths) {
 		Key<BufferView> mesh;
 		Key<Material> material;
 
 		GLBData ps1_glb = load_glb(path);
-		GLBPrimitive& prim = ps1_glb.primitives[0];
-		if (prim.color_image_bytes.size() > 0) {
-			CompressedImage image = { .bytes = prim.color_image_bytes};
-			uint64_t batch_id = vgd.load_compressed_images({image}, {VK_FORMAT_R8G8B8A8_SRGB});
-			material = renderer.push_material(batch_id, ImmutableSamplers::STANDARD, prim.base_color);
-		} else {
-			material = renderer.push_material(ImmutableSamplers::STANDARD, prim.base_color);		
-		}
-		printf("Base color: (%f, %f, %f, %f)\n", prim.base_color[0], prim.base_color[1], prim.base_color[2], prim.base_color[3]);
-		mesh = renderer.push_vertex_positions(std::span(prim.positions));
-		renderer.push_vertex_uvs(mesh, std::span(prim.uvs));
+		Ps1Object obj = {};
+		obj.primitive_parents = ps1_glb.prim_parents;
+		printf("GLB has %i primitives\n", (int)ps1_glb.primitives.size());
 
-		if (prim.colors.size() > 0)
-		{
-			renderer.push_vertex_colors(mesh, std::span(prim.colors));
-		}
+		for (GLBPrimitive& prim : ps1_glb.primitives) {
+			if (prim.color_image_bytes.size() > 0) {
+				CompressedImage image = { .bytes = prim.color_image_bytes};
+				uint64_t batch_id = vgd.load_compressed_images({image}, {VK_FORMAT_R8G8B8A8_SRGB});
+				material = renderer.push_material(batch_id, ImmutableSamplers::STANDARD, prim.base_color);
+			} else {
+				material = renderer.push_material(ImmutableSamplers::STANDARD, prim.base_color);		
+			}
+			mesh = renderer.push_vertex_positions(std::span(prim.positions));
+			renderer.push_vertex_uvs(mesh, std::span(prim.uvs));
 
-		renderer.push_indices16(mesh, std::span(prim.indices));
-		glb_drawables.push_back({
-			.mesh = mesh,
-			.material = material
-		});
+			if (prim.colors.size() > 0)
+			{
+				renderer.push_vertex_colors(mesh, std::span(prim.colors));
+			}
+
+			renderer.push_indices16(mesh, std::span(prim.indices));
+			
+			DrawPrimitive p = {
+				.mesh = mesh,
+				.material = material
+			};
+			obj.primitives.push_back(p);
+		}
+		ps1_objects.push_back(obj);
 	}
 	app_timer.print("Loaded glbs");
 	app_timer.start();
@@ -634,8 +649,8 @@ int main(int argc, char* argv[]) {
 				renderer.ps1_draw(plane_mesh_key, miyamoto_material_key, std::span(mats));
 			}
 
-			for (uint32_t i = 0; i < glb_drawables.size(); i++) {
-				DrawPrimitive& d = glb_drawables[i];
+			for (uint32_t i = 0; i < ps1_objects.size(); i++) {
+				Ps1Object& p = ps1_objects[i];
 				
 				hlslpp::float3 scale = {1.0, 1.0, 1.0};
 				hlslpp::float4x4 scale_mat(
@@ -661,7 +676,9 @@ int main(int argc, char* argv[]) {
 					0.0, 0.0, 0.0, 1.0
 				);
 				InstanceData mats[] = {hlslpp::mul(yaw_matrix, hlslpp::mul(mat, scale_mat))};
-				renderer.ps1_draw(d.mesh, d.material, std::span(mats));
+				for (DrawPrimitive& prim : p.primitives) {
+					renderer.ps1_draw(prim.mesh, prim.material, std::span(mats));
+				}
 			}
 
 			//Queue the static plane to be drawn
