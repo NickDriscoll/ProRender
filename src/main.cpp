@@ -51,20 +51,25 @@ struct Ps1Object {
 	std::vector<uint16_t> primitive_parents;
 };
 
+struct GLBMaterial {
+	hlslpp::float4 base_color;
+	std::vector<uint8_t> color_image_bytes;
+	VkFormat color_image_format;
+};
+
 struct GLBPrimitive {
 	std::vector<float> positions;
 	std::vector<float> colors;
 	std::vector<float> uvs;
 	std::vector<uint16_t> indices;
-	hlslpp::float4 base_color;
-	std::vector<uint8_t> color_image_bytes;
-	VkFormat color_format;
+	uint32_t material_idx;
 };
 
 //Data extracted from a .glb file, ready to be ingested by a renderer
 struct GLBData {
 	std::vector<GLBPrimitive> primitives;
 	std::vector<uint16_t> prim_parents;
+	std::vector<GLBMaterial> materials;
 };
 
 GLBData load_glb(const std::filesystem::path& glb_path) {
@@ -75,16 +80,49 @@ GLBData load_glb(const std::filesystem::path& glb_path) {
 	data.loadFromFile(glb_path);
 	Expected<Asset> asset = parser.loadGltfBinary(&data, glb_path.parent_path());
 
-	std::vector<size_t> seen_textures;
+	//Pull out all materials in the asset before walking the primitives of the mesh
+	std::vector<GLBMaterial> materials;
+	materials.reserve(asset->materials.size());
+	for (fastgltf::Material& mat : asset->materials) {
+		PBRData& pbr = mat.pbrData;
+
+		GLBMaterial material;
+		material.base_color[0] = pbr.baseColorFactor[0];
+		material.base_color[1] = pbr.baseColorFactor[1];
+		material.base_color[2] = pbr.baseColorFactor[2];
+		material.base_color[3] = pbr.baseColorFactor[3];
+		material.color_image_format = VK_FORMAT_R8G8B8A8_SRGB;
+		
+		//Load base color texture
+		if (pbr.baseColorTexture.has_value()) {
+			TextureInfo& info = pbr.baseColorTexture.value();
+			Texture& tex = asset->textures[info.textureIndex];
+			Image& im = asset->images[tex.imageIndex.value()];
+
+			const sources::BufferView* data_ptr = std::get_if<sources::BufferView>(&im.data);
+			PRORENDER_ASSERT(data_ptr != nullptr, true);
+			PRORENDER_ASSERT(data_ptr->mimeType == MimeType::JPEG || data_ptr->mimeType == MimeType::PNG, true);
+
+			fastgltf::BufferView& bv = asset->bufferViews[data_ptr->bufferViewIndex];
+			fastgltf::Buffer& buffer = asset->buffers[bv.bufferIndex];
+
+			const sources::ByteView* arr = std::get_if<sources::ByteView>(&buffer.data);
+			PRORENDER_ASSERT(arr != nullptr, true);
+
+			material.color_image_bytes.resize(bv.byteLength);
+			memcpy(material.color_image_bytes.data(), arr->bytes.data() + bv.byteOffset, bv.byteLength);
+
+			//printf("Loading image \"%s\"\n", im.name.c_str());
+		}
+		materials.push_back(material);
+	}
+
 	std::vector<GLBPrimitive> primitives;
 	for (Node& node : asset->nodes) {
 		std::vector<float> positions;
 		std::vector<float> colors;
 		std::vector<float> uvs;
 		std::vector<uint16_t> indices;
-		hlslpp::float4 base_color = {1.0, 1.0, 1.0, 1.0};
-		std::vector<uint8_t> image_bytes;
-		VkFormat image_format = VK_FORMAT_R8G8B8A8_UNORM;
 
 		if (node.meshIndex.has_value()) {
 			size_t mesh_idx = node.meshIndex.value();
@@ -147,6 +185,7 @@ GLBData load_glb(const std::filesystem::path& glb_path) {
 				{
 					uint64_t idx = prim.indicesAccessor.value();
 					Accessor& accessor = asset->accessors[idx];
+					PRORENDER_ASSERT(accessor.componentType == ComponentType::UnsignedShort, true);
 					indices.reserve(accessor.count);
 					auto iterator = fastgltf::iterateAccessor<uint16_t>(asset.get(), accessor);
 					for (auto it = iterator.begin(); it != iterator.end(); ++it) {
@@ -155,41 +194,9 @@ GLBData load_glb(const std::filesystem::path& glb_path) {
 					}
 				}
 
-				//Load material
+				uint32_t mat_idx = std::numeric_limits<uint32_t>::max();
 				if (prim.materialIndex.has_value()) {
-					fastgltf::Material& mat = asset->materials[prim.materialIndex.value()];
-					PBRData& pbr = mat.pbrData;
-
-					base_color[0] = pbr.baseColorFactor[0];
-					base_color[1] = pbr.baseColorFactor[1];
-					base_color[2] = pbr.baseColorFactor[2];
-					base_color[3] = pbr.baseColorFactor[3];
-					
-					//Load base color texture
-					if (pbr.baseColorTexture.has_value()) {
-						TextureInfo& info = pbr.baseColorTexture.value();
-						// for (uint32_t i = 0; i < seen_textures.size(); ++i) {
-						// 	if (seen_textures[i] == info.textureIndex)
-						// }
-						Texture& tex = asset->textures[info.textureIndex];
-						Image& im = asset->images[tex.imageIndex.value()];
-
-						const sources::BufferView* data_ptr = std::get_if<sources::BufferView>(&im.data);
-						ASSERT_OR_CRASH(data_ptr != nullptr, true);
-						ASSERT_OR_CRASH(data_ptr->mimeType == MimeType::JPEG || data_ptr->mimeType == MimeType::PNG, true);
-
-						fastgltf::BufferView& bv = asset->bufferViews[data_ptr->bufferViewIndex];
-						fastgltf::Buffer& buffer = asset->buffers[bv.bufferIndex];
-
-						const sources::ByteView* arr = std::get_if<sources::ByteView>(&buffer.data);
-						ASSERT_OR_CRASH(arr != nullptr, true);
-
-						image_bytes.resize(bv.byteLength);
-						memcpy(image_bytes.data(), arr->bytes.data() + bv.byteOffset, bv.byteLength);
-						image_format = VK_FORMAT_R8G8B8A8_SRGB;
-
-						printf("Loading image \"%s\"\n", im.name.c_str());
-					}
+					mat_idx = (uint32_t)prim.materialIndex.value();
 				}
 
 				GLBPrimitive p = {
@@ -197,9 +204,7 @@ GLBData load_glb(const std::filesystem::path& glb_path) {
 					.colors = colors,
 					.uvs = uvs,
 					.indices = indices,
-					.base_color = base_color,
-					.color_image_bytes = image_bytes,
-					.color_format = image_format
+					.material_idx = mat_idx
 				};
 				primitives.push_back(p);
 			}
@@ -207,7 +212,8 @@ GLBData load_glb(const std::filesystem::path& glb_path) {
 	}
 
 	GLBData g = {
-		.primitives = primitives
+		.primitives = primitives,
+		.materials = materials
 	};
 
 	return g;
@@ -246,7 +252,7 @@ int main(int argc, char* argv[]) {
 	
 	//Init the vulkan window
 	VkSurfaceKHR window_surface;
-	ASSERT_OR_CRASH(SDL_Vulkan_CreateSurface(sdl_window, vgd.instance, vgd.alloc_callbacks, &window_surface), SDL_TRUE);
+	PRORENDER_ASSERT(SDL_Vulkan_CreateSurface(sdl_window, vgd.instance, vgd.alloc_callbacks, &window_surface), SDL_TRUE);
 	VulkanWindow window(vgd, window_surface);
 	app_timer.print("Window creation");
 	app_timer.start();
@@ -322,7 +328,7 @@ int main(int argc, char* argv[]) {
 		"models/totoro_backup.glb",
 		"models/BoomBox.glb",
 		"models/spyro2.glb",
-		//"models/samus.glb",
+		"models/samus.glb",
 	};
 	std::vector<Ps1Object> ps1_objects;
 	for (auto& path : glb_paths) {
@@ -334,19 +340,35 @@ int main(int argc, char* argv[]) {
 		obj.primitive_parents = ps1_glb.prim_parents;
 		printf("GLB has %i primitives\n", (int)ps1_glb.primitives.size());
 
+		std::unordered_map<uint32_t, Key<Material>> seen_materials;
+		seen_materials.reserve(ps1_glb.materials.size());
+
 		for (GLBPrimitive& prim : ps1_glb.primitives) {
-			if (prim.color_image_bytes.size() > 0) {
-				CompressedImage image = { .bytes = prim.color_image_bytes};
-				uint64_t batch_id = vgd.load_compressed_images({image}, {VK_FORMAT_R8G8B8A8_SRGB});
-				material = renderer.push_material(batch_id, ImmutableSamplers::STANDARD, prim.base_color);
+			if (prim.material_idx != std::numeric_limits<uint32_t>::max()) {
+				if (seen_materials.contains(prim.material_idx)) {
+					material = seen_materials[prim.material_idx];
+				} else {
+					GLBMaterial& mat = ps1_glb.materials[prim.material_idx];
+					if (mat.color_image_bytes.size() > 0) {
+
+						CompressedImage image = { .bytes = mat.color_image_bytes};
+						uint64_t batch_id = vgd.load_compressed_images({image}, {VK_FORMAT_R8G8B8A8_SRGB});
+
+						material = renderer.push_material(batch_id, ImmutableSamplers::STANDARD, mat.base_color);
+					} else {
+						material = renderer.push_material(ImmutableSamplers::STANDARD, mat.base_color);
+					}
+					seen_materials[prim.material_idx] = material;
+				}
 			} else {
-				material = renderer.push_material(ImmutableSamplers::STANDARD, prim.base_color);		
+				material = renderer.push_material(ImmutableSamplers::STANDARD, hlslpp::float4(1.0, 1.0, 1.0, 1.0));
 			}
+
+
 			mesh = renderer.push_vertex_positions(std::span(prim.positions));
 			renderer.push_vertex_uvs(mesh, std::span(prim.uvs));
 
-			if (prim.colors.size() > 0)
-			{
+			if (prim.colors.size() > 0) {
 				renderer.push_vertex_colors(mesh, std::span(prim.colors));
 			}
 
@@ -387,7 +409,7 @@ int main(int argc, char* argv[]) {
 
 	bool do_imgui = true;
 	bool frame_advance = false;
-	float timescale = 1.0;
+	float timescale = 0.0;
 
 	init_timer.print("App init");
 	
@@ -523,7 +545,7 @@ int main(int argc, char* argv[]) {
 		}
 		
 		if (do_update_and_render) {
-			float simulation_time = timescale * (float)app_timer.check() / 1000.0f;
+			//float simulation_time = timescale * (float)app_timer.check() / 1000.0f;
 			ImGui::NewFrame();
 
 			//Move camera
@@ -667,8 +689,9 @@ int main(int argc, char* argv[]) {
 					0.0, 0.0, 0.0, 1.0	
 				);
 
-				float cosyaw = cosf(-1.5f * simulation_time);
-				float sinyaw = sinf(-1.5f * simulation_time);
+				static float rotation = 0.0f;
+				float cosyaw = cosf(-1.5f * rotation);
+				float sinyaw = sinf(-1.5f * rotation);
 				hlslpp::float4x4 yaw_matrix(
 					cosyaw, -sinyaw, 0.0, 0.0,
 					sinyaw, cosyaw, 0.0, 0.0,
@@ -679,6 +702,7 @@ int main(int argc, char* argv[]) {
 				for (DrawPrimitive& prim : p.primitives) {
 					renderer.ps1_draw(prim.mesh, prim.material, std::span(mats));
 				}
+				rotation += timescale * delta_time;
 			}
 
 			//Queue the static plane to be drawn

@@ -105,7 +105,7 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 				break;
 			}
 		}
-		ASSERT_OR_CRASH(tex_index != std::numeric_limits<uint32_t>::max(), true);
+		PRORENDER_ASSERT(tex_index != std::numeric_limits<uint32_t>::max(), true);
 
 		atlas_idx = tex_index;
 		io.Fonts->SetTexID((ImTextureID)(uint64_t)tex_index);

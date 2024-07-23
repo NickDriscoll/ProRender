@@ -67,7 +67,7 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swap
             .priority = 1.0
         };
 
-        VkDeviceSize buffer_size = 1024 * 1024;
+        VkDeviceSize buffer_size = 4 * 1024 * 1024;
         vertex_position_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, alloc_info);
         vertex_color_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, alloc_info);
         vertex_uv_buffer = vgd->create_buffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, alloc_info);
@@ -252,11 +252,11 @@ BufferView* VulkanRenderer::get_indices16(Key<BufferView> position_key) {
 
 }
 
-Key<Material> VulkanRenderer::push_material(uint32_t sampler_idx, hlslpp::float4& base_color) {
+Key<Material> VulkanRenderer::push_material(uint32_t sampler_idx, const hlslpp::float4& base_color) {
     return this->push_material(0, sampler_idx, base_color);
 }
 
-Key<Material> VulkanRenderer::push_material(uint64_t batch_id, uint32_t sampler_idx, hlslpp::float4& base_color) {
+Key<Material> VulkanRenderer::push_material(uint64_t batch_id, uint32_t sampler_idx, const hlslpp::float4& base_color) {
     Material mat {
         .base_color = base_color,
         .batch_id = batch_id,

@@ -8,7 +8,7 @@
 
 #define MAX_CAMERAS 64
 #define MAX_MATERIALS 1024
-#define MAX_VERTEX_ATTRIBS 1024
+#define MAX_VERTEX_ATTRIBS 4*1024
 #define MAX_MESHES 128*1024
 #define MAX_INDIRECT_DRAWS 100000
 #define MAX_INSTANCES 1024*1024
@@ -119,8 +119,8 @@ struct VulkanRenderer {
 	Key<MeshAttribute> push_indices16(Key<BufferView> position_key, std::span<uint16_t> data);
 	BufferView* get_indices16(Key<BufferView> position_key);
 
-	Key<Material> push_material(uint32_t sampler_idx, hlslpp::float4& base_color);
-	Key<Material> push_material(uint64_t batch_id, uint32_t sampler_idx, hlslpp::float4& base_color);
+	Key<Material> push_material(uint32_t sampler_idx, const hlslpp::float4& base_color);
+	Key<Material> push_material(uint64_t batch_id, uint32_t sampler_idx, const hlslpp::float4& base_color);
 	
 	uint32_t standard_sampler_idx;
 	uint32_t point_sampler_idx;

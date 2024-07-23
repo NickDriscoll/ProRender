@@ -8,7 +8,7 @@ static constexpr float PI = 3.141592653589793f;
 
 #define PRORENDER_UNUSED_PARAMETER(x) (void)x
 
-#define ASSERT_OR_CRASH(pred, expect)                                                               \
+#define PRORENDER_ASSERT(pred, expect)                                                               \
     if ((pred) != (expect)) {                                                                      \
         char error_message_buffer[256];                \
         sprintf(error_message_buffer, "Fatal error occurred in %s at line %i", __FILE__, __LINE__); \
@@ -16,7 +16,7 @@ static constexpr float PI = 3.141592653589793f;
         exit(-1);                                                                           \
     }
 
-#define VKASSERT_OR_CRASH(pred) ASSERT_OR_CRASH(pred, VK_SUCCESS)
+#define VKASSERT_OR_CRASH(pred) PRORENDER_ASSERT(pred, VK_SUCCESS)
 
 ImGuiKey SDL2ToImGuiKey(int keycode);
 int SDL2ToImGuiMouseButton(int button);
