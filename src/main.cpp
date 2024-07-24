@@ -156,7 +156,7 @@ int main(int argc, char* argv[]) {
 		"models/totoro_backup.glb",
 		"models/BoomBox.glb",
 		"models/spyro2.glb",
-		"models/samus.glb",
+		//"models/samus.glb",
 	};
 	std::vector<Ps1Object> ps1_objects;
 	for (auto& path : glb_paths) {
@@ -172,10 +172,13 @@ int main(int argc, char* argv[]) {
 		seen_materials.reserve(ps1_glb.materials.size());
 
 		for (GLBPrimitive& prim : ps1_glb.primitives) {
+			//Handle material for this primitive
 			if (prim.material_idx != std::numeric_limits<uint32_t>::max()) {
+				//If prim has material
 				if (seen_materials.contains(prim.material_idx)) {
 					material = seen_materials[prim.material_idx];
 				} else {
+					//If material hasn't been seen before, handle it
 					GLBMaterial& mat = ps1_glb.materials[prim.material_idx];
 					if (mat.color_image_bytes.size() > 0) {
 
@@ -189,18 +192,15 @@ int main(int argc, char* argv[]) {
 					seen_materials[prim.material_idx] = material;
 				}
 			} else {
+				//If prim has no material, give default one
 				material = renderer.push_material(ImmutableSamplers::STANDARD, hlslpp::float4(1.0, 1.0, 1.0, 1.0));
 			}
 
-
-			mesh = renderer.push_vertex_positions(std::span(prim.positions));
-			renderer.push_vertex_uvs(mesh, std::span(prim.uvs));
-
-			if (prim.colors.size() > 0) {
-				renderer.push_vertex_colors(mesh, std::span(prim.colors));
-			}
-
+			//Push vertex data into renderer
 			renderer.push_indices16(mesh, std::span(prim.indices));
+			mesh = renderer.push_vertex_positions(std::span(prim.positions));
+			if (prim.uvs.size() > 0) renderer.push_vertex_uvs(mesh, std::span(prim.uvs));
+			if (prim.colors.size() > 0) renderer.push_vertex_colors(mesh, std::span(prim.colors));
 			
 			DrawPrimitive p = {
 				.mesh = mesh,

@@ -1,5 +1,6 @@
 #include "VulkanRenderer.h"
 #include "imgui.h"
+#include "utils.h"
 #include <limits>
 
 #define _USE_MATH_DEFINES
@@ -151,6 +152,8 @@ BufferView* VulkanRenderer::get_vertex_positions(Key<BufferView> key) {
 }
 
 Key<MeshAttribute> VulkanRenderer::push_vertex_colors(Key<BufferView> position_key, std::span<float> data) {
+    PRORENDER_ASSERT(_position_buffers.get(position_key) != nullptr, true);
+    
     VulkanBuffer* buffer = vgd->get_buffer(vertex_color_buffer);
     float* ptr = (float*)buffer->alloc_info.pMappedData;
     ptr += vertex_color_offset;
@@ -184,6 +187,8 @@ BufferView* VulkanRenderer::get_vertex_colors(Key<BufferView> key) {
 }
 
 Key<MeshAttribute> VulkanRenderer::push_vertex_uvs(Key<BufferView> position_key, std::span<float> data) {
+    PRORENDER_ASSERT(_position_buffers.get(position_key) != nullptr, true);
+    
     VulkanBuffer* buffer = vgd->get_buffer(vertex_uv_buffer);
     float* ptr = (float*)buffer->alloc_info.pMappedData;
     ptr += vertex_uv_offset;
@@ -219,6 +224,8 @@ BufferView* VulkanRenderer::get_vertex_uvs(Key<BufferView> position_key) {
 }
 
 Key<MeshAttribute> VulkanRenderer::push_indices16(Key<BufferView> position_key, std::span<uint16_t> data) {
+    PRORENDER_ASSERT(_position_buffers.get(position_key) != nullptr, true);
+
     VulkanBuffer* buffer = vgd->get_buffer(index_buffer);
     uint16_t* ptr = (uint16_t*)buffer->alloc_info.pMappedData;
     ptr += index_buffer_offset;
