@@ -157,6 +157,7 @@ int main(int argc, char* argv[]) {
 		"models/BoomBox.glb",
 		"models/spyro2.glb",
 		//"models/samus.glb",
+		"models/CesiumMan.glb"
 	};
 	std::vector<Ps1Object> ps1_objects;
 	for (auto& path : glb_paths) {
@@ -197,10 +198,10 @@ int main(int argc, char* argv[]) {
 			}
 
 			//Push vertex data into renderer
-			renderer.push_indices16(mesh, std::span(prim.indices));
 			mesh = renderer.push_vertex_positions(std::span(prim.positions));
 			if (prim.uvs.size() > 0) renderer.push_vertex_uvs(mesh, std::span(prim.uvs));
 			if (prim.colors.size() > 0) renderer.push_vertex_colors(mesh, std::span(prim.colors));
+			renderer.push_indices16(mesh, std::span(prim.indices));
 			
 			DrawPrimitive p = {
 				.mesh = mesh,
