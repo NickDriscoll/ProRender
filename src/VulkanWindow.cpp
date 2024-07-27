@@ -1,5 +1,6 @@
 #include "VulkanWindow.h"
 #include <imgui.h>
+#include "utils.h"
 
 VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
     //Save surface
@@ -180,20 +181,14 @@ VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 	for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
 		VkSemaphoreCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		if (vkCreateSemaphore(vgd.device, &info, vgd.alloc_callbacks, &acquire_semaphores[i]) != VK_SUCCESS) {
-			printf("Creating swapchain acquire semaphore failed.\n");
-			exit(-1);
-		}
+		VKASSERT_OR_CRASH(vkCreateSemaphore(vgd.device, &info, vgd.alloc_callbacks, &acquire_semaphores[i]));
 	}
 
 	//Create the present semaphore
 	for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
 		VkSemaphoreCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		if (vkCreateSemaphore(vgd.device, &info, vgd.alloc_callbacks, &present_semaphores[i]) != VK_SUCCESS) {
-			printf("Creating swapchain acquire semaphore failed.\n");
-			exit(-1);
-		}
+		VKASSERT_OR_CRASH(vkCreateSemaphore(vgd.device, &info, vgd.alloc_callbacks, &present_semaphores[i]));
 	}
 }
 
@@ -326,12 +321,19 @@ SwapchainFramebuffer VulkanWindow::acquire_next_image(VulkanGraphicsDevice& vgd,
 	sync_data.signal_semaphores.push_back(present_semaphores[in_flight_frame]);
 	sync_data.signal_values.push_back(0);
 
+	VkClearValue clear_value;
+	clear_value.color.float32[0] = 0.0;
+	clear_value.color.float32[1] = 0.0;
+	clear_value.color.float32[2] = 0.0;
+	clear_value.color.float32[3] = 1.0;
+
 	SwapchainFramebuffer vkfb = {
 		.fb = {
 			.width = x_resolution,
 			.height = y_resolution,
 			.fb = swapchain_framebuffers[acquired_image_idx],
-			.render_pass = swapchain_renderpass
+			.render_pass = swapchain_renderpass,
+			.clear_values = {clear_value}
 		},
 		.idx = acquired_image_idx
 	};

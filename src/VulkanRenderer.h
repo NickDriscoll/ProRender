@@ -134,9 +134,9 @@ struct VulkanRenderer {
 	void ps1_draw(Key<BufferView> mesh_key, Key<Material> material_key, const std::span<InstanceData>& instance_datas);
 
 	//Called at the end of each frame
-	void render(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebuffer, SyncData& sync_data);
+	void render(VkCommandBuffer frame_cb, SyncData& sync_data);
 
-	VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> swapchain_renderpass);
+	VulkanRenderer(VulkanGraphicsDevice* vgd, uint32_t rendertarget_width, uint32_t rendertarget_height);
 	~VulkanRenderer();
 
 private:
@@ -169,8 +169,12 @@ private:
 	std::unordered_map<uint64_t, uint64_t> _material_map;
 	bool _material_dirty_flag = false;
 
-	//This can't go in FrameUniforms for obvious reasons
-	uint64_t _frame_uniforms_addr;
+	//Internal render target state
+	Key<VulkanBindlessImage> color_buffer;
+	Key<VulkanBindlessImage> depth_buffer;
+	VulkanFrameBuffer main_framebuffer;
+
+	uint64_t _frame_uniforms_addr;	//Buffer device address of the FrameUniforms buffer
 
 	uint64_t _current_frame = 0; //Frame counter
 

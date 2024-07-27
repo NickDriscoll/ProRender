@@ -35,6 +35,8 @@
 struct Configuration {
 	uint32_t window_width;
 	uint32_t window_height;
+	uint32_t internal_width;
+	uint32_t internal_height;
 };
 
 struct DrawPrimitive {
@@ -58,7 +60,9 @@ int main(int argc, char* argv[]) {
 
 	Configuration my_config = {
 		.window_width = 1440,
-		.window_height = 1080
+		.window_height = 1080,
+		.internal_width = 640,
+		.internal_height = 480
 	};
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);	//Initialize SDL
@@ -86,7 +90,7 @@ int main(int argc, char* argv[]) {
 	app_timer.start();
 
 	//Initialize the renderer
-	VulkanRenderer renderer(&vgd, window.swapchain_renderpass);
+	VulkanRenderer renderer(&vgd, my_config.internal_width, my_config.internal_height);
 
 	//Initialize Dear ImGui
 	ImguiRenderer imgui_renderer = ImguiRenderer(
@@ -156,7 +160,7 @@ int main(int argc, char* argv[]) {
 		"models/totoro_backup.glb",
 		"models/BoomBox.glb",
 		"models/spyro2.glb",
-		//"models/samus.glb",
+		"models/samus.glb",
 		"models/CesiumMan.glb"
 	};
 	std::vector<Ps1Object> ps1_objects;
@@ -610,13 +614,14 @@ int main(int argc, char* argv[]) {
 				SyncData sync = {};
 				SwapchainFramebuffer window_framebuffer = window.acquire_next_image(vgd, sync, current_frame);
 
+				renderer.render(frame_cb, sync);
+
 				vgd.begin_render_pass(frame_cb, window_framebuffer.fb);
-				renderer.render(frame_cb, window_framebuffer.fb, sync);
+
 				imgui_renderer.draw(frame_cb, current_frame);
 				vgd.end_render_pass(frame_cb);
 				
 				vgd.graphics_queue_submit(frame_cb, sync);
-				
 				vgd.return_command_buffer(frame_cb, current_frame + 1, renderer.frames_completed_semaphore);
 				window.present_framebuffer(vgd, window_framebuffer, sync);
 				current_frame += 1;

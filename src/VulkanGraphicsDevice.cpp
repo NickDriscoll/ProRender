@@ -985,6 +985,53 @@ VkSampler VulkanGraphicsDevice::create_sampler(VkSamplerCreateInfo& info) {
 	return sampler;
 }
 
+VkResult VulkanGraphicsDevice::create_images(std::span<VkImageCreateInfo> create_infos, Key<VulkanBindlessImage>* out_images) {
+	for (uint32_t i = 0; i < create_infos.size(); ++i) {
+		VkImageCreateInfo& info = create_infos[i];
+		VulkanBindlessImage out_image = {};
+		out_image.batch_id = 0;
+		out_image.original_idx = 0;
+		out_image.vk_image.width = info.extent.width;
+		out_image.vk_image.height = info.extent.height;
+
+		VmaAllocationCreateInfo alloc_info = {};
+		alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
+		alloc_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+		alloc_info.priority = 1.0;
+		VKASSERT_OR_CRASH(vmaCreateImage(allocator, &info, &alloc_info, &out_image.vk_image.image, &out_image.vk_image.image_allocation, nullptr));
+
+		VkImageAspectFlags image_aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+		if (
+			info.format == VK_FORMAT_D16_UNORM ||
+			info.format == VK_FORMAT_D16_UNORM_S8_UINT ||
+			info.format == VK_FORMAT_D24_UNORM_S8_UINT ||
+			info.format == VK_FORMAT_D32_SFLOAT ||
+			info.format == VK_FORMAT_D32_SFLOAT_S8_UINT
+		) image_aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+		VkImageSubresourceRange subresource_range = {};
+		subresource_range.aspectMask = image_aspect;
+		subresource_range.baseMipLevel = 0;
+		subresource_range.levelCount = info.mipLevels;
+		subresource_range.baseArrayLayer = 0;
+		subresource_range.layerCount = info.arrayLayers;
+
+		VkImageViewCreateInfo view_info = {};
+		view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		view_info.image = out_image.vk_image.image;
+		view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		view_info.format = info.format;
+		view_info.components = COMPONENT_MAPPING_DEFAULT;
+		view_info.subresourceRange = subresource_range;
+
+		VKASSERT_OR_CRASH(vkCreateImageView(device, &view_info, alloc_callbacks, &out_image.vk_image.image_view));
+
+		out_images[i] = bindless_images.insert(out_image);
+	}
+
+	return VK_SUCCESS;
+}
+
 void VulkanGraphicsDevice::submit_image_upload_batch(uint64_t id, const std::vector<RawImage>& raw_images, const std::vector<VkFormat>& image_formats) {
 	VulkanImageUploadBatch current_batch = {};
 	current_batch.id = id;
@@ -1880,21 +1927,13 @@ void VulkanGraphicsDevice::begin_render_pass(VkCommandBuffer cb, VulkanFrameBuff
 		}
 	};
 
-	VkClearValue clear_color;
-	clear_color.color.float32[0] = 0.0f;
-	clear_color.color.float32[1] = 0.0f;
-	clear_color.color.float32[2] = 0.0f;
-	clear_color.color.float32[3] = 1.0f;
-	clear_color.depthStencil.depth = 0.0f;
-	clear_color.depthStencil.stencil = 0;
-
 	VkRenderPassBeginInfo info = {};
 	info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 	info.renderPass = *_render_passes.get(fb.render_pass);
 	info.framebuffer = *_framebuffers.get(fb.fb);
 	info.renderArea = area;
-	info.clearValueCount = 1;
-	info.pClearValues = &clear_color;
+	info.clearValueCount = (uint32_t)fb.clear_values.size();
+	info.pClearValues = fb.clear_values.data();
 
 	vkCmdBeginRenderPass(cb, &info, VK_SUBPASS_CONTENTS_INLINE);
 }

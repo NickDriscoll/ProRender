@@ -3,6 +3,7 @@
 #include <deque>
 #include <queue>
 #include <mutex>
+#include <span>
 #include "volk.h"
 #include "vma.h"
 #include "slotmap.h"
@@ -57,6 +58,7 @@ struct VulkanFrameBuffer {
 	uint32_t height;
 	Key<VkFramebuffer> fb;
 	Key<VkRenderPass> render_pass;
+	std::vector<VkClearValue> clear_values;
 };
 
 struct BufferDeletion {
@@ -187,6 +189,8 @@ struct VulkanGraphicsDevice {
 	uint64_t check_timeline_semaphore(Key<VkSemaphore> semaphore);
 
 	VkSampler create_sampler(VkSamplerCreateInfo& info);
+
+	VkResult create_images(std::span<VkImageCreateInfo> create_infos, Key<VulkanBindlessImage>* out_images);
 
 	//Image uploading system
 	uint64_t load_raw_images(

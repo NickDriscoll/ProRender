@@ -24,9 +24,9 @@ struct VulkanWindow {
 	VkSwapchainKHR swapchain;
 	VkSemaphore acquire_semaphores[FRAMES_IN_FLIGHT];
 	VkSemaphore present_semaphores[FRAMES_IN_FLIGHT];
-	Key<VkRenderPass> swapchain_renderpass;
 	std::vector<VkImage> swapchain_images;
 	std::vector<VkImageView> swapchain_image_views;
+	Key<VkRenderPass> swapchain_renderpass;
 	std::vector<Key<VkFramebuffer>> swapchain_framebuffers;
 
 	VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface);

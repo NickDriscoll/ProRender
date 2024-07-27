@@ -90,12 +90,12 @@ ImguiRenderer::~ImguiRenderer() {
 
 void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 	ImGui::Render();
+    ImGuiIO& io = ImGui::GetIO();
 
 	//Check if font atlas is available
 	if (atlas_idx == std::numeric_limits<uint32_t>::max()) {
 		if (atlas_batch_id > vgd->completed_image_batches()) return;
 		
-    	ImGuiIO& io = ImGui::GetIO();
 	
 		uint32_t tex_index = std::numeric_limits<uint32_t>::max();
 		for (auto it = vgd->bindless_images.begin(); it != vgd->bindless_images.end(); ++it) {
@@ -150,6 +150,17 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 	vkCmdBindIndexBuffer(frame_cb, gpu_imgui_indices->buffer, current_index_offset * sizeof(ImDrawIdx), VK_INDEX_TYPE_UINT16);
 	vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd->get_graphics_pipeline(graphics_pipeline)->pipeline);
 
+	//Set viewport
+	VkViewport viewport = {
+		.x = 0,
+		.y = 0,
+		.width = io.DisplaySize.x,
+		.height = io.DisplaySize.y,
+		.minDepth = 0.0,
+		.maxDepth = 1.0
+	};
+	vkCmdSetViewport(frame_cb, 0, 1, &viewport);
+
 	ImguiPushConstants pcs = {
 		.atlas_idx = atlas_idx,
 		.sampler_idx = sampler_idx,
@@ -157,10 +168,9 @@ void ImguiRenderer::draw(VkCommandBuffer& frame_cb, uint64_t frame_counter) {
 		.uv_address = uv_address,
 		.color_address = color_address
 	};
-	ImGuiIO& io = ImGui::GetIO();
 	pcs.clip_matrix = hlslpp::float4x4(
-		2.0f / (float)io.DisplaySize.x, 0.0f, 0.0f, -1.0f,
-		0.0f, 2.0f / (float)io.DisplaySize.y, 0.0f, -1.0f,
+		2.0f / io.DisplaySize.x, 0.0f, 0.0f, -1.0f,
+		0.0f, 2.0f / io.DisplaySize.y, 0.0f, -1.0f,
 		0.0f, 0.0f, 1.0f, 0.0f,
 		0.0f, 0.0f, 0.0f, 1.0f
 	);
