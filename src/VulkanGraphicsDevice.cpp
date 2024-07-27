@@ -766,8 +766,8 @@ void VulkanGraphicsDevice::create_graphics_pipelines(
 
 		//Shader stages
 		//TODO: This assumes that graphics pipelines just have a vertex and fragment shader
-		VkShaderModule vertex_shader = this->load_shader_module(pipeline_configs[i].spv_sources[2 * i]);
-		VkShaderModule fragment_shader = this->load_shader_module(pipeline_configs[i].spv_sources[2 * i + 1]);
+		VkShaderModule vertex_shader = this->load_shader_module(pipeline_configs[i].spv_sources[0]);
+		VkShaderModule fragment_shader = this->load_shader_module(pipeline_configs[i].spv_sources[1]);
 		{
 			VkPipelineShaderStageCreateInfo vert_info = {};
 			vert_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

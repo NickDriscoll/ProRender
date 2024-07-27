@@ -90,7 +90,7 @@ int main(int argc, char* argv[]) {
 	app_timer.start();
 
 	//Initialize the renderer
-	VulkanRenderer renderer(&vgd, my_config.internal_width, my_config.internal_height);
+	VulkanRenderer renderer(&vgd, window.swapchain_renderpass, my_config.internal_width, my_config.internal_height);
 
 	//Initialize Dear ImGui
 	ImguiRenderer imgui_renderer = ImguiRenderer(

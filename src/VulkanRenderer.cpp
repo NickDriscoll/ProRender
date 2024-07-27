@@ -48,7 +48,7 @@ hlslpp::float4x4 Camera::make_view_matrix() {
     return mul(pyr, trans_matrix);
 }
 
-VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, uint32_t rendertarget_width, uint32_t rendertarget_height) {
+VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> window_renderpass, uint32_t rendertarget_width, uint32_t rendertarget_height) {
 
     cameras.alloc(MAX_CAMERAS);
     _position_buffers.alloc(MAX_VERTEX_ATTRIBS);
@@ -243,21 +243,27 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, uint32_t rendertarget_
     //Create hardcoded graphics pipelines
 	{
         
-		const char* spv[] = { "shaders/ps1.vert.spv", "shaders/ps1.frag.spv" };
-        VulkanGraphicsPipelineConfig config = VulkanGraphicsPipelineConfig();
-        config.rasterization_state.cullMode = VK_CULL_MODE_NONE;
-        config.depth_stencil_state.depthTestEnable = VK_FALSE;
-        config.render_pass = main_framebuffer.render_pass;
-        config.spv_sources = spv;
+		const char* ps1_spv[] = { "shaders/ps1.vert.spv", "shaders/ps1.frag.spv" };
+        VulkanGraphicsPipelineConfig ps1_config = VulkanGraphicsPipelineConfig();
+        // config.rasterization_state.cullMode = VK_CULL_MODE_NONE;
+        // config.depth_stencil_state.depthTestEnable = VK_FALSE;
+        ps1_config.render_pass = main_framebuffer.render_pass;
+        ps1_config.spv_sources = ps1_spv;
 
-        std::vector<VulkanGraphicsPipelineConfig> configs = {config};
-		Key<VulkanGraphicsPipeline> pipelines[] = {0};
+        const char* postfx_spv[] = { "shaders/postfx.vert.spv", "shaders/postfx.frag.spv" };
+        VulkanGraphicsPipelineConfig postfx_config = VulkanGraphicsPipelineConfig();
+        postfx_config.render_pass = window_renderpass;
+        postfx_config.spv_sources = postfx_spv;
+
+        std::vector<VulkanGraphicsPipelineConfig> configs = {ps1_config, postfx_config};
+		Key<VulkanGraphicsPipeline> pipelines[] = {0, 0};
 		vgd->create_graphics_pipelines(
             configs,
 			pipelines
 		);
 
 		ps1_pipeline = pipelines[0];
+        postfx_pipeline = pipelines[1];
 	}
 
 	//Create graphics pipeline timeline semaphore
@@ -664,6 +670,20 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, SyncData& sync_data) {
     _gpu_instance_datas.clear();
     _instances_so_far = 0;
     _current_frame += 1;
+}
+
+void VulkanRenderer::postprocessing(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebuffer) {
+	VkViewport viewport = {
+		.x = 0,
+		.y = 0,
+		.width = (float)framebuffer.width,
+		.height = (float)framebuffer.height,
+		.minDepth = 0.0,
+		.maxDepth = 1.0
+	};
+	vkCmdSetViewport(frame_cb, 0, 1, &viewport);
+
+    
 }
 
 void VulkanRenderer::cpu_sync() {

@@ -86,8 +86,6 @@ struct InstanceData {
 };
 
 struct VulkanRenderer {
-	Key<VulkanGraphicsPipeline> ps1_pipeline;
-
 	Key<VkSemaphore> frames_completed_semaphore;
 
 	//Buffer of per-frame uniform data
@@ -136,10 +134,15 @@ struct VulkanRenderer {
 	//Called at the end of each frame
 	void render(VkCommandBuffer frame_cb, SyncData& sync_data);
 
-	VulkanRenderer(VulkanGraphicsDevice* vgd, uint32_t rendertarget_width, uint32_t rendertarget_height);
+	void postprocessing(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebuffer);
+
+	VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> window_renderpass, uint32_t rendertarget_width, uint32_t rendertarget_height);
 	~VulkanRenderer();
 
 private:
+	Key<VulkanGraphicsPipeline> ps1_pipeline;
+	Key<VulkanGraphicsPipeline> postfx_pipeline;
+
 	//Views into global vertex buffer categorized by attribute
 	slotmap<BufferView> _position_buffers;
 	slotmap<MeshAttribute> _uv_buffers;
