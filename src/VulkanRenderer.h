@@ -173,9 +173,9 @@ private:
 	bool _material_dirty_flag = false;
 
 	//Internal render target state
-	Key<VulkanBindlessImage> color_buffer;
+	Key<VulkanBindlessImage> color_buffers[FRAMES_IN_FLIGHT];
 	Key<VulkanBindlessImage> depth_buffer;
-	VulkanFrameBuffer main_framebuffer;
+	VulkanFrameBuffer main_framebuffers[FRAMES_IN_FLIGHT];
 
 	uint64_t _frame_uniforms_addr;	//Buffer device address of the FrameUniforms buffer
 

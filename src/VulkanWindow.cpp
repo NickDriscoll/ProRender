@@ -127,7 +127,9 @@ VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 
 	//Render pass object creation
 	{
-		VkAttachmentDescription color_attachment = {
+		VkAttachmentDescription2 color_attachment = {
+			.sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2,
+			.pNext = nullptr,
 			.format = format.format,
 			.samples = VK_SAMPLE_COUNT_1_BIT,
 			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -138,19 +140,24 @@ VulkanWindow::VulkanWindow(VulkanGraphicsDevice& vgd, VkSurfaceKHR surface) {
 			.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
 		};
 
-		VkAttachmentReference attachment_ref = {
+		VkAttachmentReference2 attachment_ref = {
+			.sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2,
+			.pNext = nullptr,
 			.attachment = 0,
 			.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 		};
 
-		VkSubpassDescription subpass = {
+		VkSubpassDescription2 subpass = {
+			.sType = VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_2,
+			.pNext = nullptr,
 			.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
 			.colorAttachmentCount = 1,
 			.pColorAttachments = &attachment_ref
 		};
 
-		VkRenderPassCreateInfo info = {
-			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+		VkRenderPassCreateInfo2 info = {
+			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO_2,
+			.pNext = nullptr,
 			.attachmentCount = 1,
 			.pAttachments = &color_attachment,
 			.subpassCount = 1,

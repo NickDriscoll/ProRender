@@ -17,7 +17,7 @@ float4 main(Ps1VertexOutput in_vtx) : SV_Target0 {
     
     float4 color_sample = float4(1.0, 1.0, 1.0, 1.0);
     if (tex_idx != 0xFFFFFFFF) {
-        color_sample = sampled_images[tex_idx].Sample(samplers[sampler_idx], in_vtx.uv);
+        color_sample = sampled_images[tex_idx].SampleLevel(samplers[sampler_idx], in_vtx.uv, 0);
     }
     //float light_attenuation = max(0.01, dot(normalize(in_vtx.world_position), HARDCODED_LIGHT));
     float light_attenuation = 1.0;

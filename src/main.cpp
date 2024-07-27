@@ -239,6 +239,7 @@ int main(int argc, char* argv[]) {
 	bool move_up = false;
 	bool camera_rolling = false;
 	bool camera_boost = false;
+	bool camera_crawl = false;
 
 	bool do_imgui = true;
 	bool frame_advance = false;
@@ -303,6 +304,9 @@ int main(int argc, char* argv[]) {
 					case SDLK_LSHIFT:
 						camera_boost = true;
 						break;
+					case SDLK_LCTRL:
+						camera_crawl = true;
+						break;
 					case SDLK_SPACE:
 						frame_advance = !frame_advance;
 						break;
@@ -344,6 +348,9 @@ int main(int argc, char* argv[]) {
 						break;
 					case SDLK_LSHIFT:
 						camera_boost = false;
+						break;
+					case SDLK_LCTRL:
+						camera_crawl = false;
 						break;
 					}
 					io.AddKeyEvent(SDL2ToImGuiKey(event.key.keysym.sym), false);
@@ -617,7 +624,7 @@ int main(int argc, char* argv[]) {
 				renderer.render(frame_cb, sync);
 
 				vgd.begin_render_pass(frame_cb, window_framebuffer.fb);
-
+				renderer.postprocessing(frame_cb, window_framebuffer.fb);
 				imgui_renderer.draw(frame_cb, current_frame);
 				vgd.end_render_pass(frame_cb);
 				
@@ -626,7 +633,7 @@ int main(int argc, char* argv[]) {
 				window.present_framebuffer(vgd, window_framebuffer, sync);
 				current_frame += 1;
 			}
-			
+
 			//End-of-frame bookkeeping
 			current_tick++;
 			last_frame_took = frame_timer.check();

@@ -382,7 +382,6 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
                     .maxLod = VK_LOD_CLAMP_NONE,
                 };
                 _immutable_samplers.push_back(create_sampler(info));
-                //standard_sampler_idx = 0;
 
                 info = {
                     .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -398,7 +397,6 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
                     .maxLod = VK_LOD_CLAMP_NONE,
                 };
                 _immutable_samplers.push_back(create_sampler(info));
-                //point_sampler_idx = 1;
             }
 
             std::vector<VulkanDescriptorLayoutBinding> descriptor_sets;
@@ -1868,12 +1866,9 @@ void VulkanGraphicsDevice::destroy_framebuffer(Key<VkFramebuffer> key) {
 	_framebuffers.remove(EXTRACT_IDX(key.value()));
 }
 
-Key<VkRenderPass> VulkanGraphicsDevice::create_render_pass(VkRenderPassCreateInfo& info) {
+Key<VkRenderPass> VulkanGraphicsDevice::create_render_pass(VkRenderPassCreateInfo2& info) {
 	VkRenderPass render_pass;	
-	if (vkCreateRenderPass(device, &info, alloc_callbacks, &render_pass) != VK_SUCCESS) {
-		printf("Creating render pass failed.\n");
-		exit(-1);
-	}
+	VKASSERT_OR_CRASH(vkCreateRenderPass2(device, &info, alloc_callbacks, &render_pass));
 	return _render_passes.insert(render_pass);
 }
 

@@ -125,7 +125,24 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> wind
                 .arrayLayers = 1,
                 .samples = VK_SAMPLE_COUNT_1_BIT,
                 .tiling = VK_IMAGE_TILING_OPTIMAL,
-                .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+                .queueFamilyIndexCount = 1,
+                .pQueueFamilyIndices = &vgd->graphics_queue_family_idx,
+                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
+            },
+            {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = 0,
+                .imageType = VK_IMAGE_TYPE_2D,
+                .format = color_buffer_format,
+                .extent = rendertarget_extent,
+                .mipLevels = 1,
+                .arrayLayers = 1,
+                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .tiling = VK_IMAGE_TILING_OPTIMAL,
+                .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
                 .queueFamilyIndexCount = 1,
                 .pQueueFamilyIndices = &vgd->graphics_queue_family_idx,
@@ -150,16 +167,49 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> wind
             }
         };
 
-        Key<VulkanBindlessImage> buffers[2];
+        Key<VulkanBindlessImage> buffers[3];
         VKASSERT_OR_CRASH(vgd->create_images(std::span(infos), buffers));
-        color_buffer = buffers[0];
-        depth_buffer = buffers[1];
+        color_buffers[0] = buffers[0];
+        color_buffers[1] = buffers[1];
+        depth_buffer = buffers[2];
+    }
+
+    //Update bindless descriptors to point to internal framebuffer images
+    {
+        std::vector<VkDescriptorImageInfo> desc_infos;
+
+        for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
+            VkDescriptorImageInfo info = {
+                .imageView = vgd->bindless_images.get(color_buffers[0])->vk_image.image_view,
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+            };
+            desc_infos.push_back(info);
+        }
+        VkDescriptorImageInfo info = {
+            .imageView = vgd->bindless_images.get(depth_buffer)->vk_image.image_view,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        };
+        desc_infos.push_back(info);
+
+        VkWriteDescriptorSet write = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = vgd->_image_descriptor_set,
+            .dstBinding = DescriptorBindings::SAMPLED_IMAGES,
+            .dstArrayElement = 0,
+            .descriptorCount = (uint32_t)desc_infos.size(),
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .pImageInfo = desc_infos.data()
+        };
+        vkUpdateDescriptorSets(vgd->device, 1, &write, 0, nullptr);
     }
 
     //Create renderpass for rendering to said rendertarget
     {
-        VkAttachmentDescription attachments[] = {
+        VkAttachmentDescription2 attachments[] = {
             {
+                .sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2,
+                .pNext = nullptr,
+                .flags = 0,
                 .format = color_buffer_format,
                 .samples = VK_SAMPLE_COUNT_1_BIT,
                 .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -167,9 +217,12 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> wind
                 .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
                 .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
                 .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .finalLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
-		    },
+                .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+            },
             {
+                .sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2,
+                .pNext = nullptr,
+                .flags = 0,
                 .format = depth_buffer_format,
                 .samples = VK_SAMPLE_COUNT_1_BIT,
                 .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -178,66 +231,94 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> wind
                 .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
                 .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                 .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-		    }   
+            }
         };
 
-		VkAttachmentReference color_ref = {
-			.attachment = 0,
-			.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-		};
-        VkAttachmentReference depth_ref = {
+		VkAttachmentReference2 color_ref = {
+            .sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2,
+            .pNext = nullptr,
+            .attachment = 0,
+            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT
+        };
+        VkAttachmentReference2 depth_ref = {
+            .sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2,
+            .pNext = nullptr,
             .attachment = 1,
-            .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+            .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT
         };
 
-		VkSubpassDescription subpass = {
-			.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-			.colorAttachmentCount = 1,
-			.pColorAttachments = &color_ref,
+		VkSubpassDescription2 subpass = {
+            .sType = VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_2,
+            .pNext = nullptr,
+            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+            .colorAttachmentCount = 1,
+            .pColorAttachments = &color_ref,
             .pDepthStencilAttachment = &depth_ref
-		};
+        };
 
-		VkRenderPassCreateInfo info = {
-			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-			.attachmentCount = 2,
-			.pAttachments = attachments,
-			.subpassCount = 1,
-			.pSubpasses = &subpass
-		};
+        VkSubpassDependency2 dep = {
+            .sType = VK_STRUCTURE_TYPE_SUBPASS_DEPENDENCY_2,
+            .pNext = nullptr,
+            .srcSubpass = 0,
+            .dstSubpass = VK_SUBPASS_EXTERNAL,
+            .srcStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+            .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT,
+            .dependencyFlags = 0,
+            .viewOffset = 0
+        };
+
+		VkRenderPassCreateInfo2 info = {
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO_2,
+            .pNext = nullptr,
+            .flags = 0,
+            .attachmentCount = 2,
+            .pAttachments = attachments,
+            .subpassCount = 1,
+            .pSubpasses = &subpass,
+            .dependencyCount = 1,
+            .pDependencies = &dep
+        };
 		
-		main_framebuffer.render_pass = vgd->create_render_pass(info);
+		main_framebuffers[0].render_pass = vgd->create_render_pass(info);
+        main_framebuffers[1].render_pass = main_framebuffers[0].render_pass;
 	}
 
-    //Create rendertarget framebuffer
+    //Create rendertarget framebuffers
     {
-        VkImageView views[] = {
-            vgd->bindless_images.get(color_buffer)->vk_image.image_view,
-            vgd->bindless_images.get(depth_buffer)->vk_image.image_view
-        };  
+        for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
+            VkImageView views[] = {
+                vgd->bindless_images.get(color_buffers[i])->vk_image.image_view,
+                vgd->bindless_images.get(depth_buffer)->vk_image.image_view
+            };  
 
-        VkFramebufferCreateInfo info = {};
-        info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        info.renderPass = *vgd->get_render_pass(main_framebuffer.render_pass);
-        info.attachmentCount = 2;
-        info.pAttachments = views;
-        info.width = rendertarget_width;
-        info.height = rendertarget_height;
-        info.layers = 1;
+            VkFramebufferCreateInfo info = {};
+            info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            info.renderPass = *vgd->get_render_pass(main_framebuffers[i].render_pass);
+            info.attachmentCount = 2;
+            info.pAttachments = views;
+            info.width = rendertarget_width;
+            info.height = rendertarget_height;
+            info.layers = 1;
 
-        VkClearValue clear_color;
-        clear_color.color.float32[0] = 0.0f;
-        clear_color.color.float32[1] = 0.0f;
-        clear_color.color.float32[2] = 0.0f;
-        clear_color.color.float32[3] = 1.0f;
-        main_framebuffer.clear_values.push_back(clear_color);
+            VkClearValue clear_color;
+            clear_color.color.float32[0] = 0.0f;
+            clear_color.color.float32[1] = 0.0f;
+            clear_color.color.float32[2] = 0.0f;
+            clear_color.color.float32[3] = 1.0f;
+            main_framebuffers[i].clear_values.push_back(clear_color);
 
-        clear_color.depthStencil.depth = 1.0f;
-        clear_color.depthStencil.stencil = 0;
-        main_framebuffer.clear_values.push_back(clear_color);
+            clear_color.depthStencil.depth = 0.0f;
+            clear_color.depthStencil.stencil = 0;
+            main_framebuffers[i].clear_values.push_back(clear_color);
 
-        main_framebuffer.width = info.width;
-        main_framebuffer.height = info.height;
-        main_framebuffer.fb = vgd->create_framebuffer(info);
+            main_framebuffers[i].width = info.width;
+            main_framebuffers[i].height = info.height;
+            main_framebuffers[i].fb = vgd->create_framebuffer(info);
+        }
 	}
 
     //Create hardcoded graphics pipelines
@@ -247,7 +328,8 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> wind
         VulkanGraphicsPipelineConfig ps1_config = VulkanGraphicsPipelineConfig();
         // config.rasterization_state.cullMode = VK_CULL_MODE_NONE;
         // config.depth_stencil_state.depthTestEnable = VK_FALSE;
-        ps1_config.render_pass = main_framebuffer.render_pass;
+        ps1_config.depth_stencil_state.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
+        ps1_config.render_pass = main_framebuffers[0].render_pass;
         ps1_config.spv_sources = ps1_spv;
 
         const char* postfx_spv[] = { "shaders/postfx.vert.spv", "shaders/postfx.frag.spv" };
@@ -563,6 +645,8 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, SyncData& sync_data) {
         memcpy(ptr, _draw_calls.data(), _draw_calls.size() * sizeof(VkDrawIndexedIndirectCommand));
     }
 
+    VulkanFrameBuffer& main_framebuffer = main_framebuffers[_current_frame % FRAMES_IN_FLIGHT];
+
     //Update GPU camera data
     std::vector<uint32_t> cam_idx_map;
     cam_idx_map.reserve(cameras.count());
@@ -656,6 +740,37 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, SyncData& sync_data) {
 
         vgd->end_render_pass(frame_cb);
 
+        //Barrier so that rendered frame becomes available to later stages
+        // {
+        //     VkImageMemoryBarrier2KHR barrier = {
+        //         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+        //         .srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+        //         .srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+        //         .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+        //         .dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+
+        //         .oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        //         .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        //         .srcQueueFamilyIndex = vgd->graphics_queue_family_idx,
+        //         .dstQueueFamilyIndex = vgd->graphics_queue_family_idx,
+        //         .image = vgd->bindless_images.get(color_buffers[_current_frame % FRAMES_IN_FLIGHT])->vk_image.image,
+        //         .subresourceRange = {
+        //             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        //             .baseMipLevel = 0,
+        //             .levelCount = 1,
+        //             .baseArrayLayer = 0,
+        //             .layerCount = 1
+        //         }
+        //     };
+
+        //     VkDependencyInfoKHR info = {};
+        //     info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+        //     info.imageMemoryBarrierCount = 1;
+        //     info.pImageMemoryBarriers = &barrier;
+
+        //     vkCmdPipelineBarrier2KHR(frame_cb, &info);
+        // }
+
         sync_data.signal_semaphores.push_back(*vgd->get_semaphore(frames_completed_semaphore));
         sync_data.signal_values.push_back(_current_frame + 1);
 
@@ -683,7 +798,22 @@ void VulkanRenderer::postprocessing(VkCommandBuffer frame_cb, VulkanFrameBuffer&
 	};
 	vkCmdSetViewport(frame_cb, 0, 1, &viewport);
 
-    
+    VkRect2D scissor = {
+        .offset = {
+            .x = 0,
+            .y = 0
+        },
+        .extent = {
+            .width = framebuffer.width,
+            .height = framebuffer.height
+        }
+    };
+    vkCmdSetScissor(frame_cb, 0, 1, &scissor);
+
+    uint32_t color_buffer_idx = EXTRACT_IDX(color_buffers[_current_frame % FRAMES_IN_FLIGHT].value());
+    vkCmdPushConstants(frame_cb, vgd->get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 4, &color_buffer_idx);
+    vkCmdBindPipeline(frame_cb, VK_PIPELINE_BIND_POINT_GRAPHICS, vgd->get_graphics_pipeline(postfx_pipeline)->pipeline);
+    vkCmdDraw(frame_cb, 3, 1, 0, 0);
 }
 
 void VulkanRenderer::cpu_sync() {

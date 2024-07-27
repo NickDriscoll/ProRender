@@ -216,7 +216,7 @@ struct VulkanGraphicsDevice {
 	void begin_render_pass(VkCommandBuffer cb, VulkanFrameBuffer& fb);
 	void end_render_pass(VkCommandBuffer cb);
 
-	Key<VkRenderPass> create_render_pass(VkRenderPassCreateInfo& info);
+	Key<VkRenderPass> create_render_pass(VkRenderPassCreateInfo2& info);
 	VkRenderPass* get_render_pass(Key<VkRenderPass> key);
 
 	VkShaderModule load_shader_module(const char* path);
@@ -228,6 +228,7 @@ struct VulkanGraphicsDevice {
 	VulkanGraphicsDevice();
 	~VulkanGraphicsDevice();
 
+	VkDescriptorSet _image_descriptor_set;
 private:
 	void load_images_impl();
 	void submit_image_upload_batch(uint64_t id, const std::vector<RawImage>& raw_images, const std::vector<VkFormat>& image_formats);
@@ -260,7 +261,6 @@ private:
 	std::deque<ImageDeletion> _image_deletion_queue;
 
 	VkDescriptorPool _descriptor_pool;
-	VkDescriptorSet _image_descriptor_set;
 	VkDescriptorSetLayout _image_descriptor_set_layout;
 	VkPipelineLayout _pipeline_layout;
 	std::vector<VkSampler> _immutable_samplers;
