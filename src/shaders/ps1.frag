@@ -18,11 +18,15 @@ float4 main(Ps1VertexOutput in_vtx) : SV_Target0 {
     float4 color_sample = float4(1.0, 1.0, 1.0, 1.0);
     if (tex_idx != 0xFFFFFFFF) {
         color_sample = sampled_images[tex_idx].SampleLevel(samplers[sampler_idx], in_vtx.uv, 0);
+        
+        //Alpha cutout. Should probably be its own pipeline
+        if (color_sample.a < 0.0001) discard;
     }
     //float light_attenuation = max(0.01, dot(normalize(in_vtx.world_position), HARDCODED_LIGHT));
     float light_attenuation = 1.0;
 
+
     float4 v_col = in_vtx.color;
-    return base_color * v_col * float4(light_attenuation * color_sample.rgb, 1.0);
+    return base_color * v_col * float4(light_attenuation * color_sample.rgb, color_sample.a);
     //return float4(1.0, 0.0, 0.0, 1.0);
 }

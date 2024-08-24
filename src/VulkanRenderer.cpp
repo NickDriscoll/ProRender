@@ -159,7 +159,7 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> wind
                 .arrayLayers = 1,
                 .samples = VK_SAMPLE_COUNT_1_BIT,
                 .tiling = VK_IMAGE_TILING_OPTIMAL,
-                .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
                 .queueFamilyIndexCount = 1,
                 .pQueueFamilyIndices = &vgd->graphics_queue_family_idx,
@@ -326,8 +326,7 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> wind
         
 		const char* ps1_spv[] = { "shaders/ps1.vert.spv", "shaders/ps1.frag.spv" };
         VulkanGraphicsPipelineConfig ps1_config = VulkanGraphicsPipelineConfig();
-        // config.rasterization_state.cullMode = VK_CULL_MODE_NONE;
-        // config.depth_stencil_state.depthTestEnable = VK_FALSE;
+        ps1_config.rasterization_state.cullMode = VK_CULL_MODE_NONE;
         ps1_config.depth_stencil_state.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
         ps1_config.render_pass = main_framebuffers[0].render_pass;
         ps1_config.spv_sources = ps1_spv;
@@ -347,6 +346,9 @@ VulkanRenderer::VulkanRenderer(VulkanGraphicsDevice* vgd, Key<VkRenderPass> wind
 		ps1_pipeline = pipelines[0];
         postfx_pipeline = pipelines[1];
 	}
+
+    //Initialize frame uniforms
+    frame_uniforms.pixel_resolution = hlslpp::uint2(rendertarget_width, rendertarget_height);
 
 	//Create graphics pipeline timeline semaphore
 	frames_completed_semaphore = vgd->create_timeline_semaphore(0);
@@ -741,35 +743,35 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, SyncData& sync_data) {
         vgd->end_render_pass(frame_cb);
 
         //Barrier so that rendered frame becomes available to later stages
-        // {
-        //     VkImageMemoryBarrier2KHR barrier = {
-        //         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-        //         .srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-        //         .srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
-        //         .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-        //         .dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+        {
+            VkImageMemoryBarrier2KHR barrier = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+                .srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+                .srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+                .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+                .dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
 
-        //         .oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        //         .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        //         .srcQueueFamilyIndex = vgd->graphics_queue_family_idx,
-        //         .dstQueueFamilyIndex = vgd->graphics_queue_family_idx,
-        //         .image = vgd->bindless_images.get(color_buffers[_current_frame % FRAMES_IN_FLIGHT])->vk_image.image,
-        //         .subresourceRange = {
-        //             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        //             .baseMipLevel = 0,
-        //             .levelCount = 1,
-        //             .baseArrayLayer = 0,
-        //             .layerCount = 1
-        //         }
-        //     };
+                .oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                .srcQueueFamilyIndex = vgd->graphics_queue_family_idx,
+                .dstQueueFamilyIndex = vgd->graphics_queue_family_idx,
+                .image = vgd->bindless_images.get(color_buffers[_current_frame % FRAMES_IN_FLIGHT])->vk_image.image,
+                .subresourceRange = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1
+                }
+            };
 
-        //     VkDependencyInfoKHR info = {};
-        //     info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-        //     info.imageMemoryBarrierCount = 1;
-        //     info.pImageMemoryBarriers = &barrier;
+            VkDependencyInfoKHR info = {};
+            info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+            info.imageMemoryBarrierCount = 1;
+            info.pImageMemoryBarriers = &barrier;
 
-        //     vkCmdPipelineBarrier2KHR(frame_cb, &info);
-        // }
+            vkCmdPipelineBarrier2KHR(frame_cb, &info);
+        }
 
         sync_data.signal_semaphores.push_back(*vgd->get_semaphore(frames_completed_semaphore));
         sync_data.signal_values.push_back(_current_frame + 1);
@@ -788,14 +790,30 @@ void VulkanRenderer::render(VkCommandBuffer frame_cb, SyncData& sync_data) {
 }
 
 void VulkanRenderer::postprocessing(VkCommandBuffer frame_cb, VulkanFrameBuffer& framebuffer) {
-	VkViewport viewport = {
-		.x = 0,
-		.y = 0,
-		.width = (float)framebuffer.width,
-		.height = (float)framebuffer.height,
-		.minDepth = 0.0,
-		.maxDepth = 1.0
-	};
+    float aspect = (float)main_framebuffers[0].width / (float)main_framebuffers[0].height;
+    VkViewport viewport;
+    if (aspect < ((float)framebuffer.width / (float)framebuffer.height)) {
+        float w = (float)framebuffer.height * aspect;
+        viewport = {
+            .x = (float)framebuffer.width / 2.0f - w / 2.0f,
+            .y = 0,
+            .width = w,
+            .height = (float)framebuffer.height,
+            .minDepth = 0.0,
+            .maxDepth = 1.0
+        };
+    } else {
+        float h = (float)framebuffer.width / aspect;
+        viewport = {
+            .x = 0,
+            .y = (float)framebuffer.height / 2.0f - h / 2.0f,
+            .width = (float)framebuffer.width,
+            .height = h,
+            .minDepth = 0.0,
+            .maxDepth = 1.0
+        };
+    }
+
 	vkCmdSetViewport(frame_cb, 0, 1, &viewport);
 
     VkRect2D scissor = {

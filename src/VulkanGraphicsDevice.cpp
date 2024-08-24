@@ -5,6 +5,17 @@
 #include "timer.h"
 #include "utils.h"
 
+#ifdef _WIN32
+	#define WIN32_LEAN_AND_MEAN
+	#define NOMINMAX
+	#include <windows.h>
+	#include <vulkan/vulkan_win32.h>
+#endif
+
+#ifdef __linux__
+	#include <vulkan/vulkan_xlib.h>
+#endif
+
 VulkanGraphicsDevice::VulkanGraphicsDevice() {
 	Timer timer = Timer("VGD initialization");
 
@@ -40,15 +51,19 @@ VulkanGraphicsDevice::VulkanGraphicsDevice() {
 		//Instance extension configuration
 		std::vector<const char*> extension_names;
 
-		extension_names.push_back(static_cast<const char*>("VK_KHR_surface"));
+		extension_names.push_back(static_cast<const char*>(VK_KHR_SURFACE_EXTENSION_NAME));
 
 		//Platform specific surface extensions
 #ifdef _WIN32
-		extension_names.push_back(static_cast<const char*>("VK_KHR_win32_surface"));
+		extension_names.push_back(static_cast<const char*>(VK_KHR_WIN32_SURFACE_EXTENSION_NAME));
 #endif
 
 #ifdef __linux__
-		extension_names.push_back(static_cast<const char*>("VK_KHR_xlib_surface"));
+		extension_names.push_back(static_cast<const char*>(VK_KHR_XLIB_SURFACE_EXTENSION_NAME));
+#endif
+
+#ifdef _DEBUG
+		extension_names.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 #endif
 
 		VkInstanceCreateInfo inst_info;
@@ -658,23 +673,6 @@ void VulkanGraphicsDevice::graphics_queue_submit(VkCommandBuffer cb, SyncData& s
 		ts_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
 		ts_info.signalSemaphoreValueCount = signal_count;
 		ts_info.pSignalSemaphoreValues = sync_data.signal_values.data();
-
-		// printf("\nNew call to graphics_queue_submit.\n");
-		// for (uint32_t i = 0; i < wait_count; ++i) {
-		// 	if (sync_data.wait_values[i] == 0) {
-		// 		printf("Waiting on binary semaphore.\n");
-		// 	} else {
-		// 		printf("Waiting on timeline semaphore with value %i.\n", (int)sync_data.wait_values[i]);
-		// 	}
-		// }
-
-		// for (uint32_t i = 0; i < signal_count; ++i) {
-		// 	if (sync_data.signal_values[i] == 0) {
-		// 		printf("Signalling binary semaphore.\n");
-		// 	} else {
-		// 		printf("Signalling timeline semaphore with value %i.\n", (int)sync_data.signal_values[i]);
-		// 	}
-		// }
 
 		//TODO: Reevaluate this line
 		VkPipelineStageFlags wait_flags[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };

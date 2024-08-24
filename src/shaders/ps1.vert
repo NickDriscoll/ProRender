@@ -12,6 +12,7 @@ Ps1VertexOutput main(uint vtx_id : SV_VertexID, uint inst_idx : SV_INSTANCEID) {
     uint64_t cam_baseaddr = vk::RawBufferLoad<uint64_t>(pc.uniforms_addr + 3 * sizeof(uint64_t));
     uint64_t mesh_baseaddr = vk::RawBufferLoad<uint64_t>(pc.uniforms_addr + 4 * sizeof(uint64_t));
     uint64_t instance_data_baseaddr = vk::RawBufferLoad<uint64_t>(pc.uniforms_addr + 6 * sizeof(uint64_t));
+    uint2 pixel_resolution = vk::RawBufferLoad<uint2>(pc.uniforms_addr + 7 * sizeof(uint64_t));
 
     float4x4 world_matrix = vk::RawBufferLoad<float4x4>(instance_data_baseaddr + sizeof(GPUInstanceData) * inst_idx);
     uint mesh_idx = vk::RawBufferLoad<uint>(instance_data_baseaddr + sizeof(GPUInstanceData) * inst_idx + sizeof(float4x4));
@@ -35,10 +36,15 @@ Ps1VertexOutput main(uint vtx_id : SV_VertexID, uint inst_idx : SV_INSTANCEID) {
     float4x4 view_matrix = vk::RawBufferLoad<float4x4>(cam_baseaddr);
     float4x4 projection_matrix = vk::RawBufferLoad<float4x4>(cam_baseaddr + sizeof(Camera) * pc.camera_idx + sizeof(float4x4));
 
-
     Ps1VertexOutput output;
     output.world_position = mul(world_matrix, pos);
-    output.position = mul(projection_matrix, mul(view_matrix, output.world_position));
+    
+    //Snap clip-space vertex to pixel grid
+    float4 clip_space_pos = mul(projection_matrix, mul(view_matrix, output.world_position));
+    // float2 half_res = float2(pixel_resolution) / 10;
+    // clip_space_pos.xy = round(clip_space_pos.xy * half_res) / half_res;
+    output.position = clip_space_pos;
+
     output.color = color;
     output.uv = uv;
     output.instance_idx = inst_idx;

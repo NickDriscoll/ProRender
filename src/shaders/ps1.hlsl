@@ -9,6 +9,6 @@ struct Ps1VertexOutput {
     float4 position : SV_POSITION;
     float4 world_position : POSITION;
     float4 color : COLOR;
-    float2 uv : UVS;
+    noperspective float2 uv : UVS;
     uint instance_idx : INSTANCE;
 };

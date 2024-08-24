@@ -6,4 +6,5 @@ struct FrameUniforms {
 	uint64_t meshes_addr;
 	uint64_t materials_addr;
 	uint64_t instancedata_addr;
+	uint2 pixel_resolution;
 };

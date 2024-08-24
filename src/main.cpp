@@ -61,8 +61,10 @@ int main(int argc, char* argv[]) {
 	Configuration my_config = {
 		.window_width = 1440,
 		.window_height = 1080,
-		.internal_width = 640,
-		.internal_height = 480
+		.internal_width = 368,
+		.internal_height = 240
+		// .internal_width = 640,
+		// .internal_height = 480
 	};
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);	//Initialize SDL
@@ -161,7 +163,8 @@ int main(int argc, char* argv[]) {
 		"models/BoomBox.glb",
 		"models/spyro2.glb",
 		"models/samus.glb",
-		"models/CesiumMan.glb"
+		"models/CesiumMan.glb",
+		"models/town_square.glb"
 	};
 	std::vector<Ps1Object> ps1_objects;
 	for (auto& path : glb_paths) {
@@ -415,9 +418,10 @@ int main(int argc, char* argv[]) {
 				//Do updates that require knowing the view matrix
 
 				float camera_speed = 100.0;
-				if (camera_boost) {
+				if (camera_boost) 
 					camera_speed *= 10.0;
-				}
+				if (camera_crawl)
+					camera_speed /= 10.0;
 				float4 move_direction = float4(0);
 				if (move_forward) move_direction += float4(0.0, 1.0, 0.0, 0.0);
 				if (move_back) move_direction += float4(0.0, -1.0, 0.0, 0.0);

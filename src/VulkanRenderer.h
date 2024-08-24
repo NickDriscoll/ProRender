@@ -28,6 +28,7 @@ struct FrameUniforms {
 	uint64_t meshes_addr;
 	uint64_t materials_addr;
 	uint64_t instance_data_addr;
+	hlslpp::uint2 pixel_resolution;
 };
 
 struct Camera {
